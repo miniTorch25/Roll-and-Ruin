@@ -11,6 +11,7 @@ import {
   moveActivePlayer,
   playCardFromHand,
   resolveMonsterAttackPhase,
+  rerollOneDie,
   selectPlayerAction,
   startPlayerTurn,
   summonMonster
@@ -400,5 +401,161 @@ describe("timed player status processing", () => {
     };
     expect(() => playCardFromHand(state, "a", 1, true)).toThrow(/Attack cards are blocked/);
     expect(() => playCardFromHand(state, "b", 1, false)).not.toThrow();
+  });
+});
+
+
+describe("dice manipulation turn flow", () => {
+  it("rolls the bonus die and consumes controlled values during card activity", () => {
+    const cardActivity = selectPlayerAction(readyState(), "use_cards").state;
+    const state = {
+      ...cardActivity,
+      cardRuntime: {
+        players: {
+          p1: {
+            bonusDiceThisTurn: 1,
+            controlledDiceValues: [4, 6]
+          }
+        }
+      }
+    };
+    const result = finishCardActivity(state, () => 0);
+    expect(result.diceRolls).toEqual([4, 6]);
+    expect(result.state.movementSteps).toBe(10);
+    expect(result.state.cardRuntime?.players.p1).toMatchObject({
+      bonusDiceThisTurn: 0,
+      controlledDiceValues: []
+    });
+  });
+
+  it("rerolls one selected die and updates the movement total", () => {
+    const cardActivity = selectPlayerAction(readyState(), "use_cards").state;
+    const state = {
+      ...cardActivity,
+      cardRuntime: {
+        players: {
+          p1: { rerollsRemaining: 1 }
+        }
+      }
+    };
+    const firstRoll = finishCardActivity(state, () => 0);
+    expect(firstRoll.diceRolls).toEqual([1]);
+
+    const rerolled = rerollOneDie(firstRoll.state, firstRoll.diceRolls, 0, () => 0.99);
+    expect(rerolled.diceRolls).toEqual([6]);
+    expect(rerolled.state.movementSteps).toBe(6);
+    expect(rerolled.state.cardRuntime?.players.p1.rerollsRemaining).toBe(0);
+    expect(() => rerollOneDie(rerolled.state, rerolled.diceRolls, 0, () => 0)).toThrow(/No die reroll/);
+  });
+
+  it("applies cursed die-face reduction when rerolling", () => {
+    const cardActivity = selectPlayerAction(readyState(), "use_cards").state;
+    const state = {
+      ...cardActivity,
+      players: cardActivity.players.map((player) => player.id === "p1"
+        ? {
+            ...player,
+            statusEffects: [{ type: "dice_reduction" as const, turnsRemaining: 2, amount: 2, minimum: 1 }]
+          }
+        : player),
+      cardRuntime: {
+        players: {
+          p1: { rerollsRemaining: 1 }
+        }
+      }
+    };
+    const firstRoll = finishCardActivity(state, () => 0.99);
+    expect(firstRoll.diceRolls).toEqual([4]);
+    const rerolled = rerollOneDie(firstRoll.state, firstRoll.diceRolls, 0, () => 0.99);
+    expect(rerolled.diceRolls).toEqual([4]);
+  });
+});
+
+
+describe("dice status precedence and controlled die faces", () => {
+  it("uses only one die when cursed even if a bonus die is stored", () => {
+    const cardActivity = selectPlayerAction(readyState(), "use_cards").state;
+    const state = {
+      ...cardActivity,
+      players: cardActivity.players.map((player) => player.id === "p1"
+        ? {
+            ...player,
+            statusEffects: [{ type: "dice_limit" as const, turnsRemaining: 1, amount: 1 }]
+          }
+        : player),
+      cardRuntime: {
+        players: {
+          p1: {
+            bonusDiceThisTurn: 2,
+            controlledDiceValues: [6]
+          }
+        }
+      }
+    };
+    const result = finishCardActivity(state, () => 0);
+    expect(result.diceRolls).toEqual([6]);
+    expect(result.state.movementSteps).toBe(6);
+  });
+
+  it("applies cursed die-face reduction to values chosen through Control Dice", () => {
+    const cardActivity = selectPlayerAction(readyState(), "use_cards").state;
+    const state = {
+      ...cardActivity,
+      players: cardActivity.players.map((player) => player.id === "p1"
+        ? {
+            ...player,
+            statusEffects: [{ type: "dice_reduction" as const, turnsRemaining: 2, amount: 2, minimum: 1 }]
+          }
+        : player),
+      cardRuntime: {
+        players: {
+          p1: {
+            bonusDiceThisTurn: 1,
+            controlledDiceValues: [6, 4]
+          }
+        }
+      }
+    };
+    const result = finishCardActivity(state, () => 0);
+    expect(result.diceRolls).toEqual([4, 2]);
+    expect(result.state.movementSteps).toBe(6);
+  });
+
+  it("supports a maximum of three dice and resets all dice effects at owner turn end", () => {
+    const initial = {
+      ...readyState(),
+      phase: "turn_end" as const,
+      cardRuntime: {
+        players: {
+          p1: {
+            bonusDiceThisTurn: 2,
+            luckyDiceUsedThisTurn: true,
+            rerollsRemaining: 1,
+            rerollCardUsedThisTurn: true,
+            controlledDiceValues: [4, 5, 6],
+            diceControlUsedThisTurn: true
+          }
+        }
+      }
+    };
+    const ended = endPlayerTurn(initial);
+    expect(ended.cardRuntime?.players.p1).toMatchObject({
+      bonusDiceThisTurn: 0,
+      luckyDiceUsedThisTurn: false,
+      rerollsRemaining: 0,
+      rerollCardUsedThisTurn: false,
+      controlledDiceValues: [],
+      diceControlUsedThisTurn: false
+    });
+
+    const cardActivity = selectPlayerAction(readyState(), "use_cards").state;
+    const maxDiceState = {
+      ...cardActivity,
+      cardRuntime: {
+        players: { p1: { bonusDiceThisTurn: 2 } }
+      }
+    };
+    const result = finishCardActivity(maxDiceState, () => 0);
+    expect(result.diceRolls).toEqual([1, 1, 1]);
   });
 });

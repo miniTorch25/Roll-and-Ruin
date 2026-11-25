@@ -39,6 +39,12 @@ export interface TurnCardRuntimePlayer {
   blockedAttackCardsThisTurn?: boolean;
   curseCooldownTurnsRemaining?: number;
   curseCooldownFresh?: boolean;
+  bonusDiceThisTurn?: number;
+  luckyDiceUsedThisTurn?: boolean;
+  rerollsRemaining?: number;
+  rerollCardUsedThisTurn?: boolean;
+  controlledDiceValues?: number[];
+  diceControlUsedThisTurn?: boolean;
 }
 
 export interface TurnCardRuntime {
@@ -449,10 +455,88 @@ export function finishCardActivity(
   const minimum = active.statusEffects
     .filter((effect) => effect.type === "dice_reduction" && effect.turnsRemaining > 0)
     .reduce((value, effect) => Math.max(value, effect.minimum ?? 1), 1);
-  const diceRolls = [Math.max(minimum, rollD6(random) - reduction)];
+  const runtime = state.cardRuntime?.players[active.id];
+  const bonusDice = Math.max(0, Math.min(2, runtime?.bonusDiceThisTurn ?? 0));
+  const diceLimited = active.statusEffects.some((effect) =>
+    effect.type === "dice_limit" && effect.turnsRemaining > 0
+  );
+  const diceCount = diceLimited ? 1 : Math.min(3, 1 + bonusDice);
+  const controlledDiceValues = runtime?.controlledDiceValues ?? [];
+  const diceRolls = Array.from({ length: diceCount }, (_, index) => {
+    const controlledValue = controlledDiceValues[index];
+    const dieFace = controlledValue !== undefined ? controlledValue : rollD6(random);
+    return Math.max(minimum, dieFace - reduction);
+  });
+  let cardRuntime = state.cardRuntime;
+  if (cardRuntime && runtime) {
+    cardRuntime = {
+      ...cardRuntime,
+      players: {
+        ...cardRuntime.players,
+        [active.id]: {
+          ...runtime,
+          bonusDiceThisTurn: 0,
+          controlledDiceValues: []
+        }
+      }
+    };
+  }
   return {
-    state: { ...state, movementSteps: diceRolls[0], phase: "move" },
+    state: {
+      ...state,
+      cardRuntime,
+      movementSteps: diceRolls.reduce((sum, value) => sum + value, 0),
+      phase: "move"
+    },
     diceRolls
+  };
+}
+
+/** Rerolls one die from the active card-activity movement roll, if a reroll charge is available. */
+export function rerollOneDie(
+  state: GameState,
+  diceRolls: number[],
+  dieIndex: number,
+  random: () => number = Math.random
+): { state: GameState; diceRolls: number[] } {
+  if (state.phase !== "move" || state.selectedAction !== "use_cards") {
+    throw new Error("A die can only be rerolled after the use-cards movement roll.");
+  }
+  const active = getActivePlayer(state);
+  const runtime = state.cardRuntime?.players[active.id];
+  if (!runtime || (runtime.rerollsRemaining ?? 0) < 1) {
+    throw new Error("No die reroll is available this turn.");
+  }
+  if (!Number.isInteger(dieIndex) || dieIndex < 0 || dieIndex >= diceRolls.length) {
+    throw new Error("dieIndex must identify an existing die.");
+  }
+
+  const reduction = active.statusEffects
+    .filter((effect) => effect.type === "dice_reduction" && effect.turnsRemaining > 0)
+    .reduce((maximum, effect) => Math.max(maximum, effect.amount ?? 0), 0);
+  const minimum = active.statusEffects
+    .filter((effect) => effect.type === "dice_reduction" && effect.turnsRemaining > 0)
+    .reduce((value, effect) => Math.max(value, effect.minimum ?? 1), 1);
+  const nextRolls = [...diceRolls];
+  nextRolls[dieIndex] = Math.max(minimum, rollD6(random) - reduction);
+  const nextRuntime = {
+    ...runtime,
+    rerollsRemaining: (runtime.rerollsRemaining ?? 0) - 1
+  };
+  const cardRuntime = {
+    ...state.cardRuntime,
+    players: {
+      ...state.cardRuntime?.players,
+      [active.id]: nextRuntime
+    }
+  };
+  return {
+    state: {
+      ...state,
+      cardRuntime,
+      movementSteps: nextRolls.reduce((sum, value) => sum + value, 0)
+    },
+    diceRolls: nextRolls
   };
 }
 
@@ -599,7 +683,13 @@ export function endPlayerTurn(state: GameState): GameState {
             curseCooldownTurnsRemaining: runtime.curseCooldownFresh
               ? (runtime.curseCooldownTurnsRemaining ?? 0)
               : Math.max(0, (runtime.curseCooldownTurnsRemaining ?? 0) - 1),
-            curseCooldownFresh: false
+            curseCooldownFresh: false,
+            bonusDiceThisTurn: 0,
+            luckyDiceUsedThisTurn: false,
+            rerollsRemaining: 0,
+            rerollCardUsedThisTurn: false,
+            controlledDiceValues: [],
+            diceControlUsedThisTurn: false
           }
         }
       };

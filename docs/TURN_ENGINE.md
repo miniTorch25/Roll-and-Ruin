@@ -38,6 +38,10 @@ A player skipped by Sleep or Prison enters Turn End without taking an action. Mo
 
 Dice reduction is applied to each die face individually, with the configured minimum applied after reduction.
 
+During the Use Cards activity, movement normally uses one D6. Lucky Dice can add one bonus die (the turn runtime supports at most two bonus dice, so the total never exceeds three). A one-die status takes precedence over bonus dice. Control Dice can replace the die faces for the current movement roll; active cursed-die reduction is still applied to the selected values. After the roll, temporary bonus and controlled values are consumed.
+
+Lucky Clover grants one reroll charge. `rerollOneDie` replaces one selected die after the Use Cards movement roll, updates the movement total, and consumes the charge. The reroll also respects active cursed-die reduction.
+
 The engine accepts drawn card IDs from the deck layer and does not create placeholder catalogue entries.
 
 ## Timed player statuses
