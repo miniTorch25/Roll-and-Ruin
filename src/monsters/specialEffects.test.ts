@@ -37,7 +37,7 @@ describe("monster-applied player status effects", () => {
     });
 
     const started = startPlayerTurn({ ...hit.state, phase: "turn_start" }, () => 0);
-    expect(started.players[0].hp).toBe(19);
+    expect(started.players[0].hp).toBe(16);
     expect(started.players[0].statusEffects).toContainEqual({
       type: "poison",
       turnsRemaining: 3,
