@@ -1,6 +1,9 @@
 import { applyPlayerDeath, getActivePlayer, imprisonPlayer, resurrectPlayer, MAX_CARDS_PER_TURN, type DeathResult, type GameState, type PlayerStatusEffect, type PlayerStatusEffectType } from "../game/turnEngine";
 import { getCardDefinition, type CardDefinition, type CardEffectId } from "./catalogue";
 import { drawCards, type CardDeckState } from "./deck";
+import { damageMonster, summonRandomMonster, type MonsterDamageEvent } from "../monsters/engine";
+import type { MonsterRank } from "../monsters/catalogue";
+import type { MonsterAttackEvent } from "../game/turnEngine";
 
 export interface CardRuntimePlayerState {
   shields: number;
@@ -36,6 +39,8 @@ export type CursePayment =
 export interface ResolveCardEffectOptions {
   /** Required by effects that name one player or teammate. */
   targetPlayerId?: string;
+  /** Required by Monster Hunter. */
+  targetMonsterId?: string;
   /** Card id selected by the player who must give or discard a card. */
   selectedCardId?: string;
   /** Current deck state for effects that draw cards. */
@@ -71,6 +76,8 @@ export interface ResolveCardEffectResult {
   appliedToPlayerIds: string[];
   endsCardPlay: boolean;
   damageEvents: DamageEvent[];
+  monsterDamageEvents: MonsterDamageEvent[];
+  monsterSummonEvents: MonsterAttackEvent[];
   revealedHands: Array<{ playerId: string; cardIds: string[] }>;
   discardedCardIds: string[];
   drawEvents: CardDrawEvent[];
@@ -342,6 +349,9 @@ function takeAttackBonus(state: CardEffectGameState, playerId: string): {
 }
 
 const IMPLEMENTED_EFFECTS = new Set<CardEffectId>([
+  "damage_with_random_splash",
+  "damage_monster_only",
+  "summon_random_monster",
   "damage_single",
   "damage_single_pierce_shield",
   "damage_and_remove_shields",
@@ -418,6 +428,8 @@ export function resolveCardEffect(
   const active = getActivePlayer(state);
   const appliedToPlayerIds: string[] = [active.id];
   const damageEvents: DamageEvent[] = [];
+  const monsterDamageEvents: MonsterDamageEvent[] = [];
+  const monsterSummonEvents: MonsterAttackEvent[] = [];
   const revealedHands: Array<{ playerId: string; cardIds: string[] }> = [];
   const discardedCardIds: string[] = [];
   const drawEvents: CardDrawEvent[] = [];
@@ -488,6 +500,74 @@ export function resolveCardEffect(
   }
 
   switch (card.effectId) {
+    case "damage_monster_only": {
+      if (!options.targetMonsterId) {
+        throw new Error("Monster Hunter requires targetMonsterId.");
+      }
+      const attack = takeAttackBonus(state, active.id);
+      state = attack.state;
+      const hit = damageMonster(
+        state,
+        options.targetMonsterId,
+        Math.max(1, Number(card.parameters?.damage ?? 5) + attack.bonus),
+        active.id
+      );
+      state = hit.state;
+      monsterDamageEvents.push(hit.event);
+      break;
+    }
+    case "damage_with_random_splash": {
+      const target = requireOpponentTarget(state, active.id, options.targetPlayerId);
+      const attack = takeAttackBonus(state, active.id);
+      state = attack.state;
+      const primary = applyDamage(
+        state,
+        target.id,
+        Math.max(1, Number(card.parameters?.targetDamage ?? 3) + attack.bonus),
+        random,
+        { sourcePlayerId: active.id }
+      );
+      state = primary.state;
+      damageEvents.push(primary.event);
+      appliedToPlayerIds.push(target.id);
+
+      const splashTargets = [
+        ...state.players
+          .filter((player) => player.id !== target.id && player.status === "alive")
+          .map((player) => ({ kind: "player" as const, id: player.id })),
+        ...state.monsters
+          .filter((monster) => monster.active)
+          .map((monster) => ({ kind: "monster" as const, id: monster.id }))
+      ];
+      if (splashTargets.length > 0) {
+        const index = Math.min(splashTargets.length - 1, Math.max(0, Math.floor(random() * splashTargets.length)));
+        const splashTarget = splashTargets[index];
+        const splashDamage = Math.max(1, Number(card.parameters?.splashDamage ?? 1) + attack.bonus);
+        if (splashTarget.kind === "player") {
+          const splash = applyDamage(state, splashTarget.id, splashDamage, random, { sourcePlayerId: active.id });
+          state = splash.state;
+          damageEvents.push(splash.event);
+          appliedToPlayerIds.push(splashTarget.id);
+        } else {
+          const splash = damageMonster(state, splashTarget.id, splashDamage, active.id);
+          state = splash.state;
+          monsterDamageEvents.push(splash.event);
+        }
+      }
+      break;
+    }
+    case "summon_random_monster": {
+      const rank = card.parameters?.rank;
+      const validRanks: MonsterRank[] = ["Common", "Rare", "Epic", "Legend", "Myth"];
+      if (typeof rank !== "string" || !validRanks.includes(rank as MonsterRank)) {
+        throw new Error("Summon card has an invalid monster rank in its catalogue parameters.");
+      }
+      const instanceId = `monster-${state.turnNumber}-${state.monsters.length + 1}-${card.id}`;
+      const summoned = summonRandomMonster(state, rank as MonsterRank, instanceId, random);
+      state = summoned.state;
+      monsterSummonEvents.push(summoned.attack);
+      break;
+    }
     case "damage_single":
     case "damage_single_pierce_shield":
     case "damage_and_remove_shields":
@@ -1093,7 +1173,7 @@ export function resolveCardEffect(
     }
   }
 
-  return { state, card, appliedToPlayerIds, endsCardPlay, damageEvents, revealedHands, discardedCardIds, drawEvents, deck: updatedDeck, cursePayment: options.cursePayment };
+  return { state, card, appliedToPlayerIds, endsCardPlay, damageEvents, monsterDamageEvents, monsterSummonEvents, revealedHands, discardedCardIds, drawEvents, deck: updatedDeck, cursePayment: options.cursePayment };
 }
 
 
