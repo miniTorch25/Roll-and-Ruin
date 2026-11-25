@@ -119,14 +119,14 @@ describe("Legend monster offerings", () => {
   });
 
   it.each([
-    ["sphinxy", 50, 2],
-    ["unico", 100, 5],
-    ["lepri", 30, 1],
-    ["mirro", 100, 5],
-    ["treeo", 30, 1],
-    ["dwarfy", 50, 2],
-    ["kingo", 50, 2]
-  ])("%s reflects the configured percentage of actual HP damage", (id, _percentage, expected) => {
+    { id: "sphinxy", expected: 2 },
+    { id: "unico", expected: 5 },
+    { id: "lepri", expected: 1 },
+    { id: "mirro", expected: 5 },
+    { id: "treeo", expected: 1 },
+    { id: "dwarfy", expected: 2 },
+    { id: "kingo", expected: 2 }
+  ])("$id reflects the configured percentage of actual HP damage", ({ id, expected }) => {
     const state = summon(id);
     const result = resolveCardEffect(state, "blue_monster_hunter", {
       targetMonsterId: id,
