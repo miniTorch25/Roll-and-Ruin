@@ -28,15 +28,12 @@ export class BoardScene extends Phaser.Scene {
   constructor() { super("BoardScene"); }
 
   create(): void {
-    this.state = createGameState("1x4", PLAYER_SETUP, 3, PATH_LENGTH);
-    this.state = {
-      ...this.state,
-      players: this.state.players.map((player) => {
-        const drawn = drawCards([], this.deck, 4);
-        this.deck = drawn.deck;
-        return { ...player, hand: drawn.hand };
-      })
-    };
+    const startingSetup = PLAYER_SETUP.map((player) => {
+      const drawn = drawCards([], this.deck, 4);
+      this.deck = drawn.deck;
+      return { ...player, startingHand: drawn.hand };
+    });
+    this.state = createGameState("1x4", startingSetup, PATH_LENGTH);
     this.state = startPlayerTurn(resolveMonsterAttackPhase(this.state).state);
     this.drawBackdrop();
     this.drawBoard();
