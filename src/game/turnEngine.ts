@@ -74,9 +74,18 @@ export interface GamePlayer {
 
 export interface GameMonster {
   id: string;
+  /** Source catalogue identifier such as C01 or M06. */
+  catalogueId?: string;
+  name?: string;
+  rank?: "Common" | "Rare" | "Epic" | "Legend" | "Myth";
+  /** null HP represents an immortal monster from the source rules. */
+  hp?: number | null;
+  maxHp?: number | null;
+  damage?: number;
+  ignoresShields?: boolean;
   attackPattern: MonsterAttackPattern;
-  /** The monster-specific interval from the rules file. */
-  attackInterval: number;
+  /** null means the monster only performs its summon-time attack or has no scheduled attack. */
+  attackInterval: number | null;
   /** Number of distinct living targets for a scheduled attack. */
   targetCount?: number;
   /** One-shot target override consumed by this monster's next scheduled attack. */
@@ -249,8 +258,14 @@ export function summonMonster(
   if (state.monsters.filter((item) => item.active).length >= 4) {
     throw new Error("A maximum of four active monsters may be on the board.");
   }
-  if (!Number.isInteger(monster.attackInterval) || monster.attackInterval < 1) {
-    throw new Error("A monster must define its own positive attack interval.");
+  if (monster.attackInterval !== null && (!Number.isInteger(monster.attackInterval) || monster.attackInterval < 1)) {
+    throw new Error("A scheduled monster attack interval must be a positive integer or null.");
+  }
+  if (monster.damage !== undefined && (!Number.isInteger(monster.damage) || monster.damage < 0)) {
+    throw new Error("Monster damage must be a non-negative integer.");
+  }
+  if (monster.hp !== undefined && monster.hp !== null && (!Number.isFinite(monster.hp) || monster.hp < 0)) {
+    throw new Error("Monster HP must be a non-negative finite number or null for immortality.");
   }
   if (monster.targetCount !== undefined && (!Number.isInteger(monster.targetCount) || monster.targetCount < 1)) {
     throw new Error("targetCount must be a positive integer when provided.");
@@ -282,7 +297,7 @@ export function resolveMonsterAttackPhase(
 
   const attacks: MonsterAttackEvent[] = [];
   const monsters = state.monsters.map((monster) => {
-    if (!monster.active || monster.turnsSinceLastAttack < monster.attackInterval) {
+    if (!monster.active || monster.attackInterval === null || monster.turnsSinceLastAttack < monster.attackInterval) {
       return monster;
     }
 
