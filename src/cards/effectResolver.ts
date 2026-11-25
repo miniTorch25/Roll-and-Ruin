@@ -1,4 +1,4 @@
-import { applyPlayerDeath, getActivePlayer, imprisonPlayer, resurrectPlayer, MAX_CARDS_PER_TURN, type DeathResult, type GameState, type PlayerStatusEffect, type PlayerStatusEffectType } from "../game/turnEngine";
+import { applyPlayerDeath, getActivePlayer, imprisonPlayer, resurrectPlayer, MAX_CARDS_PER_TURN, type DeathResult, type GameState, type PlayerStatusEffect, type PlayerStatusEffectType, type MonsterAttackEvent } from "../game/turnEngine";
 import { getCardDefinition, type CardDefinition, type CardEffectId } from "./catalogue";
 import { drawCards, type CardDeckState } from "./deck";
 import { damageMonster, summonRandomMonster, type MonsterDamageEvent } from "../monsters/engine";
