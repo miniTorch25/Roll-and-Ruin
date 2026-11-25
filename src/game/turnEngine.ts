@@ -100,6 +100,10 @@ export interface GameMonster {
   lastTargetPlayerId?: string;
   /** Cards held by Sneaky until it is defeated. */
   stolenCards?: Array<{ ownerPlayerId: string; cardId: string }>;
+  /** Remaining Phoenix revivals; initialized to one for Fenny. */
+  revivalsRemaining?: number;
+  /** Remaining Lepri exchanges before it leaves the board. */
+  exchangesRemaining?: number;
   turnsSinceLastAttack: number;
   active: boolean;
 }

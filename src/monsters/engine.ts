@@ -12,6 +12,10 @@ export interface MonsterDamageEvent {
   preventedBy?: "infinite_hp" | "attack_below_threshold";
   /** Additional green-card reward Chesty grants when defeated. */
   bonusReward?: { greenCards: number };
+  /** Damage reflected to the attacking player by a Legend monster. */
+  reflectedDamage?: number;
+  /** True when Fenny consumed its one revival instead of being defeated. */
+  revived?: boolean;
   /** True when Webby's Attack-card defeat rule suppresses its normal reward. */
   rewardSuppressed?: boolean;
   /** Cards returned to their original owners when Sneaky is defeated. */
@@ -42,6 +46,8 @@ export function summonRandomMonster(
     id: instanceId,
     catalogueId: definition.id,
     ...(triggerPosition === undefined ? {} : { triggerPosition }),
+    ...(definition.id === "L06" ? { revivalsRemaining: 1 } : {}),
+    ...(definition.id === "L05" ? { exchangesRemaining: 3 } : {}),
     name: definition.name,
     rank: definition.rank,
     hp: definition.hp,
@@ -99,10 +105,12 @@ export function damageMonster(
   const hpDamage = Math.min(monster.hp, amount);
   const hpAfter = Math.max(0, monster.hp - amount);
   event.hpDamage = hpDamage;
-  event.hpAfter = hpAfter;
-  event.defeated = hpAfter === 0;
+  const phoenixRevives = hpAfter === 0 && monster.catalogueId === "L06" && (monster.revivalsRemaining ?? 0) > 0;
+  event.revived = phoenixRevives;
+  event.hpAfter = phoenixRevives ? (monster.maxHp ?? monster.hp) : hpAfter;
+  event.defeated = hpAfter === 0 && !phoenixRevives;
 
-  const returnedCards = hpAfter === 0 ? [...(monster.stolenCards ?? [])] : [];
+  const returnedCards = event.defeated ? [...(monster.stolenCards ?? [])] : [];
   const players = returnedCards.length > 0
     ? state.players.map((player) => {
         const cards = returnedCards
@@ -112,7 +120,9 @@ export function damageMonster(
       })
     : state.players;
   const monsters = state.monsters.map((item) => item.id === monsterId
-    ? { ...item, hp: hpAfter, active: hpAfter > 0, ...(hpAfter === 0 ? { stolenCards: [] } : {}) }
+    ? phoenixRevives
+      ? { ...item, hp: item.maxHp ?? item.hp, active: true, revivalsRemaining: (item.revivalsRemaining ?? 1) - 1 }
+      : { ...item, hp: hpAfter, active: hpAfter > 0, ...(hpAfter === 0 ? { stolenCards: [] } : {}) }
     : item
   );
   if (returnedCards.length > 0) event.returnedCards = returnedCards;

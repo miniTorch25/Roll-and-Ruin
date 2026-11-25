@@ -1,4 +1,4 @@
-import { applyPlayerDeath, getActivePlayer, imprisonPlayer, resurrectPlayer, MAX_CARDS_PER_TURN, type DeathResult, type GameState, type PlayerStatusEffect, type PlayerStatusEffectType, type MonsterAttackEvent } from "../game/turnEngine";
+import { applyPlayerDeath, getActivePlayer, imprisonPlayer, resurrectPlayer, MAX_CARDS_PER_TURN, type DeathResult, type GameState, type GameMonster, type PlayerStatusEffect, type PlayerStatusEffectType, type MonsterAttackEvent } from "../game/turnEngine";
 import { getCardDefinition, type CardDefinition, type CardEffectId } from "./catalogue";
 import { drawCards, type CardDeckState } from "./deck";
 import { resolveMonsterDefeatRewards, type MonsterRewardEvent } from "../monsters/rewards";
@@ -489,6 +489,34 @@ function takeAttackBonus(state: CardEffectGameState, playerId: string): {
   };
 }
 
+function applyLegendMonsterReflection(
+  inputState: CardEffectGameState,
+  monster: GameMonster,
+  attackerId: string,
+  monsterDamage: number,
+  random: () => number
+): { state: CardEffectGameState; reflectedDamage: number; event?: DamageEvent } {
+  const percentages: Record<string, number> = {
+    L02: 50,
+    L04: 100,
+    L05: 30,
+    L07: 100,
+    L08: 30,
+    L09: 50,
+    L10: 50
+  };
+  const percentage = monster.catalogueId ? percentages[monster.catalogueId] : undefined;
+  const reflectedDamage = percentage === undefined ? 0 : Math.floor(monsterDamage * percentage / 100);
+  if (reflectedDamage <= 0 || !inputState.players.some(player => player.id === attackerId && player.status === "alive")) {
+    return { state: inputState, reflectedDamage: 0 };
+  }
+  const reflected = applyDamage(inputState, attackerId, reflectedDamage, random, {
+    kind: "reflection",
+    ignoreShield: monster.catalogueId === "L07"
+  });
+  return { state: reflected.state, reflectedDamage, event: reflected.event };
+}
+
 const IMPLEMENTED_EFFECTS = new Set<CardEffectId>([
   "damage_with_random_splash",
   "damage_monster_only",
@@ -657,6 +685,12 @@ export function resolveCardEffect(
         active.id
       );
       state = hit.state as CardEffectGameState;
+      if (hit.event.hpDamage > 0) {
+        const reflection = applyLegendMonsterReflection(state, targetMonster, active.id, hit.event.hpDamage, random);
+        state = reflection.state;
+        if (reflection.event) damageEvents.push(reflection.event);
+        if (reflection.reflectedDamage > 0) hit.event.reflectedDamage = reflection.reflectedDamage;
+      }
       if (hit.event.defeated && targetMonster.catalogueId === "C05") hit.event.rewardSuppressed = true;
       monsterDamageEvents.push(hit.event);
       if (hit.event.defeated && targetMonster.catalogueId === "C07") {
@@ -703,6 +737,12 @@ export function resolveCardEffect(
           const rockyReduction = splashMonster?.catalogueId === "C09" ? 1 : 0;
           const splash = damageMonster(state, splashTarget.id, Math.max(1, splashDamage - rockyReduction), active.id);
           state = splash.state as CardEffectGameState;
+          if (splashMonster && splash.event.hpDamage > 0) {
+            const reflection = applyLegendMonsterReflection(state, splashMonster, active.id, splash.event.hpDamage, random);
+            state = reflection.state;
+            if (reflection.event) damageEvents.push(reflection.event);
+            if (reflection.reflectedDamage > 0) splash.event.reflectedDamage = reflection.reflectedDamage;
+          }
           if (splash.event.defeated && splashMonster?.catalogueId === "C05") splash.event.rewardSuppressed = true;
           monsterDamageEvents.push(splash.event);
           if (splash.event.defeated && splashMonster?.catalogueId === "C07") {
