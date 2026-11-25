@@ -60,7 +60,7 @@ export interface PlayerSetup {
   id: string;
   teamId: string;
   /** The deck layer supplies the four real starting cards. */
-  startingHand?: string[];
+  startingHand: string[];
 }
 
 export interface MonsterAttackEvent {
@@ -85,7 +85,6 @@ const MODE_RULES: Record<GameMode, { players: number; teams: number; playersPerT
 export function createGameState(
   mode: GameMode,
   playerSetup: PlayerSetup[],
-  heartsPerPlayer = STARTING_HEARTS,
   boardLength = 32
 ): GameState {
   const rules = MODE_RULES[mode];
@@ -102,9 +101,6 @@ export function createGameState(
       throw new Error(`Team ${teamId} must contain ${rules.playersPerTeam} player(s).`);
     }
   }
-  if (!Number.isInteger(heartsPerPlayer) || heartsPerPlayer < 1) {
-    throw new Error("heartsPerPlayer must be a positive integer.");
-  }
   if (!Number.isInteger(boardLength) || boardLength !== 32) {
     throw new Error("The confirmed board contains exactly 32 spaces.");
   }
@@ -112,7 +108,7 @@ export function createGameState(
     throw new Error("Player IDs must be unique.");
   }
   for (const player of playerSetup) {
-    if (player.startingHand && player.startingHand.length !== STARTING_HAND_SIZE) {
+    if (player.startingHand.length !== STARTING_HAND_SIZE) {
       throw new Error(`Player ${player.id} must start with exactly ${STARTING_HAND_SIZE} cards.`);
     }
   }
@@ -129,9 +125,9 @@ export function createGameState(
       position: 0,
       hp: STARTING_HP,
       maxHp: STARTING_HP,
-      hearts: heartsPerPlayer,
+      hearts: STARTING_HEARTS,
       score: 0,
-      hand: [...(player.startingHand ?? [])],
+      hand: [...player.startingHand],
       cardsPlayedThisTurn: 0,
       status: "alive"
     })),
@@ -181,6 +177,9 @@ export function summonMonster(
   }
   if (!Number.isInteger(monster.attackInterval) || monster.attackInterval < 1) {
     throw new Error("A monster must define its own positive attack interval.");
+  }
+  if (monster.targetCount !== undefined && (!Number.isInteger(monster.targetCount) || monster.targetCount < 1)) {
+    throw new Error("targetCount must be a positive integer when provided.");
   }
   const nextMonster: GameMonster = {
     ...monster,
