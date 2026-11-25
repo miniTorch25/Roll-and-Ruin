@@ -337,9 +337,12 @@ export function selectPlayerAction(
 }
 
 /** Play one card ID at a time. The caller resolves the card's catalogue-defined effect. */
-export function playCardFromHand(state: GameState, cardId: string): GameState {
+export function playCardFromHand(state: GameState, cardId: string, scoreValue = 0): GameState {
   if (state.phase !== "play_cards" || state.selectedAction !== "use_cards") {
     throw new Error("Cards can only be played during the use-cards activity.");
+  }
+  if (!Number.isInteger(scoreValue)) {
+    throw new Error("Card score value must be an integer.");
   }
   const active = getActivePlayer(state);
   if (active.cardsPlayedThisTurn >= MAX_CARDS_PER_TURN) {
@@ -354,7 +357,12 @@ export function playCardFromHand(state: GameState, cardId: string): GameState {
     ...state,
     players: state.players.map((player) =>
       player.id === active.id
-        ? { ...player, hand, cardsPlayedThisTurn: player.cardsPlayedThisTurn + 1 }
+        ? {
+            ...player,
+            hand,
+            score: player.score + scoreValue,
+            cardsPlayedThisTurn: player.cardsPlayedThisTurn + 1
+          }
         : player
     )
   };
