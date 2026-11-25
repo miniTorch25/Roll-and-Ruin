@@ -116,6 +116,7 @@ export interface DeathResult {
   lostHeart: boolean;
   discardedCards: string[];
   eliminated: boolean;
+  selfResurrected: boolean;
 }
 
 const MODE_RULES: Record<GameMode, { players: number; teams: number; playersPerTeam: number }> = {
@@ -597,6 +598,28 @@ export function finishSpecialTileCheck(state: GameState): GameState {
 }
 
 /** Death removes one heart, restores HP, returns the player to start, and applies the card-loss rule. */
+/** Revives one eliminated player with one heart, full HP, and the starting position. */
+export function resurrectPlayer(state: GameState, playerId: string): GameState {
+  const target = state.players.find((player) => player.id === playerId);
+  if (!target || target.status !== "eliminated" || target.hearts > 0) {
+    throw new Error("Resurrection requires a player who has been eliminated.");
+  }
+  return {
+    ...state,
+    players: state.players.map((player) => player.id === playerId
+      ? {
+          ...player,
+          hp: player.maxHp,
+          hearts: 1,
+          position: 0,
+          status: "alive" as const,
+          prisonTurnsRemaining: 0,
+          cardsPlayedThisTurn: 0
+        }
+      : player)
+  };
+}
+
 export function applyPlayerDeath(
   state: GameState,
   playerId: string,
@@ -607,11 +630,18 @@ export function applyPlayerDeath(
     throw new Error("Only a living player can be processed for death.");
   }
 
-  const hearts = Math.max(0, target.hearts - 1);
-  const discardCount = target.hand.length >= 4 ? Math.ceil(target.hand.length / 2) : 0;
+  const heartsAfterLoss = Math.max(0, target.hearts - 1);
+  const resurrectionIndex = heartsAfterLoss === 0
+    ? target.hand.indexOf("yellow_resurrection")
+    : -1;
+  const selfResurrected = resurrectionIndex >= 0;
+  const hearts = selfResurrected ? 1 : heartsAfterLoss;
   const remaining = [...target.hand];
-  const discardedCards: string[] = [];
+  if (selfResurrected) remaining.splice(resurrectionIndex, 1);
 
+  // Resurrection is consumed before the random hand-loss rule is evaluated.
+  const discardCount = remaining.length >= 4 ? Math.ceil(remaining.length / 2) : 0;
+  const discardedCards: string[] = [];
   for (let i = 0; i < discardCount; i++) {
     const index = Math.min(remaining.length - 1, Math.floor(random() * remaining.length));
     discardedCards.push(remaining.splice(index, 1)[0]);
@@ -635,7 +665,7 @@ export function applyPlayerDeath(
 
   return {
     state: { ...state, players },
-    result: { lostHeart: true, discardedCards, eliminated }
+    result: { lostHeart: true, discardedCards, eliminated, selfResurrected }
   };
 }
 
