@@ -310,7 +310,11 @@ export function startPlayerTurn(state: GameState): GameState {
   const activePlayer = state.players[activePlayerIndex];
   const players = state.players.map((player, index) =>
     index === activePlayerIndex
-      ? { ...player, cardsPlayedThisTurn: 0 }
+      ? {
+          ...player,
+          cardsPlayedThisTurn: 0,
+          prisonTurnsRemaining: Math.max(0, player.prisonTurnsRemaining - 1)
+        }
       : player
   );
   const isSkippedByStatus = activePlayer.statusEffects.some((effect) =>
@@ -461,7 +465,11 @@ export function moveActivePlayer(state: GameState): {
   const to = ((totalPosition % state.boardLength) + state.boardLength) % state.boardLength;
   const completedLaps = state.movementDirection === 1
     ? Math.floor((from + steps) / state.boardLength)
-    : Math.floor((steps + (state.boardLength - from)) / state.boardLength);
+    : from === 0
+      ? Math.floor(steps / state.boardLength)
+      : steps < from
+        ? 0
+        : 1 + Math.floor((steps - from) / state.boardLength);
   const players = state.players.map((player) =>
     player.id === active.id
       ? { ...player, position: to, score: player.score + completedLaps * 2 }
@@ -552,7 +560,6 @@ export function endPlayerTurn(state: GameState): GameState {
   const players = state.players.map((player) => player.id === activePlayer?.id
     ? {
         ...player,
-        prisonTurnsRemaining: Math.max(0, player.prisonTurnsRemaining - 1),
         statusEffects: player.statusEffects
           .map((effect) => ({ ...effect, turnsRemaining: effect.turnsRemaining - 1 }))
           .filter((effect) => effect.turnsRemaining > 0)
