@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   BOARD_SIZE,
   createBoardState,
+  type BoardTile,
   getMovementPath,
   moveAndRegenerateBoard,
   regenerateSpecialTiles,
@@ -62,7 +63,7 @@ describe("Roll and Ruin board rules", () => {
 
   it("fires the ordinary special-tile check only on the landing space", () => {
     const generated = createBoardState({ mystery: 0, monster: 0, dice: 0 }, [], () => 0);
-    const tiles = generated.tiles.map((tile) => ({ position: tile.position }));
+    const tiles: BoardTile[] = generated.tiles.map((tile) => ({ position: tile.position }));
     tiles[5] = { position: 5, special: "prison" };
     tiles[10] = { position: 10, special: "prison" };
     const board = { ...generated, tiles };
