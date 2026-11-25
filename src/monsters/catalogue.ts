@@ -836,7 +836,9 @@ export const MONSTER_CATALOGUE: readonly MonsterDefinition[] = [
   }
 ];
 
-const MONSTERS_BY_ID = new Map(MONSTER_CATALOGUE.map((monster) => [monster.id, monster]));
+const MONSTERS_BY_ID = new Map<string, MonsterDefinition>(
+  MONSTER_CATALOGUE.map((monster) => [monster.id, monster] as const)
+);
 
 export function getMonsterDefinition(id: string): MonsterDefinition | undefined {
   return MONSTERS_BY_ID.get(id);
