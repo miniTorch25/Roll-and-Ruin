@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { createGameState, resolveMonsterAttackPhase, selectPlayerAction, startPlayerTurn } from "../game/turnEngine";
-import { advanceCurseCooldown, resolveCardEffect, type CardEffectGameState } from "./effectResolver";
+import { createGameState, finishCardActivity, resolveMonsterAttackPhase, selectPlayerAction, startPlayerTurn } from "../game/turnEngine";
+import { advanceCurseCooldown, rerollOneMovementDie, resolveCardEffect, type CardEffectGameState } from "./effectResolver";
 
 function cardPlayState(mode: "1x4" | "2v2" = "1x4"): CardEffectGameState {
   const teams = mode === "2v2" ? ["red", "red", "blue", "blue"] : ["red", "blue", "green", "yellow"];
@@ -29,7 +29,11 @@ function cardPlayState(mode: "1x4" | "2v2" = "1x4"): CardEffectGameState {
         negativeStatuses: [],
         curseCooldownTurnsRemaining: 0,
         curseCooldownUses: 0,
-        curseCooldownFresh: false
+        curseCooldownFresh: false,
+        bonusDiceThisTurn: 0,
+        bonusDiceGrantedThisTurn: false,
+        rerollsRemaining: 0,
+        controlledDiceUsedThisTurn: false
       }]))
     }
   };
@@ -788,5 +792,50 @@ describe("remaining player-targeted Curse effects", () => {
       targetPlayerId: "p2",
       cursePayment: { type: "discard", cardIds: ["green_herbal_potion", "green_life_core"] }
     })).toThrow(/active monster/);
+  });
+});
+
+
+describe("dice card effects", () => {
+  it("adds one movement die with Lucky Dice and only allows it once per turn", () => {
+    const boosted = resolveCardEffect(cardPlayState(), "yellow_lucky_dice");
+    expect(boosted.state.cardRuntime.players.p1.bonusDiceThisTurn).toBe(1);
+    expect(() => resolveCardEffect(boosted.state, "yellow_lucky_dice")).toThrow(/once per turn/);
+
+    const movement = finishCardActivity(boosted.state, () => 0.2);
+    expect(movement.diceRolls).toEqual([2, 2]);
+    expect(movement.state.movementSteps).toBe(4);
+    expect(movement.state.cardRuntime?.players.p1.bonusDiceThisTurn).toBe(0);
+  });
+
+  it("grants exactly one reroll for Clover and consumes it when used", () => {
+    const prepared = resolveCardEffect(cardPlayState(), "green_lucky_clover");
+    const movement = finishCardActivity(prepared.state, () => 0);
+    expect(movement.diceRolls).toEqual([1]);
+
+    const rerolled = rerollOneMovementDie(movement.state, movement.diceRolls, 0, () => 0.99);
+    expect(rerolled.diceRolls).toEqual([6]);
+    expect(rerolled.state.movementSteps).toBe(6);
+    expect(rerolled.state.cardRuntime.players.p1.rerollsRemaining).toBe(0);
+    expect(() => rerollOneMovementDie(rerolled.state, rerolled.diceRolls, 0, () => 0)).toThrow(/No movement die reroll/);
+  });
+
+  it("requires a valid die selection for Control Dice and uses those values instead of random rolls", () => {
+    const state = cardPlayState();
+    const invalid = () => resolveCardEffect(state, "red_dice_control", {
+      cursePayment: { type: "discard", cardIds: ["green_herbal_potion", "green_life_core"] },
+      controlledDiceValues: [7]
+    });
+    expect(invalid).toThrow(/one to three selected die values/);
+
+    const controlled = resolveCardEffect(state, "red_dice_control", {
+      cursePayment: { type: "discard", cardIds: ["green_herbal_potion", "green_life_core"] },
+      controlledDiceValues: [6, 4, 3]
+    });
+    const movement = finishCardActivity(controlled.state, () => 0);
+    expect(movement.diceRolls).toEqual([6, 4, 3]);
+    expect(movement.state.movementSteps).toBe(13);
+    expect(movement.state.cardRuntime?.players.p1.controlledDiceUsedThisTurn).toBe(true);
+    expect(movement.state.cardRuntime?.players.p1.controlledDiceValues).toBeUndefined();
   });
 });
