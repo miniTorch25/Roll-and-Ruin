@@ -47,7 +47,7 @@ This is the shared baseline, not a complete implementation of all 50 monsters. S
 - **Gob (C01):** remembers the player it targeted on its previous scheduled attack. If that player is still alive, Gob targets them again with a 60% chance; otherwise, or on the remaining 40%, it chooses a different living player when one exists.
 - **Bone (C02):** targets up to two distinct living players per scheduled attack. Its catalogue already defines the two-target count.
 - **Ratty (C04):** attacks every turn, as defined by its one-turn interval.
-- **Webby (C05):** an Attack-card defeat marks its monster-damage event with `rewardSuppressed: true`, including Monster Hunter and Grenade splash. The reward consumer can use this flag to withhold the normal reward.
+- **Webby (C05):** an Attack-card defeat marks its monster-damage event with `rewardSuppressed: true`, including Monster Hunter and Grenade splash. The centralized reward resolver skips the normal reward for this event.
 - **Batty (C08):** uses a fresh random target selection for each scheduled attack; no target is remembered.
 - **Sneaky (C10):** on each scheduled attack, steals one random card from every selected target who has a card. The stolen cards are stored on Sneaky and returned to their original owners when it is defeated.
 
@@ -69,4 +69,14 @@ This is the shared baseline, not a complete implementation of all 50 monsters. S
 ## Minoo and Chesty reward metadata
 
 - **Minoo (R09):** receives a randomly selected corner position (0, 8, 16, or 24) when summoned. Movement across that position emits a movement-trigger attack event against the moving player, and the scene resolves the event immediately.
-- **Chesty (R02):** its defeat event now includes `bonusReward: { greenCards: 1 }`. This exposes the additional reward to the caller; actual card creation/distribution still depends on the shared deck/reward consumer.
+- **Chesty (R02):** its defeat event includes `bonusReward: { greenCards: 1 }`; the centralized reward resolver grants this in addition to the normal three-card reward.
+
+
+## Centralized monster reward resolution
+
+- A defeated monster normally grants three random cards from the Prank (yellow) or Curse (red) pools.
+- A monster with a catalogue-specific reward uses that reward instead of the default three-card reward.
+- Chesty adds one green card to its default reward.
+- Webby's `rewardSuppressed` event flag withholds its normal reward.
+- `resolveMonsterDefeatRewards` consumes eligible cards from the supplied shared draw pile and adds them to the defeating player's hand. It does not recycle the discard pile when a category is depleted.
+- `resolveCardEffect` automatically resolves monster rewards when a deck is supplied in its options; callers without a deck can invoke the reward resolver separately.

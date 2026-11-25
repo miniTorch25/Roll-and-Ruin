@@ -1,6 +1,7 @@
 import { applyPlayerDeath, getActivePlayer, imprisonPlayer, resurrectPlayer, MAX_CARDS_PER_TURN, type DeathResult, type GameState, type PlayerStatusEffect, type PlayerStatusEffectType, type MonsterAttackEvent } from "../game/turnEngine";
 import { getCardDefinition, type CardDefinition, type CardEffectId } from "./catalogue";
 import { drawCards, type CardDeckState } from "./deck";
+import { resolveMonsterDefeatRewards, type MonsterRewardEvent } from "../monsters/rewards";
 import { damageMonster, summonRandomMonster, type MonsterDamageEvent } from "../monsters/engine";
 import type { MonsterRank } from "../monsters/catalogue";
 
@@ -78,6 +79,7 @@ export interface ResolveCardEffectResult {
   endsCardPlay: boolean;
   damageEvents: DamageEvent[];
   monsterDamageEvents: MonsterDamageEvent[];
+  monsterRewardEvents: MonsterRewardEvent[];
   monsterSummonEvents: MonsterAttackEvent[];
   revealedHands: Array<{ playerId: string; cardIds: string[] }>;
   discardedCardIds: string[];
@@ -1329,7 +1331,15 @@ export function resolveCardEffect(
     }
   }
 
-  return { state, card, appliedToPlayerIds, endsCardPlay, damageEvents, monsterDamageEvents, monsterSummonEvents, revealedHands, discardedCardIds, drawEvents, deck: updatedDeck, cursePayment: options.cursePayment };
+  let monsterRewardEvents: MonsterRewardEvent[] = [];
+  if (updatedDeck && monsterDamageEvents.length > 0) {
+    const rewards = resolveMonsterDefeatRewards(state, monsterDamageEvents, updatedDeck, random);
+    state = rewards.state as CardEffectGameState;
+    updatedDeck = rewards.deck;
+    monsterRewardEvents = rewards.events;
+  }
+
+  return { state, card, appliedToPlayerIds, endsCardPlay, damageEvents, monsterDamageEvents, monsterRewardEvents, monsterSummonEvents, revealedHands, discardedCardIds, drawEvents, deck: updatedDeck, cursePayment: options.cursePayment };
 }
 
 
