@@ -907,3 +907,58 @@ describe("manual Resurrection card effect", () => {
     })).toThrow(/cannot target themselves/);
   });
 });
+
+
+describe("rank-based monster summon card effects", () => {
+  it.each([
+    ["red_summon_common", "C01", 5, 1],
+    ["red_summon_rare", "R01", 40, 3],
+    ["red_summon_epic", "E01", 60, 6],
+    ["red_summon_legend", "L01", 100, 10],
+    ["red_summon_myth", "M01", 10000, 0]
+  ])("summons the correct rank for %s and performs the summon-time target event", (cardId, catalogueId, hp, damage) => {
+    const result = resolveCardEffect(cardPlayState(), cardId, { random: () => 0 });
+    expect(result.state.monsters).toHaveLength(1);
+    expect(result.state.monsters[0]).toMatchObject({
+      catalogueId,
+      hp,
+      maxHp: hp,
+      damage,
+      turnsSinceLastAttack: 0,
+      active: true
+    });
+    expect(result.summonedMonsterIds).toEqual([result.state.monsters[0].id]);
+    expect(result.summonEvents).toEqual([{
+      monsterId: result.state.monsters[0].id,
+      targetPlayerIds: ["p1", "p2", "p3", "p4"],
+      reason: "first_summon"
+    }]);
+  });
+
+  it("preserves immortal Myth HP and disables recurring attacks for summon-only Myth entries", () => {
+    const result = resolveCardEffect(cardPlayState(), "red_summon_myth", { random: () => 0.15 });
+    expect(result.state.monsters[0]).toMatchObject({
+      catalogueId: "M02",
+      hp: null,
+      maxHp: null,
+      attackInterval: null
+    });
+  });
+
+  it("rejects summoning a fifth active monster", () => {
+    let state = cardPlayState();
+    for (let index = 1; index <= 4; index++) {
+      state = {
+        ...state,
+        monsters: [...state.monsters, {
+          id: `existing-${index}`,
+          attackPattern: "random_living" as const,
+          attackInterval: 1,
+          turnsSinceLastAttack: 0,
+          active: true
+        }]
+      };
+    }
+    expect(() => resolveCardEffect(state, "red_summon_common", { random: () => 0 })).toThrow(/maximum of four/);
+  });
+});
