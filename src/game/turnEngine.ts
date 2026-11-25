@@ -92,6 +92,8 @@ export interface GameMonster {
   attackInterval: number | null;
   /** Number of distinct living targets for a scheduled attack. */
   targetCount?: number;
+  /** Randomly assigned board corner used by Minoo's movement-triggered attack. */
+  triggerPosition?: number;
   /** One-shot target override consumed by this monster's next scheduled attack. */
   forcedTargetPlayerId?: string;
   /** Last scheduled target, used by Gob's 60% repeat-target behavior. */
@@ -126,7 +128,7 @@ export interface PlayerSetup {
 export interface MonsterAttackEvent {
   monsterId: string;
   targetPlayerIds: string[];
-  reason: "first_summon" | "scheduled";
+  reason: "first_summon" | "scheduled" | "movement_trigger";
 }
 
 export interface DeathResult {
@@ -611,6 +613,7 @@ export function moveActivePlayer(state: GameState): {
   from: number;
   to: number;
   completedLaps: number;
+  monsterAttackEvents: MonsterAttackEvent[];
 } {
   if (state.phase !== "move") {
     throw new Error("Movement can only happen after the activity has been resolved.");
@@ -639,7 +642,24 @@ export function moveActivePlayer(state: GameState): {
       ? { ...player, position: to, score: player.score + completedLaps * 2 }
       : player
   );
-  return { state: { ...state, players, phase: "special_tile" }, from, to, completedLaps };
+  const traversedPositions = Array.from({ length: steps }, (_, index) =>
+    ((from + (index + 1) * state.movementDirection) % state.boardLength + state.boardLength) % state.boardLength
+  );
+  const monsterAttackEvents: MonsterAttackEvent[] = state.monsters
+    .filter((monster) => monster.active && monster.catalogueId === "R09" &&
+      monster.triggerPosition !== undefined && traversedPositions.includes(monster.triggerPosition))
+    .map((monster) => ({
+      monsterId: monster.id,
+      targetPlayerIds: [active.id],
+      reason: "movement_trigger" as const
+    }));
+  return {
+    state: { ...state, players, phase: "special_tile" },
+    from,
+    to,
+    completedLaps,
+    monsterAttackEvents
+  };
 }
 
 export function imprisonPlayer(state: GameState, playerId: string, turns = 3): GameState {

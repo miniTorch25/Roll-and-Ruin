@@ -10,6 +10,8 @@ export interface MonsterDamageEvent {
   hpDamage: number;
   defeated: boolean;
   preventedBy?: "infinite_hp" | "attack_below_threshold";
+  /** Additional green-card reward Chesty grants when defeated. */
+  bonusReward?: { greenCards: number };
   /** True when Webby's Attack-card defeat rule suppresses its normal reward. */
   rewardSuppressed?: boolean;
   /** Cards returned to their original owners when Sneaky is defeated. */
@@ -33,9 +35,13 @@ export function summonRandomMonster(
     throw new Error("A unique monster instance ID is required.");
   }
   const definition = getRandomMonsterByRank(rank, random);
+  const triggerPosition = definition.id === "R09"
+    ? [0, 8, 16, 24][Math.min(3, Math.max(0, Math.floor(random() * 4)))]
+    : undefined;
   const monster = {
     id: instanceId,
     catalogueId: definition.id,
+    ...(triggerPosition === undefined ? {} : { triggerPosition }),
     name: definition.name,
     rank: definition.rank,
     hp: definition.hp,
@@ -110,6 +116,9 @@ export function damageMonster(
     : item
   );
   if (returnedCards.length > 0) event.returnedCards = returnedCards;
+  if (event.defeated && monster.catalogueId === "R02") {
+    event.bonusReward = { greenCards: 1 };
+  }
   return { state: { ...state, players, monsters }, event };
 }
 
