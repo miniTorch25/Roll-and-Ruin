@@ -1,43 +1,56 @@
-# Turn Engine — Confirmed Rules
+# Turn Engine — Rule-Aligned Core
 
-This document records the rules implemented by the first game-logic layer. It deliberately leaves unspecified values and card/tile effects configurable.
+The authoritative source is `Roll_and_Ruin_Rules.txt`. This document describes only the engine behavior implemented here; card effects, tile effects, monster-specific effects, and match victory resolution remain separate systems.
 
 ## Match formats
-- **1x4:** 4 teams, 1 player per team.
-- **2x4:** 4 teams, 2 players per team.
-- Starting hearts are supplied as match configuration; no unconfirmed starting-heart number is hardcoded.
+- **1v1:** 2 players, 2 teams, 1 player per team.
+- **1x4:** 4 players, 4 teams, 1 player per team.
+- **2v2:** 4 players, 2 teams, 2 players per team.
+- **2x4:** 8 players, 4 teams, 2 players per team.
 
-## Player-turn sequence
-1. Monster attack phase.
-2. Player turn starts.
-3. Player chooses exactly one action: use a card, draw a card, or roll the die.
-4. Movement phase.
-5. Special-tile check.
-6. Player-status check.
-7. Turn ends and passes to the next living player.
+## Starting player values
+- HP: 20 (maximum HP: 20).
+- Hearts: 3.
+- Starting hand: exactly 4 card IDs supplied by the deck/catalogue layer.
+- Board: 32 spaces, four sides with nine spaces per side and corners counted once.
+
+The engine does not invent card IDs. The caller supplies the four starting cards from the authoritative 60-card catalogue.
+
+## Turn sequence
+1. Monster Attack.
+2. Turn Start.
+3. Player Action.
+4. Movement.
+5. Special Tile Check.
+6. Status Check.
+7. Turn End.
+
+## Player activities
+- **Use cards:** play up to 3 cards during the activity. The card layer resolves each card's effect. Card play does not consume a card beyond those actually played. The movement roll remains one D6.
+- **Draw:** draw up to 2 cards from the deck, then roll exactly one D6.
+- **Roll:** roll exactly two D6 and move by their sum.
+
+The engine accepts drawn card IDs from the deck layer and does not create placeholder catalogue entries.
+
+## Movement and scoring
+- Movement wraps around the 32-space board.
+- Each completed full lap awards 2 points.
+- Special-tile entry/pass-through effects are handled by the board/tile system, not invented here.
 
 ## Monsters
-- A newly summoned monster immediately targets every living player.
-- After the summon turn, its scheduled attack timer counts completed player turns.
-- It attacks once after every two completed player turns by default.
-- A scheduled monster using the normal pattern selects one random living player.
-- Special attack patterns are represented as data and can be expanded without changing the turn engine.
-- Damage values and monster-specific effects are intentionally not hardcoded because they have not been confirmed.
+- A newly summoned monster immediately targets all living players once.
+- Its scheduled attack counter then starts at zero.
+- Every monster must provide its own positive `attackInterval`; no global interval is assumed.
+- Scheduled attacks support random living targets, a target count, or all living players.
+- The monster data/effect layer remains responsible for exact targeting exceptions, damage, statuses, and summon-cap rules.
 
 ## Death and elimination
-- Death removes one heart.
-- The player returns to the starting tile.
-- If the player has at least 4 cards, randomly discard half, rounded up.
-- If the player has fewer than 4 cards, discard none.
-- A player with no hearts remaining is marked eliminated.
+- Death removes one heart and restores HP to maximum at the starting space.
+- If the player has at least 4 cards, randomly discard half, rounded up; otherwise discard none.
+- A player with no hearts is eliminated. Resurrection card handling is resolved by the card/effect layer before final elimination.
 
-## Scoring
-- Individual and team scores may be negative.
-- Team totals include points from eliminated members.
-
-## Not yet specified
-- Initial heart count.
-- Exact card effects and card draw rules.
-- Special tile effects.
-- Monster damage and unique monster behaviours.
-- Victory condition and match-end scoring.
+## Not implemented by this engine
+- Card catalogue/effects and discard-pile policy.
+- Prison, Mystery, Monster, and Dice tile events and board regeneration.
+- Monster damage, status effects, per-monster special behavior, rewards, and summon cap.
+- Mode timers, bot fill, and match victory/tie resolution.
