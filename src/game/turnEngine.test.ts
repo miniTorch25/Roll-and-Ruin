@@ -54,7 +54,7 @@ describe("Roll and Ruin turn engine", () => {
   it("makes a newly summoned monster attack every living player immediately", () => {
     const state = readyState();
     const summoned = summonMonster(state, {
-      id: "m1", attackPattern: "random_living", attackEveryPlayerTurns: 2
+      id: "m1", attackPattern: "random_living"
     });
     expect(summoned.attack.reason).toBe("first_summon");
     expect(summoned.attack.targetPlayerIds).toEqual(["p1", "p2", "p3", "p4"]);
@@ -114,6 +114,18 @@ describe("Roll and Ruin turn engine", () => {
       }))
     };
     expect(getTeamScores(scored).red).toBe(-5);
+  });
+
+  it("skips a player eliminated during the monster attack phase", () => {
+    const initial = createGameState("1x4", setup, 3, 20);
+    const attackPhase = resolveMonsterAttackPhase(initial).state;
+    const withEliminatedPlayer = {
+      ...attackPhase,
+      players: attackPhase.players.map((player) => player.id === "p1" ? { ...player, status: "eliminated" as const } : player)
+    };
+    const started = startPlayerTurn(withEliminatedPlayer);
+    expect(started.activePlayerIndex).toBe(1);
+    expect(started.phase).toBe("choose_action");
   });
 
   it("eliminates a player when the last heart is lost", () => {
