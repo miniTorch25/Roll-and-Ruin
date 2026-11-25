@@ -34,7 +34,7 @@ export class BoardScene extends Phaser.Scene {
       return { ...player, startingHand: drawn.hand };
     });
     this.state = createGameState("1x4", startingSetup, PATH_LENGTH);
-    this.state = startPlayerTurn(resolveMonsterAttackPhase(this.state).state);
+    this.state = this.prepareNextTurn(this.state);
     this.drawBackdrop();
     this.drawBoard();
     this.createPlayers();
@@ -138,7 +138,7 @@ export class BoardScene extends Phaser.Scene {
       this.state = endPlayerTurn(this.state);
 
       this.updateTokenPositions();
-      this.state = startPlayerTurn(resolveMonsterAttackPhase(this.state).state);
+      this.state = this.prepareNextTurn(this.state);
       this.updateHud(message);
       this.actionLocked = false;
       return { ok: true, message };
@@ -148,6 +148,14 @@ export class BoardScene extends Phaser.Scene {
       this.updateHud(message);
       return { ok: false, message };
     }
+  }
+
+  private prepareNextTurn(state: GameState): GameState {
+    let next = startPlayerTurn(resolveMonsterAttackPhase(state).state);
+    while (next.phase === "turn_end") {
+      next = startPlayerTurn(resolveMonsterAttackPhase(endPlayerTurn(next)).state);
+    }
+    return next;
   }
 
   private updateTokenPositions(): void {
