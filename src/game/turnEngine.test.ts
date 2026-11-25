@@ -7,6 +7,7 @@ import {
   finishSpecialTileCheck,
   finishStatusCheck,
   getTeamScores,
+  imprisonPlayer,
   moveActivePlayer,
   playCardFromHand,
   resolveMonsterAttackPhase,
@@ -217,6 +218,25 @@ describe("Roll and Ruin turn engine", () => {
       }))
     };
     expect(getTeamScores(state).red).toBe(-5);
+  });
+
+  it("skips three imprisoned turns while still advancing monster attack counters", () => {
+    let state = createGameState("1x4", setup);
+    state = summonMonster(state, {
+      id: "m1", attackPattern: "random_living", attackInterval: 1
+    }).state;
+    state = imprisonPlayer(state, "p1");
+    state = startPlayerTurn(resolveMonsterAttackPhase(state).state);
+    expect(state.phase).toBe("turn_end");
+    expect(state.players[0].prisonTurnsRemaining).toBe(2);
+
+    state = endPlayerTurn(state);
+    expect(state.monsters[0].turnsSinceLastAttack).toBe(1);
+    const attacks = resolveMonsterAttackPhase(state, () => 0);
+    expect(attacks.attacks).toHaveLength(1);
+    const nextPlayer = startPlayerTurn(attacks.state);
+    expect(nextPlayer.activePlayerIndex).toBe(1);
+    expect(nextPlayer.phase).toBe("choose_action");
   });
 
   it("skips a player eliminated during the monster attack phase", () => {

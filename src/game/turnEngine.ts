@@ -32,6 +32,7 @@ export interface GamePlayer {
   cardsPlayedThisTurn: number;
   status: PlayerStatus;
   isBot: boolean;
+  prisonTurnsRemaining: number;
 }
 
 export interface GameMonster {
@@ -163,7 +164,8 @@ export function createGameState(
       hand: [...player.startingHand],
       cardsPlayedThisTurn: 0,
       status: "alive",
-      isBot: player.isBot
+      isBot: player.isBot,
+      prisonTurnsRemaining: 0
     })),
     monsters: [],
     movementSteps: 0
@@ -271,14 +273,21 @@ export function startPlayerTurn(state: GameState): GameState {
       }
     }
   }
+  const activePlayer = state.players[activePlayerIndex];
   const players = state.players.map((player, index) =>
-    index === activePlayerIndex ? { ...player, cardsPlayedThisTurn: 0 } : player
+    index === activePlayerIndex
+      ? {
+          ...player,
+          cardsPlayedThisTurn: 0,
+          prisonTurnsRemaining: Math.max(0, player.prisonTurnsRemaining - 1)
+        }
+      : player
   );
   return {
     ...state,
     players,
     activePlayerIndex,
-    phase: "choose_action",
+    phase: activePlayer.prisonTurnsRemaining > 0 ? "turn_end" : "choose_action",
     selectedAction: undefined,
     movementSteps: 0
   };
@@ -388,6 +397,22 @@ export function moveActivePlayer(state: GameState): {
   return { state: { ...state, players, phase: "special_tile" }, from, to, completedLaps };
 }
 
+export function imprisonPlayer(state: GameState, playerId: string, turns = 3): GameState {
+  if (!Number.isInteger(turns) || turns < 1) {
+    throw new Error("Prison duration must be a positive integer.");
+  }
+  const target = state.players.find((player) => player.id === playerId);
+  if (!target || target.status !== "alive") {
+    throw new Error("Only a living player can be sent to prison.");
+  }
+  return {
+    ...state,
+    players: state.players.map((player) =>
+      player.id === playerId ? { ...player, prisonTurnsRemaining: turns } : player
+    )
+  };
+}
+
 export function finishSpecialTileCheck(state: GameState): GameState {
   if (state.phase !== "special_tile") {
     throw new Error("Special tiles can only be checked after movement.");
@@ -426,6 +451,7 @@ export function applyPlayerDeath(
           position: 0,
           hand: remaining,
           cardsPlayedThisTurn: 0,
+          prisonTurnsRemaining: 0,
           status: eliminated ? "eliminated" as const : "alive" as const
         }
       : player
