@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { createGameState, resolveMonsterAttackPhase, selectPlayerAction, startPlayerTurn } from "../game/turnEngine";
 import { advanceCurseCooldown, resolveCardEffect, type CardEffectGameState } from "./effectResolver";
+import { summonRandomMonster } from "../monsters/engine";
 
 function cardPlayState(mode: "1x4" | "2v2" = "1x4"): CardEffectGameState {
   const teams = mode === "2v2" ? ["red", "red", "blue", "blue"] : ["red", "blue", "green", "yellow"];
@@ -905,5 +906,93 @@ describe("manual Resurrection card effect", () => {
     expect(() => resolveCardEffect(cardPlayState(), "yellow_resurrection", {
       targetPlayerId: "p1"
     })).toThrow(/cannot target themselves/);
+  });
+});
+
+
+describe("monster card effects", () => {
+  it("lets Monster Hunter damage only a selected active monster", () => {
+    const summoned = summonRandomMonster(cardPlayState(), "Common", "target-monster", () => 0);
+    const result = resolveCardEffect(summoned.state, "blue_monster_hunter", {
+      targetMonsterId: "target-monster"
+    });
+    expect(result.monsterDamageEvents[0]).toMatchObject({
+      monsterId: "target-monster",
+      attemptedDamage: 5,
+      hpBefore: 5,
+      hpAfter: 0,
+      hpDamage: 5,
+      defeated: true
+    });
+    expect(result.state.monsters[0].active).toBe(false);
+    expect(result.damageEvents).toEqual([]);
+  });
+
+  it("requires a monster target for Monster Hunter", () => {
+    expect(() => resolveCardEffect(cardPlayState(), "blue_monster_hunter")).toThrow(/targetMonsterId/);
+  });
+
+  it("keeps an infinite-HP monster alive when hit by Monster Hunter", () => {
+    const summoned = summonRandomMonster(cardPlayState(), "Myth", "immortal-monster", () => 0.1);
+    const result = resolveCardEffect(summoned.state, "blue_monster_hunter", {
+      targetMonsterId: "immortal-monster"
+    });
+    expect(result.monsterDamageEvents[0]).toMatchObject({
+      hpBefore: null,
+      hpAfter: null,
+      hpDamage: 0,
+      defeated: false,
+      preventedBy: "infinite_hp"
+    });
+    expect(result.state.monsters[0].active).toBe(true);
+  });
+
+  it("applies Grenade's primary player damage and random splash to a monster", () => {
+    const summoned = summonRandomMonster(cardPlayState(), "Common", "splash-monster", () => 0);
+    const result = resolveCardEffect(summoned.state, "blue_grenade", {
+      targetPlayerId: "p2",
+      random: () => 0.99
+    });
+    expect(result.damageEvents[0]).toMatchObject({
+      targetPlayerId: "p2",
+      attemptedDamage: 3,
+      hpDamage: 3
+    });
+    expect(result.monsterDamageEvents[0]).toMatchObject({
+      monsterId: "splash-monster",
+      attemptedDamage: 1,
+      hpBefore: 5,
+      hpAfter: 4,
+      hpDamage: 1
+    });
+    expect(result.state.players[1].hp).toBe(17);
+  });
+
+  it("applies Grenade's random splash to another living player when no monsters are present", () => {
+    const result = resolveCardEffect(cardPlayState(), "blue_grenade", {
+      targetPlayerId: "p2",
+      random: () => 0
+    });
+    expect(result.damageEvents.map((event) => event.targetPlayerId)).toEqual(["p2", "p1"]);
+    expect(result.state.players[0].hp).toBe(19);
+  });
+
+  it("summons the catalogue rank selected by each Summon card and exposes the first attack event", () => {
+    const result = resolveCardEffect(cardPlayState(), "red_summon_rare", { random: () => 0 });
+    expect(result.state.monsters[0]).toMatchObject({
+      catalogueId: "R01",
+      name: "Bob",
+      rank: "Rare",
+      hp: 40,
+      maxHp: 40,
+      attackDamage: 3,
+      attackInterval: 3,
+      active: true
+    });
+    expect(result.monsterSummonEvents).toEqual([{
+      monsterId: result.state.monsters[0].id,
+      targetPlayerIds: ["p1", "p2", "p3", "p4"],
+      reason: "first_summon"
+    }]);
   });
 });
