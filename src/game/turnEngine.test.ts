@@ -51,6 +51,39 @@ describe("Roll and Ruin turn engine", () => {
     ]).players).toHaveLength(8);
   });
 
+  it("fills missing seats with bots for solo and partial-human matches", () => {
+    const solo = createGameState("1v1", [
+      { id: "solo", teamId: "red", startingHand: ["a", "b", "c", "d"] }
+    ], 32, [["e", "f", "g", "h"]]);
+    expect(solo.players).toHaveLength(2);
+    expect(solo.players.filter((player) => player.isBot)).toHaveLength(1);
+    expect(new Set(solo.players.map((player) => player.teamId)).size).toBe(2);
+
+    const partial = createGameState("1x4", [
+      { id: "human", teamId: "red", startingHand: ["a", "b", "c", "d"] }
+    ], 32, [
+      ["e", "f", "g", "h"], ["i", "j", "k", "l"], ["m", "n", "o", "p"]
+    ]);
+    expect(partial.players).toHaveLength(4);
+    expect(partial.players.filter((player) => player.isBot)).toHaveLength(3);
+    expect(new Set(partial.players.map((player) => player.teamId)).size).toBe(4);
+
+    const sevenHumans = Array.from({ length: 7 }, (_, index) => ({
+      id: `human-${index + 1}`,
+      teamId: `team-${Math.floor(index / 2) + 1}`,
+      startingHand: ["a", "b", "c", "d"]
+    }));
+    const almostFull = createGameState("2x4", sevenHumans, 32, [["e", "f", "g", "h"]]);
+    expect(almostFull.players).toHaveLength(8);
+    expect(almostFull.players.filter((player) => player.isBot)).toHaveLength(1);
+  });
+
+  it("requires exactly enough four-card starting hands for generated bots", () => {
+    const oneHuman = [{ id: "human", teamId: "red", startingHand: ["a", "b", "c", "d"] }];
+    expect(() => createGameState("1v1", oneHuman)).toThrow(/bot starting hand/);
+    expect(() => createGameState("1v1", oneHuman, 32, [["a", "b", "c"]])).toThrow(/four cards/);
+  });
+
   it("uses confirmed starting HP, hearts, hand size, and 32-space board", () => {
     const state = createGameState("1x4", setup);
     expect(state.boardLength).toBe(32);
