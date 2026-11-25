@@ -16,16 +16,16 @@
   <main>
     <section class="game-panel">
       <div class="panel-heading">
-        <div><p class="eyebrow">THE FIRST EXPEDITION</p><h2>กระดานทดลอง</h2></div>
+        <div><p class="eyebrow">THE FIRST EXPEDITION</p><h2>กระดาน 32 ช่อง</h2></div>
         <p class="turn-label" id="turn-label">เทิร์น 1 · ผู้เล่น 1</p>
       </div>
       <div id="game-container" aria-label="กระดานเกม Roll and Ruin"></div>
       <div class="action-bar">
         <div class="dice-result"><span class="eyebrow">ผลการทอย</span><strong id="dice-result">—</strong></div>
         <div class="actions">
-          <button id="roll-button" type="button">ทอยเต๋า</button>
-          <button id="draw-button" type="button" class="secondary">จั่วไพ่</button>
-          <button id="use-card-button" type="button" class="secondary" disabled>ใช้ไพ่</button>
+          <button id="roll-button" type="button">ทอยเต๋า 2 ลูก</button>
+          <button id="draw-button" type="button" class="secondary">จั่ว 2 ใบ + ทอย 1 ลูก</button>
+          <button id="use-card-button" type="button" class="secondary" disabled>ใช้ไพ่ (สูงสุด 3 ใบ)</button>
         </div>
       </div>
       <p class="hint" id="game-message">เลือกกิจกรรมเพื่อเริ่มเทิร์น</p>
@@ -33,10 +33,11 @@
     <aside class="side-panel">
       <section class="info-card">
         <p class="eyebrow">ACTIVE PLAYER</p><h3>สถานะผู้เล่น</h3>
-        <div class="stat-row"><span>ตำแหน่ง</span><strong id="position">จุดเริ่มต้น</strong></div>
+        <div class="stat-row"><span>ตำแหน่ง</span><strong id="position">ช่อง 1 / 32</strong></div>
+        <div class="stat-row"><span>HP</span><strong id="hp">20 / 20</strong></div>
         <div class="stat-row"><span>หัวใจ</span><strong id="hearts">♥ ♥ ♥</strong></div>
         <div class="stat-row"><span>คะแนน</span><strong id="score">0</strong></div>
-        <div class="stat-row"><span>ไพ่ในมือ</span><strong id="hand-count">0</strong></div>
+        <div class="stat-row"><span>ไพ่ในมือ</span><strong id="hand-count">4</strong></div>
         <div class="stat-row"><span>เฟส</span><strong id="phase-label">เลือกกิจกรรม</strong></div>
       </section>
       <section class="info-card">
@@ -47,9 +48,9 @@
         <p class="eyebrow">PROTOTYPE NOTES</p>
         <ul>
           <li>ผู้เล่น 4 คนเป็นตัวแทนทดสอบในเครื่องเดียว</li>
-          <li>ทอยเต๋าเพื่อเดิน หรือจั่วไพ่ 1 ใบ</li>
-          <li>ไพ่ยังเป็นข้อมูลต้นแบบ ไม่มีเอฟเฟกต์</li>
-          <li>หัวใจเริ่มต้น 3 ดวงเป็นค่าทดลอง</li>
+          <li>กิจกรรมรองรับการจั่ว 2 ใบและทอย 1 ลูก หรือทอย 2 ลูก</li>
+          <li>ไพ่เริ่มต้นเป็น ID ทดลอง ยังไม่ใช่ไพ่จริงในแค็ตตาล็อก</li>
+          <li>ระบบใช้ไพ่รอเชื่อมเอฟเฟกต์จากรายการไพ่ 60 ใบ</li>
           <li>ยังไม่ใช่ระบบ Multiplayer</li>
         </ul>
       </section>
