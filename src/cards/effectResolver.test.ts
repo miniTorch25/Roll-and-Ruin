@@ -292,3 +292,53 @@ describe("targeted yellow prank card effects", () => {
     expect(state.players[1].hand).toEqual(["card-a"]);
   });
 });
+
+
+describe("deck-backed draw card effects", () => {
+  it("draws up to the catalogue count from the shared deck", () => {
+    const state = withPlayer(cardPlayState(), "p1", { hand: ["held-card"] });
+    const deck = { drawPile: ["draw-1", "draw-2", "draw-3"], discardPile: ["discarded"] };
+    const result = resolveCardEffect(state, "yellow_card_rain", { deck });
+    expect(result.state.players[0].hand).toEqual(["held-card", "draw-1", "draw-2", "draw-3"]);
+    expect(result.drawEvents).toEqual([{ playerId: "p1", drawnCardIds: ["draw-1", "draw-2", "draw-3"] }]);
+    expect(result.deck).toEqual({ drawPile: [], discardPile: ["discarded"] });
+    expect(deck.drawPile).toEqual(["draw-1", "draw-2", "draw-3"]);
+  });
+
+  it("draws two for the user, then one for each other living player in seat order", () => {
+    const deck = {
+      drawPile: ["self-1", "self-2", "p2-card", "p3-card", "p4-card"],
+      discardPile: []
+    };
+    const result = resolveCardEffect(cardPlayState(), "yellow_card_gift", { deck });
+    expect(result.drawEvents).toEqual([
+      { playerId: "p1", drawnCardIds: ["self-1", "self-2"] },
+      { playerId: "p2", drawnCardIds: ["p2-card"] },
+      { playerId: "p3", drawnCardIds: ["p3-card"] },
+      { playerId: "p4", drawnCardIds: ["p4-card"] }
+    ]);
+    expect(result.state.players[0].hand.slice(-2)).toEqual(["self-1", "self-2"]);
+    expect(result.state.players[1].hand.at(-1)).toBe("p2-card");
+    expect(result.state.players[2].hand.at(-1)).toBe("p3-card");
+    expect(result.state.players[3].hand.at(-1)).toBe("p4-card");
+    expect(result.deck?.drawPile).toEqual([]);
+  });
+
+  it("does not draw cards for eliminated players during distribution", () => {
+    const state = {
+      ...cardPlayState(),
+      players: cardPlayState().players.map((player, index) =>
+        index === 2 ? { ...player, status: "eliminated" as const } : player
+      )
+    };
+    const result = resolveCardEffect(state, "yellow_card_gift", {
+      deck: { drawPile: ["self-1", "self-2", "p2-card", "p4-card"], discardPile: [] }
+    });
+    expect(result.drawEvents.map((event) => event.playerId)).toEqual(["p1", "p2", "p4"]);
+    expect(result.state.players[2].hand).toEqual(["x", "x", "x", "x"]);
+  });
+
+  it("requires a deck instead of silently ignoring draw effects", () => {
+    expect(() => resolveCardEffect(cardPlayState(), "yellow_card_rain")).toThrow(/deck state/);
+  });
+});

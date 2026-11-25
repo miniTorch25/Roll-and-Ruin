@@ -1,4 +1,4 @@
-# Card Effect Resolver — Player Attacks and Pranks
+# Card Effect Resolver — Player Attacks, Pranks, and Drawing
 
 The authoritative card descriptions and numeric values remain in `Roll_and_Ruin_Rules.txt` and `src/cards/catalogue.ts`.
 
@@ -31,13 +31,15 @@ The axe removes shields before its hit is checked. Double-Edged Sword's self-HP 
 - **สลับที่:** swaps the active player's and selected target's board positions.
 - **แลกไพ่:** transfers one user-selected card to the target and one random card from the target back to the user.
 - **บังคับทิ้ง:** removes one card selected by the target and returns its ID in `discardedCardIds` for the caller to place in the discard pile.
+- **ฝนไพ่:** draws up to four cards for the active player.
+- **แจกไพ่:** draws up to two cards for the active player, then up to one card for each other living player in seat order.
 
-Random choices accept an injected random source for deterministic tests. Empty target hands make Pickpocket a no-op; Card Trade requires the target to have a card.
+Random choices accept an injected random source for deterministic tests. Empty target hands make Pickpocket a no-op; Card Trade requires the target to have a card. Draw effects require the caller to pass the current shared deck.
 
 ## Integration contract
 
-Call `resolveCardEffect(state, cardDefinitionOrId, options)` after `playCatalogueCard`. Player-targeted effects require `targetPlayerId`; effects requiring the target to choose a hand card also require `selectedCardId`. Results include `damageEvents`, `revealedHands`, and `discardedCardIds` for the caller/UI. Used and forcibly discarded cards still require explicit deck discard handling by the caller.
+Call `resolveCardEffect(state, cardDefinitionOrId, options)` after `playCatalogueCard`. Player-targeted effects require `targetPlayerId`; effects requiring the target to choose a hand card also require `selectedCardId`. Draw effects require `deck` and return the updated deck plus `drawEvents`. Results also include `damageEvents`, `revealedHands`, and `discardedCardIds` for the caller/UI. Used and forcibly discarded cards still require explicit deck discard handling by the caller.
 
 ## Not yet implemented
 
-Grenade splash needs monster/player target integration; Monster Hunter needs the monster HP catalogue and damage rules. Instant Kill, Resurrection sequencing, curse payment, draw/distribute cards, bonus dice and rerolls, status expiry, movement/dice changes, turn-skipping, and BoardScene integration remain separate work.
+Grenade splash needs monster/player target integration; Monster Hunter needs the monster HP catalogue and damage rules. Instant Kill, Resurrection sequencing, curse payment, bonus dice and rerolls, status expiry, movement/dice changes, turn-skipping, and BoardScene integration remain separate work.
