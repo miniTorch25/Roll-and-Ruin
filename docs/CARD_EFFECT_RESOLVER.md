@@ -61,6 +61,10 @@ Every supported Curse effect requires an explicit `cursePayment`:
 - **เดินถอยหลัง:** reverses movement direction for the target's next turn.
 - **เต๋าต้องคำสาป:** reduces each die face by 2, with a minimum of 1, for 2 turns.
 - **เปิดไพ่ประจานตัว:** stores a 3-turn reveal status; the UI can read it to show the target's hand.
+- **ปล้นมือ:** discards half of a selected living player's hand, rounded up, at random; returns discarded card IDs for explicit deck handling.
+- **ปล้นสุสาน:** transfers every card held by one eliminated player to the active player.
+- **ล้างพลัง:** removes the target's shields, invulnerability, reflection charges, and positive combat buffs; timed negative statuses remain.
+- **เหยื่อล่า:** marks every currently active monster to target the selected living player on that monster's next scheduled attack. Each monster consumes its own one-shot override when it attacks; if the target is no longer alive, its normal targeting pattern is used instead.
 
 ## Green status/buff effects
 
@@ -78,4 +82,4 @@ Call `resolveCardEffect(state, cardDefinitionOrId, options)` after `playCatalogu
 
 ## Not yet implemented
 
-Grenade splash needs monster/player target integration; Monster Hunter needs the monster HP catalogue and damage rules. Resurrection sequencing, remaining curses, bonus dice and rerolls, tile effects, and BoardScene integration remain separate work.
+Grenade splash needs monster/player target integration; Monster Hunter needs the monster HP catalogue and damage rules. Resurrection sequencing, remaining curses, bonus dice and rerolls, tile effects, monster HP/damage and reward resolution, and BoardScene integration remain separate work.
