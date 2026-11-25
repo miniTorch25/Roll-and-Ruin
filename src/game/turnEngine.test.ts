@@ -389,8 +389,9 @@ describe("timed player status processing", () => {
   });
 
   it("blocks catalogue attack cards after Armor Seal but still permits non-attack cards", () => {
+    const ready = readyState();
     const state = {
-      ...readyState(),
+      ...selectPlayerAction(ready, "use_cards").state,
       cardRuntime: {
         players: {
           p1: { blockedAttackCardsThisTurn: true }
