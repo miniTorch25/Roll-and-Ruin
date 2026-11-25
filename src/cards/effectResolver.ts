@@ -512,7 +512,12 @@ export function resolveCardEffect(
     case "reduce_dice_values":
     case "reveal_player_hand": {
       const target = requireOpponentTarget(state, active.id, options.targetPlayerId);
-      const duration = Number(card.parameters?.duration ?? (card.effectId === "weaken_attack_damage" ? 3 : 1));
+      const rawDuration = card.parameters?.duration;
+      const duration = typeof rawDuration === "number"
+        ? rawDuration
+        : rawDuration === "next_turn"
+          ? 1
+          : (card.effectId === "weaken_attack_damage" ? 3 : 1);
       const statusByEffect: Partial<Record<CardEffectId, PlayerStatusEffect>> = {
         skip_next_turn: createTimedStatus("skip_turn", duration),
         limit_next_turn_dice: createTimedStatus("dice_limit", duration, Number(card.parameters?.diceCount ?? 1)),
