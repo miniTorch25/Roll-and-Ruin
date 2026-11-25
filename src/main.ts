@@ -1,16 +1,31 @@
 import Phaser from "phaser";
 import { BoardScene } from "./scenes/BoardScene";
+import type { PlayerAction } from "./game/turnEngine";
 import "./style.css";
+
 const game = new Phaser.Game({
-  type: Phaser.AUTO, parent: "game-container", backgroundColor: "#202735",
-  scale: { mode: Phaser.Scale.FIT, autoCenter: Phaser.Scale.CENTER_BOTH, width: 900, height: 560 },
-  render: { antialias: false, pixelArt: true, roundPixels: true }, scene: [BoardScene]
+  type: Phaser.AUTO,
+  parent: "game-container",
+  backgroundColor: "#202735",
+  scale: {
+    mode: Phaser.Scale.FIT,
+    autoCenter: Phaser.Scale.CENTER_BOTH,
+    width: 900,
+    height: 560
+  },
+  render: { antialias: false, pixelArt: true, roundPixels: true },
+  scene: [BoardScene]
 });
-const rollButton = document.querySelector<HTMLButtonElement>("#roll-button");
-const message = document.querySelector<HTMLElement>("#game-message");
-rollButton?.addEventListener("click", () => {
+
+function sendAction(action: PlayerAction): void {
   const scene = game.scene.getScene("BoardScene") as BoardScene;
-  const result = scene.rollAndMove();
-  if (message) message.textContent = result.message;
-});
+  scene.chooseAction(action);
+}
+
+document.querySelector<HTMLButtonElement>("#roll-button")
+  ?.addEventListener("click", () => sendAction("roll_dice"));
+document.querySelector<HTMLButtonElement>("#draw-button")
+  ?.addEventListener("click", () => sendAction("draw_card"));
+document.querySelector<HTMLButtonElement>("#use-card-button")
+  ?.addEventListener("click", () => sendAction("use_card"));
 window.addEventListener("resize", () => game.scale.refresh());
