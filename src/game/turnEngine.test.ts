@@ -177,7 +177,7 @@ describe("Roll and Ruin turn engine", () => {
 
     const batty = summonMonster(createGameState("1x4", setup), {
       id: "batty", catalogueId: "C08", attackPattern: "random_living",
-      attackInterval: 1, turnsSinceLastAttack: 1, attackDamage: 1
+      attackInterval: 1, attackDamage: 1
     });
     const scheduledBatty = { ...batty.state, monsters: batty.state.monsters.map((monster) => ({ ...monster, turnsSinceLastAttack: 1 })) };
     const first = resolveMonsterAttackPhase(scheduledBatty, () => 0);
