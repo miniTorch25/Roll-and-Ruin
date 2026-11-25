@@ -8,7 +8,7 @@ The game uses the authoritative 60-card list in `Roll_and_Ruin_Rules.txt`, repre
 - Red: 5 Summon cards and 19 Curse cards.
 - The catalogue stores the source names, descriptions, effect identifiers, parameters, and confirmed score values.
 - Curse cost options are recorded as HP cost 5–10, discard 2 cards, or a 3-turn curse cooldown. Cooldown is eligible only when HP or cards are insufficient and may be used at most 3 times per player per game.
-- Summon cards have no cost and summon one random monster from the matching rank.
+- Summon cards have no cost and now choose one random monster from the matching authoritative rank catalogue (10 entries per rank). The monster is added to the four-monster board cap and produces its immediate summon attack event.
 - The deck core handles shuffle, draw, hand removal, and explicit discard. It does not resolve card effects automatically.
 - The local prototype now shuffles the 60 real catalogue IDs and deals four starting cards to each player.
 - `playCatalogueCard` now removes a real catalogue card, applies its confirmed score value, and returns its effect definition.
