@@ -34,3 +34,9 @@ This is the shared baseline, not a complete implementation of all 50 monsters. S
 
 - **Zomzom (C03):** restores 1 HP after each attack, up to its catalogue maximum HP.
 - **Fang (C06):** each Fang deals +1 damage while at least two active Fang/Wolf instances are on the board. The bonus is recalculated for every attack, so it disappears when the pack is reduced to one active Wolf.
+
+
+## Additional Common monster defeat abilities
+
+- **Shroomy (C07):** when a player defeats Shroomy with an Attack card, its spores deal 1 direct HP loss to that player. This loss bypasses shields and uses the normal death/Resurrection flow.
+- **Rocky (C09):** Attack-card damage against Rocky is reduced by 1, with a minimum of 1 damage. This applies to Monster Hunter and monster splash damage from Grenade.

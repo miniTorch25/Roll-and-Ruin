@@ -601,14 +601,22 @@ export function resolveCardEffect(
       }
       const attack = takeAttackBonus(state, active.id);
       state = attack.state;
+      const targetMonster = state.monsters.find((monster) => monster.id === options.targetMonsterId && monster.active);
+      if (!targetMonster) throw new Error(`Active monster ${options.targetMonsterId} was not found.`);
+      const rockyReduction = targetMonster.catalogueId === "C09" ? 1 : 0;
       const hit = damageMonster(
         state,
         options.targetMonsterId,
-        Math.max(1, Number(card.parameters?.damage ?? 5) + attack.bonus),
+        Math.max(1, Number(card.parameters?.damage ?? 5) + attack.bonus - rockyReduction),
         active.id
       );
       state = hit.state as CardEffectGameState;
       monsterDamageEvents.push(hit.event);
+      if (hit.event.defeated && targetMonster.catalogueId === "C07") {
+        const hazard = applyHpCost(state, active.id, 1, random, "direct_hp_loss");
+        state = hazard.state;
+        damageEvents.push(hazard.event);
+      }
       break;
     }
     case "damage_with_random_splash": {
@@ -644,9 +652,16 @@ export function resolveCardEffect(
           damageEvents.push(splash.event);
           appliedToPlayerIds.push(splashTarget.id);
         } else {
-          const splash = damageMonster(state, splashTarget.id, splashDamage, active.id);
+          const splashMonster = state.monsters.find((monster) => monster.id === splashTarget.id && monster.active);
+          const rockyReduction = splashMonster?.catalogueId === "C09" ? 1 : 0;
+          const splash = damageMonster(state, splashTarget.id, Math.max(1, splashDamage - rockyReduction), active.id);
           state = splash.state as CardEffectGameState;
           monsterDamageEvents.push(splash.event);
+          if (splash.event.defeated && splashMonster?.catalogueId === "C07") {
+            const hazard = applyHpCost(state, active.id, 1, random, "direct_hp_loss");
+            state = hazard.state;
+            damageEvents.push(hazard.event);
+          }
         }
       }
       break;

@@ -7,7 +7,7 @@ import {
   startPlayerTurn,
   type PlayerSetup
 } from "../game/turnEngine";
-import { resolveMonsterAttackEvents } from "../cards/effectResolver";
+import { resolveCardEffect, resolveMonsterAttackEvents } from "../cards/effectResolver";
 import { summonRandomMonster } from "./engine";
 
 const setup: PlayerSetup[] = [
@@ -152,6 +152,41 @@ describe("monster-applied player status effects", () => {
     }]);
     expect(result.damageEvents[0].attemptedDamage).toBe(2);
     expect(result.state.players[0].hp).toBe(18);
+  });
+
+
+  it("makes the player who defeats Shroomy lose 1 HP from its spores", () => {
+    const initial = createGameState("1x4", setup);
+    const summoned = summonRandomMonster(initial, "Common", "shroomy", () => 0.65);
+    const weakened = {
+      ...summoned.state,
+      monsters: summoned.state.monsters.map((monster) => monster.id === "shroomy"
+        ? { ...monster, hp: 5 }
+        : monster)
+    };
+    const result = resolveCardEffect(weakened, "blue_monster_hunter", {
+      targetMonsterId: "shroomy",
+      random: () => 0
+    });
+    expect(result.monsterDamageEvents[0].defeated).toBe(true);
+    expect(result.state.players[0].hp).toBe(19);
+    expect(result.damageEvents[0]).toMatchObject({
+      kind: "direct_hp_loss",
+      sourcePlayerId: "p1",
+      targetPlayerId: "p1",
+      attemptedDamage: 1,
+      hpDamage: 1
+    });
+  });
+
+  it("reduces Monster Hunter damage against Rocky by 1, but never below 1", () => {
+    const initial = createGameState("1x4", setup);
+    const summoned = summonRandomMonster(initial, "Common", "rocky", () => 0.85);
+    const result = resolveCardEffect(summoned.state, "blue_monster_hunter", {
+      targetMonsterId: "rocky"
+    });
+    expect(result.monsterDamageEvents[0].attemptedDamage).toBe(4);
+    expect(result.state.monsters.find((monster) => monster.id === "rocky")?.hp).toBe(11);
   });
 
   it("does not apply secondary statuses when invulnerability prevents the attack", () => {
