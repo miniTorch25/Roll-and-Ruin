@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { createGameState, resolveMonsterAttackPhase, selectPlayerAction, startPlayerTurn } from "../game/turnEngine";
-import { resolveCardEffect, type CardEffectGameState } from "./effectResolver";
+import { advanceCurseCooldown, resolveCardEffect, type CardEffectGameState } from "./effectResolver";
 
 function cardPlayState(mode: "1x4" | "2v2" = "1x4"): CardEffectGameState {
   const teams = mode === "2v2" ? ["red", "red", "blue", "blue"] : ["red", "blue", "green", "yellow"];
@@ -26,7 +26,9 @@ function cardPlayState(mode: "1x4" | "2v2" = "1x4"): CardEffectGameState {
         defenseShieldBonus: 0,
         nextAttackDamageBonus: 0,
         blockedAttackCardsThisTurn: false,
-        negativeStatuses: []
+        negativeStatuses: [],
+        curseCooldownTurnsRemaining: 0,
+        curseCooldownUses: 0
       }]))
     }
   };
@@ -340,5 +342,202 @@ describe("deck-backed draw card effects", () => {
 
   it("requires a deck instead of silently ignoring draw effects", () => {
     expect(() => resolveCardEffect(cardPlayState(), "yellow_card_rain")).toThrow(/deck state/);
+  });
+});
+
+
+describe("Curse payment and cooldown", () => {
+  it("requires an explicit supported payment for every Curse card", () => {
+    expect(() => resolveCardEffect(cardPlayState(), "red_instant_kill", {
+      targetPlayerId: "p2"
+    })).toThrow(/cursePayment/);
+  });
+
+  it("charges the selected 5-to-10 HP cost before resolving the Curse", () => {
+    const state = withPlayer(cardPlayState(), "p1", { hp: 12 });
+    const result = resolveCardEffect(state, "red_instant_kill", {
+      targetPlayerId: "p2",
+      cursePayment: { type: "hp", amount: 7 }
+    });
+    expect(result.state.players[0].hp).toBe(5);
+    expect(result.damageEvents[0]).toMatchObject({
+      kind: "hp_cost",
+      attemptedDamage: 7,
+      hpDamage: 7
+    });
+    expect(result.state.players[1].hearts).toBe(2);
+  });
+
+  it("rejects HP payments outside the allowed range or above current HP", () => {
+    expect(() => resolveCardEffect(cardPlayState(), "red_instant_kill", {
+      targetPlayerId: "p2",
+      cursePayment: { type: "hp", amount: 4 }
+    })).toThrow(/from 5 to 10/);
+    const lowHp = withPlayer(cardPlayState(), "p1", { hp: 5 });
+    expect(() => resolveCardEffect(lowHp, "red_instant_kill", {
+      targetPlayerId: "p2",
+      cursePayment: { type: "hp", amount: 6 }
+    })).toThrow(/enough HP/);
+  });
+
+  it("discards exactly two selected cards as Curse payment", () => {
+    const result = resolveCardEffect(cardPlayState(), "red_instant_kill", {
+      targetPlayerId: "p2",
+      cursePayment: { type: "discard", cardIds: ["green_herbal_potion", "green_life_core"] }
+    });
+    expect(result.state.players[0].hand).toEqual(["green_extra_heart", "blue_wooden_shield"]);
+    expect(result.discardedCardIds).toEqual(["green_herbal_potion", "green_life_core"]);
+  });
+
+  it("allows cooldown only when HP or hand cards are insufficient and advances per owner turn", () => {
+    const lowHp = withPlayer(cardPlayState(), "p1", { hp: 4 });
+    const result = resolveCardEffect(lowHp, "red_instant_kill", {
+      targetPlayerId: "p2",
+      cursePayment: { type: "cooldown" }
+    });
+    expect(result.state.cardRuntime.players.p1.curseCooldownTurnsRemaining).toBe(3);
+    expect(result.state.cardRuntime.players.p1.curseCooldownUses).toBe(1);
+    const afterOne = advanceCurseCooldown(result.state, "p1");
+    expect(afterOne.cardRuntime.players.p1.curseCooldownTurnsRemaining).toBe(2);
+    const afterThree = advanceCurseCooldown(
+      advanceCurseCooldown(afterOne, "p1"),
+      "p1"
+    );
+    expect(afterThree.cardRuntime.players.p1.curseCooldownTurnsRemaining).toBe(0);
+  });
+
+  it("rejects cooldown if the user can afford an ordinary Curse payment", () => {
+    expect(() => resolveCardEffect(cardPlayState(), "red_instant_kill", {
+      targetPlayerId: "p2",
+      cursePayment: { type: "cooldown" }
+    })).toThrow(/only when HP or hand cards are insufficient/);
+  });
+
+  it("limits cooldown payment to three uses per player per game", () => {
+    let state = withPlayer(cardPlayState(), "p1", { hp: 4 });
+    for (let use = 0; use < 3; use++) {
+      const result = resolveCardEffect(state, "red_instant_kill", {
+        targetPlayerId: "p2",
+        cursePayment: { type: "cooldown" }
+      });
+      state = result.state;
+      state = advanceCurseCooldown(
+        advanceCurseCooldown(
+          advanceCurseCooldown(state, "p1"),
+          "p1"
+        ),
+        "p1"
+      );
+    }
+    expect(state.cardRuntime.players.p1.curseCooldownUses).toBe(3);
+    expect(() => resolveCardEffect(state, "red_instant_kill", {
+      targetPlayerId: "p2",
+      cursePayment: { type: "cooldown" }
+    })).toThrow(/three times/);
+  });
+});
+
+describe("player-targeted Curse effects", () => {
+  it("instantly kills a target after their shields are consumed, unless invulnerable", () => {
+    const shielded = withRuntime(cardPlayState(), "p2", { shields: 3 });
+    const result = resolveCardEffect(shielded, "red_instant_kill", {
+      targetPlayerId: "p2",
+      cursePayment: { type: "discard", cardIds: ["green_herbal_potion", "green_life_core"] },
+      random: () => 0
+    });
+    expect(result.damageEvents.at(-1)).toMatchObject({
+      attemptedDamage: 23,
+      shieldAbsorbed: 3,
+      hpDamage: 20
+    });
+    expect(result.state.players[1]).toMatchObject({ hp: 20, hearts: 2, status: "alive" });
+
+    const protectedState = withRuntime(cardPlayState(), "p2", {
+      shields: 2,
+      invulnerableOwnerTurns: 1
+    });
+    const protectedResult = resolveCardEffect(protectedState, "red_instant_kill", {
+      targetPlayerId: "p2",
+      cursePayment: { type: "discard", cardIds: ["green_herbal_potion", "green_life_core"] }
+    });
+    expect(protectedResult.damageEvents.at(-1)?.preventedBy).toBe("invulnerability");
+    expect(protectedResult.state.cardRuntime.players.p2.shields).toBe(2);
+    expect(protectedResult.state.players[1].hp).toBe(20);
+  });
+
+  it("drains only HP damage that penetrates shields and heals the user by that amount", () => {
+    let state = withPlayer(cardPlayState(), "p1", { hp: 15 });
+    state = withRuntime(state, "p2", { shields: 1 });
+    const result = resolveCardEffect(state, "red_life_drain", {
+      targetPlayerId: "p2",
+      cursePayment: { type: "discard", cardIds: ["green_herbal_potion", "green_life_core"] }
+    });
+    expect(result.damageEvents.at(-1)).toMatchObject({ shieldAbsorbed: 1, hpDamage: 3 });
+    expect(result.state.players[0].hp).toBe(18);
+    expect(result.state.players[1].hp).toBe(17);
+  });
+
+  it("halves current HP using floor without consuming shields", () => {
+    let state = withPlayer(cardPlayState(), "p2", { hp: 9 });
+    state = withRuntime(state, "p2", { shields: 3 });
+    const result = resolveCardEffect(state, "red_despair", {
+      targetPlayerId: "p2",
+      cursePayment: { type: "discard", cardIds: ["green_herbal_potion", "green_life_core"] }
+    });
+    expect(result.state.players[1].hp).toBe(4);
+    expect(result.state.cardRuntime.players.p2.shields).toBe(3);
+    expect(result.damageEvents.at(-1)?.kind).toBe("direct_hp_loss");
+  });
+
+  it("runs death processing if halving current HP reaches zero", () => {
+    const state = withPlayer(cardPlayState(), "p2", { hp: 1 });
+    const result = resolveCardEffect(state, "red_despair", {
+      targetPlayerId: "p2",
+      cursePayment: { type: "discard", cardIds: ["green_herbal_potion", "green_life_core"] },
+      random: () => 0
+    });
+    expect(result.damageEvents.at(-1)?.death).toMatchObject({ lostHeart: true, eliminated: false });
+    expect(result.state.players[1]).toMatchObject({ hp: 20, hearts: 2, status: "alive" });
+  });
+
+  it("removes all shields from other living players but keeps the user's shields", () => {
+    let state = withRuntime(cardPlayState(), "p1", { shields: 3 });
+    state = withRuntime(state, "p2", { shields: 2 });
+    state = withRuntime(state, "p3", { shields: 1 });
+    const result = resolveCardEffect(state, "red_shield_dissolve", {
+      cursePayment: { type: "discard", cardIds: ["green_herbal_potion", "green_life_core"] }
+    });
+    expect(result.state.cardRuntime.players.p1.shields).toBe(3);
+    expect(result.state.cardRuntime.players.p2.shields).toBe(0);
+    expect(result.state.cardRuntime.players.p3.shields).toBe(0);
+  });
+
+  it("swaps current HP values exactly between the user and selected target", () => {
+    let state = withPlayer(cardPlayState(), "p1", { hp: 7 });
+    state = withPlayer(state, "p2", { hp: 15 });
+    const result = resolveCardEffect(state, "red_fate_swap", {
+      targetPlayerId: "p2",
+      cursePayment: { type: "discard", cardIds: ["green_herbal_potion", "green_life_core"] }
+    });
+    expect(result.state.players[0].hp).toBe(15);
+    expect(result.state.players[1].hp).toBe(7);
+  });
+
+  it("sends the selected target to prison for three turns", () => {
+    const result = resolveCardEffect(cardPlayState(), "red_forced_prison", {
+      targetPlayerId: "p2",
+      cursePayment: { type: "discard", cardIds: ["green_herbal_potion", "green_life_core"] }
+    });
+    expect(result.state.players[1].prisonTurnsRemaining).toBe(3);
+  });
+
+  it("resets every other living player's position but not the user", () => {
+    let state = withPlayer(cardPlayState(), "p1", { position: 7 });
+    state = withPlayer(state, "p2", { position: 12 });
+    state = withPlayer(state, "p3", { position: 24 });
+    const result = resolveCardEffect(state, "red_table_flip", {
+      cursePayment: { type: "discard", cardIds: ["green_herbal_potion", "green_life_core"] }
+    });
+    expect(result.state.players.map((player) => player.position)).toEqual([7, 0, 0, 0]);
   });
 });

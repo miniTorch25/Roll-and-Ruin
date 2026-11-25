@@ -1,4 +1,4 @@
-# Card Effect Resolver — Player Attacks, Pranks, and Drawing
+# Card Effect Resolver — Attacks, Pranks, Drawing, and Curses
 
 The authoritative card descriptions and numeric values remain in `Roll_and_Ruin_Rules.txt` and `src/cards/catalogue.ts`.
 
@@ -36,10 +36,30 @@ The axe removes shields before its hit is checked. Double-Edged Sword's self-HP 
 
 Random choices accept an injected random source for deterministic tests. Empty target hands make Pickpocket a no-op; Card Trade requires the target to have a card. Draw effects require the caller to pass the current shared deck.
 
+## Implemented Curse payments
+
+Every supported Curse effect requires an explicit `cursePayment`:
+
+- **HP payment:** choose an integer cost from 5 to 10, not exceeding current HP. It is paid before the effect and can trigger the normal death/respawn flow.
+- **Discard payment:** choose exactly two different cards from the active player's hand. Their IDs are returned in `discardedCardIds` for the caller to move to the deck discard pile.
+- **Cooldown payment:** available only when current HP is below 5 or the hand has fewer than 2 cards. It starts a 3-owner-turn cooldown and can be used at most 3 times per player per game.
+
+The caller must invoke `advanceCurseCooldown(state, playerId)` once when that player's turn starts. This resolver helper is not yet connected to the BoardScene turn loop.
+
+## Implemented player-targeted Curse effects
+
+- **สังหารทันที:** deals enough damage to pass through the target's shields and reduce HP to zero; invulnerability blocks it.
+- **คุกบังคับ:** sends the selected living player to prison for 3 turns.
+- **พลิกโต๊ะ:** sends every other living player to position 0.
+- **สูบเลือด:** deals 4 damage through the normal shield/invulnerability rules and heals the user by the HP damage actually dealt.
+- **สิ้นหวัง:** halves target current HP, rounded down, without consuming shields.
+- **สลายโล่:** removes all shields from every other living player.
+- **สลับชะตา:** swaps the user's and target's current HP values exactly.
+
 ## Integration contract
 
-Call `resolveCardEffect(state, cardDefinitionOrId, options)` after `playCatalogueCard`. Player-targeted effects require `targetPlayerId`; effects requiring the target to choose a hand card also require `selectedCardId`. Draw effects require `deck` and return the updated deck plus `drawEvents`. Results also include `damageEvents`, `revealedHands`, and `discardedCardIds` for the caller/UI. Used and forcibly discarded cards still require explicit deck discard handling by the caller.
+Call `resolveCardEffect(state, cardDefinitionOrId, options)` after `playCatalogueCard`. Player-targeted effects require `targetPlayerId`; effects requiring a hand choice also require `selectedCardId`. Draw effects require `deck` and return the updated deck plus `drawEvents`. Curse cards require `cursePayment`. Results include `damageEvents`, `revealedHands`, and `discardedCardIds` for the caller/UI. Used and forcibly discarded cards still require explicit deck discard handling by the caller.
 
 ## Not yet implemented
 
-Grenade splash needs monster/player target integration; Monster Hunter needs the monster HP catalogue and damage rules. Instant Kill, Resurrection sequencing, curse payment, bonus dice and rerolls, status expiry, movement/dice changes, turn-skipping, and BoardScene integration remain separate work.
+Grenade splash needs monster/player target integration; Monster Hunter needs the monster HP catalogue and damage rules. Resurrection sequencing, remaining curses, bonus dice and rerolls, status expiry, movement/dice changes, turn-skipping, and BoardScene integration remain separate work.

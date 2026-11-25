@@ -1,4 +1,4 @@
-import { applyPlayerDeath, getActivePlayer, MAX_CARDS_PER_TURN, type DeathResult, type GameState } from "../game/turnEngine";
+import { applyPlayerDeath, getActivePlayer, imprisonPlayer, MAX_CARDS_PER_TURN, type DeathResult, type GameState } from "../game/turnEngine";
 import { getCardDefinition, type CardDefinition, type CardEffectId } from "./catalogue";
 import { drawCards, type CardDeckState } from "./deck";
 
@@ -11,6 +11,8 @@ export interface CardRuntimePlayerState {
   nextAttackDamageBonus: number;
   blockedAttackCardsThisTurn: boolean;
   negativeStatuses: string[];
+  curseCooldownTurnsRemaining: number;
+  curseCooldownUses: number;
 }
 
 export interface CardRuntimeState {
@@ -19,6 +21,11 @@ export interface CardRuntimeState {
 
 export type CardEffectGameState = GameState & { cardRuntime: CardRuntimeState };
 
+export type CursePayment =
+  | { type: "hp"; amount: number }
+  | { type: "discard"; cardIds: [string, string] }
+  | { type: "cooldown" };
+
 export interface ResolveCardEffectOptions {
   /** Required by effects that name one player or teammate. */
   targetPlayerId?: string;
@@ -26,12 +33,14 @@ export interface ResolveCardEffectOptions {
   selectedCardId?: string;
   /** Current deck state for effects that draw cards. */
   deck?: CardDeckState;
+  /** Required payment choice when playing a Curse card. */
+  cursePayment?: CursePayment;
   /** Injectable random source, including random card-loss when a player dies. */
   random?: () => number;
 }
 
 export interface DamageEvent {
-  kind: "attack" | "hp_cost" | "reflection";
+  kind: "attack" | "hp_cost" | "direct_hp_loss" | "reflection";
   sourcePlayerId?: string;
   targetPlayerId: string;
   attemptedDamage: number;
@@ -57,6 +66,7 @@ export interface ResolveCardEffectResult {
   discardedCardIds: string[];
   drawEvents: CardDrawEvent[];
   deck?: CardDeckState;
+  cursePayment?: CursePayment;
 }
 
 const EMPTY_PLAYER_RUNTIME = (): CardRuntimePlayerState => ({
@@ -67,7 +77,9 @@ const EMPTY_PLAYER_RUNTIME = (): CardRuntimePlayerState => ({
   defenseShieldBonus: 0,
   nextAttackDamageBonus: 0,
   blockedAttackCardsThisTurn: false,
-  negativeStatuses: []
+  negativeStatuses: [],
+  curseCooldownTurnsRemaining: 0,
+  curseCooldownUses: 0
 });
 
 function withRuntime(state: GameState): CardEffectGameState {
@@ -224,7 +236,8 @@ function applyHpCost(
   inputState: CardEffectGameState,
   playerId: string,
   amount: number,
-  random: () => number
+  random: () => number,
+  kind: "hp_cost" | "direct_hp_loss" = "hp_cost"
 ): { state: CardEffectGameState; event: DamageEvent } {
   if (!Number.isInteger(amount) || amount < 0) {
     throw new Error("HP cost must be a non-negative integer.");
@@ -238,7 +251,7 @@ function applyHpCost(
       : item)
   };
   const event: DamageEvent = {
-    kind: "hp_cost",
+    kind,
     sourcePlayerId: playerId,
     targetPlayerId: playerId,
     attemptedDamage: amount,
@@ -283,6 +296,13 @@ const IMPLEMENTED_EFFECTS = new Set<CardEffectId>([
   "force_discard_selected_card",
   "draw_cards",
   "draw_and_distribute_cards",
+  "instant_kill",
+  "force_prison",
+  "reset_other_players_positions",
+  "drain_hp_and_heal",
+  "halve_current_hp",
+  "remove_other_players_shields",
+  "swap_current_hp",
   "heal",
   "increase_max_hp",
   "gain_heart",
@@ -331,6 +351,65 @@ export function resolveCardEffect(
     : undefined;
   let endsCardPlay = false;
   const amount = Number(card.parameters?.amount ?? 0);
+
+
+  if (card.kind === "curse") {
+    const payment = options.cursePayment;
+    if (!payment) throw new Error("A Curse card requires an explicit cursePayment.");
+    if (!card.curseCostOptions?.length) throw new Error("This Curse card has no configured payment options.");
+
+    if (payment.type === "hp") {
+      if (!card.curseCostOptions.includes("pay_hp_5_to_10")) {
+        throw new Error("This Curse card does not allow HP payment.");
+      }
+      if (!Number.isInteger(payment.amount) || payment.amount < 5 || payment.amount > 10) {
+        throw new Error("Curse HP payment must be an integer from 5 to 10.");
+      }
+      if (active.hp < payment.amount) {
+        throw new Error("The active player does not have enough HP for this Curse payment.");
+      }
+      const paid = applyHpCost(state, active.id, payment.amount, random);
+      state = paid.state;
+      damageEvents.push(paid.event);
+    } else if (payment.type === "discard") {
+      if (!card.curseCostOptions.includes("discard_2_cards")) {
+        throw new Error("This Curse card does not allow card-discard payment.");
+      }
+      const uniqueCards = new Set(payment.cardIds);
+      if (uniqueCards.size !== 2 || payment.cardIds.some((cardId) => !active.hand.includes(cardId))) {
+        throw new Error("Curse discard payment requires two different cards from the active player's hand.");
+      }
+      state = {
+        ...state,
+        players: state.players.map((player) => {
+          if (player.id !== active.id) return player;
+          const hand = [...player.hand];
+          for (const cardId of payment.cardIds) hand.splice(hand.indexOf(cardId), 1);
+          return { ...player, hand };
+        })
+      };
+      discardedCardIds.push(...payment.cardIds);
+    } else {
+      if (!card.curseCostOptions.includes("curse_cooldown_3_turns")) {
+        throw new Error("This Curse card does not allow cooldown payment.");
+      }
+      const runtime = state.cardRuntime.players[active.id];
+      if (runtime.curseCooldownUses >= 3) {
+        throw new Error("The active player has already used the Curse cooldown three times this game.");
+      }
+      if (runtime.curseCooldownTurnsRemaining > 0) {
+        throw new Error("The active player's Curse cooldown is still active.");
+      }
+      if (active.hp >= 5 && active.hand.length >= 2) {
+        throw new Error("Curse cooldown is available only when HP or hand cards are insufficient.");
+      }
+      state = updatePlayerRuntime(state, active.id, (current) => ({
+        ...current,
+        curseCooldownTurnsRemaining: 3,
+        curseCooldownUses: current.curseCooldownUses + 1
+      }));
+    }
+  }
 
   switch (card.effectId) {
     case "damage_single":
@@ -522,6 +601,99 @@ export function resolveCardEffect(
       appliedToPlayerIds.push(target.id);
       break;
     }
+    case "instant_kill": {
+      const target = requireOpponentTarget(state, active.id, options.targetPlayerId);
+      const shields = state.cardRuntime.players[target.id].shields;
+      const hit = applyDamage(state, target.id, target.hp + shields, random, {
+        sourcePlayerId: active.id
+      });
+      state = hit.state;
+      damageEvents.push(hit.event);
+      appliedToPlayerIds.push(target.id);
+      break;
+    }
+    case "force_prison": {
+      const target = requireOpponentTarget(state, active.id, options.targetPlayerId);
+      state = imprisonPlayer(state, target.id, 3) as CardEffectGameState;
+      appliedToPlayerIds.push(target.id);
+      break;
+    }
+    case "reset_other_players_positions": {
+      const resetPosition = Number(card.parameters?.position ?? 0);
+      state = {
+        ...state,
+        players: state.players.map((player) => player.id !== active.id && player.status === "alive"
+          ? { ...player, position: resetPosition }
+          : player)
+      };
+      appliedToPlayerIds.push(...state.players
+        .filter((player) => player.id !== active.id && player.status === "alive")
+        .map((player) => player.id));
+      break;
+    }
+    case "drain_hp_and_heal": {
+      const target = requireOpponentTarget(state, active.id, options.targetPlayerId);
+      const hit = applyDamage(
+        state,
+        target.id,
+        Number(card.parameters?.targetDamage ?? 4),
+        random,
+        { sourcePlayerId: active.id }
+      );
+      state = hit.state;
+      damageEvents.push(hit.event);
+      const healAmount = hit.event.hpDamage;
+      const activeAfterHit = state.players.find((player) => player.id === active.id);
+      if (activeAfterHit?.status === "alive" && healAmount > 0) {
+        state = {
+          ...state,
+          players: state.players.map((player) => player.id === active.id
+            ? { ...player, hp: Math.min(player.maxHp, player.hp + healAmount) }
+            : player)
+        };
+      }
+      appliedToPlayerIds.push(target.id);
+      break;
+    }
+    case "halve_current_hp": {
+      const target = requireOpponentTarget(state, active.id, options.targetPlayerId);
+      const newHp = Math.floor(target.hp / 2);
+      const hpLoss = target.hp - newHp;
+      const loss = applyHpCost(state, target.id, hpLoss, random, "direct_hp_loss");
+      state = loss.state;
+      if (newHp === 0) {
+        const death = loss.event.death;
+        if (!death) throw new Error("A zero-HP target must enter the death flow.");
+      }
+      damageEvents.push(loss.event);
+      appliedToPlayerIds.push(target.id);
+      break;
+    }
+    case "remove_other_players_shields": {
+      const targets = state.players.filter((player) => player.id !== active.id && player.status === "alive");
+      for (const target of targets) {
+        state = updatePlayerRuntime(state, target.id, (current) => ({
+          ...current,
+          shields: 0
+        }));
+        appliedToPlayerIds.push(target.id);
+      }
+      break;
+    }
+    case "swap_current_hp": {
+      const target = requireOpponentTarget(state, active.id, options.targetPlayerId);
+      const activeHp = state.players.find((player) => player.id === active.id)?.hp ?? active.hp;
+      state = {
+        ...state,
+        players: state.players.map((player) => {
+          if (player.id === active.id) return { ...player, hp: target.hp };
+          if (player.id === target.id) return { ...player, hp: activeHp };
+          return player;
+        })
+      };
+      appliedToPlayerIds.push(target.id);
+      break;
+    }
     case "heal": {
       state = {
         ...state,
@@ -672,5 +844,16 @@ export function resolveCardEffect(
     }
   }
 
-  return { state, card, appliedToPlayerIds, endsCardPlay, damageEvents, revealedHands, discardedCardIds, drawEvents, deck: updatedDeck };
+  return { state, card, appliedToPlayerIds, endsCardPlay, damageEvents, revealedHands, discardedCardIds, drawEvents, deck: updatedDeck, cursePayment: options.cursePayment };
+}
+
+
+/** Call once when this player's turn starts to advance their three-turn Curse cooldown. */
+export function advanceCurseCooldown(inputState: GameState, playerId: string): CardEffectGameState {
+  const state = withRuntime(inputState);
+  requireLivingPlayer(state, playerId);
+  return updatePlayerRuntime(state, playerId, (current) => ({
+    ...current,
+    curseCooldownTurnsRemaining: Math.max(0, current.curseCooldownTurnsRemaining - 1)
+  }));
 }
