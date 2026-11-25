@@ -457,13 +457,15 @@ export function finishCardActivity(
     .reduce((value, effect) => Math.max(value, effect.minimum ?? 1), 1);
   const runtime = state.cardRuntime?.players[active.id];
   const bonusDice = Math.max(0, Math.min(2, runtime?.bonusDiceThisTurn ?? 0));
-  const diceCount = Math.min(3, 1 + bonusDice);
+  const diceLimited = active.statusEffects.some((effect) =>
+    effect.type === "dice_limit" && effect.turnsRemaining > 0
+  );
+  const diceCount = diceLimited ? 1 : Math.min(3, 1 + bonusDice);
   const controlledDiceValues = runtime?.controlledDiceValues ?? [];
   const diceRolls = Array.from({ length: diceCount }, (_, index) => {
     const controlledValue = controlledDiceValues[index];
-    return controlledValue !== undefined
-      ? controlledValue
-      : Math.max(minimum, rollD6(random) - reduction);
+    const dieFace = controlledValue !== undefined ? controlledValue : rollD6(random);
+    return Math.max(minimum, dieFace - reduction);
   });
   let cardRuntime = state.cardRuntime;
   if (cardRuntime && runtime) {
