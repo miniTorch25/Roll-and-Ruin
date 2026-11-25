@@ -26,7 +26,9 @@ function cardPlayState(mode: "1x4" | "2v2" = "1x4"): CardEffectGameState {
         defenseShieldBonus: 0,
         nextAttackDamageBonus: 0,
         blockedAttackCardsThisTurn: false,
-        negativeStatuses: []
+        negativeStatuses: [],
+        curseCooldownTurnsRemaining: 0,
+        curseCooldownUses: 0
       }]))
     }
   };
