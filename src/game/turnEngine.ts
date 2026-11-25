@@ -390,7 +390,7 @@ export function selectPlayerAction(
 }
 
 /** Play one card ID at a time. The caller resolves the card's catalogue-defined effect. */
-export function playCardFromHand(state: GameState, cardId: string, scoreValue = 0): GameState {
+export function playCardFromHand(state: GameState, cardId: string, scoreValue = 0, isAttackCard = false): GameState {
   if (state.phase !== "play_cards" || state.selectedAction !== "use_cards") {
     throw new Error("Cards can only be played during the use-cards activity.");
   }
@@ -400,6 +400,9 @@ export function playCardFromHand(state: GameState, cardId: string, scoreValue = 
   const active = getActivePlayer(state);
   if (active.statusEffects.some((effect) => effect.type === "cards_silenced" && effect.turnsRemaining > 0)) {
     throw new Error("Card use is disabled for this player's current turn.");
+  }
+  if (isAttackCard && state.cardRuntime?.players[active.id]?.blockedAttackCardsThisTurn) {
+    throw new Error("Attack cards are blocked for the rest of this turn.");
   }
   if (active.cardsPlayedThisTurn >= MAX_CARDS_PER_TURN) {
     throw new Error(`A player may use at most ${MAX_CARDS_PER_TURN} cards per turn.`);
