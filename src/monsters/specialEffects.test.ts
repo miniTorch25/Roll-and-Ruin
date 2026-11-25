@@ -8,7 +8,7 @@ import {
   type PlayerSetup
 } from "../game/turnEngine";
 import { resolveCardEffect, resolveMonsterAttackEvents } from "../cards/effectResolver";
-import { summonRandomMonster } from "./engine";
+import { damageMonster, summonRandomMonster } from "./engine";
 
 const setup: PlayerSetup[] = [
   { id: "p1", teamId: "red", startingHand: ["a", "b", "c", "d"] },
@@ -187,6 +187,45 @@ describe("monster-applied player status effects", () => {
     });
     expect(result.monsterDamageEvents[0].attemptedDamage).toBe(4);
     expect(result.state.monsters.find((monster) => monster.id === "rocky")?.hp).toBe(11);
+  });
+
+
+
+  it("makes Sneaky steal one random card on each scheduled attack and return all stolen cards when defeated", () => {
+    const initial = createGameState("1x4", setup);
+    const summoned = summonRandomMonster(initial, "Common", "sneaky", () => 0.95);
+    const withTargetHand = {
+      ...summoned.state,
+      players: summoned.state.players.map((player) => player.id === "p1"
+        ? { ...player, hand: ["kept", "stolen-a", "stolen-b"] }
+        : player)
+    };
+    const attacked = resolveMonsterAttackEvents(withTargetHand, [{
+      monsterId: "sneaky",
+      targetPlayerIds: ["p1"],
+      reason: "scheduled"
+    }], () => 0.5);
+    expect(attacked.state.players[0].hand).toEqual(["kept", "stolen-b"]);
+    expect(attacked.state.monsters[0].stolenCards).toEqual([
+      { ownerPlayerId: "p1", cardId: "stolen-a" }
+    ]);
+
+    const defeated = damageMonster(attacked.state, "sneaky", 4, "p2");
+    expect(defeated.event.returnedCards).toEqual([
+      { ownerPlayerId: "p1", cardId: "stolen-a" }
+    ]);
+    expect(defeated.state.players[0].hand).toEqual(["kept", "stolen-b", "stolen-a"]);
+    expect(defeated.state.monsters[0].stolenCards).toEqual([]);
+  });
+
+  it("suppresses Webby's normal reward when an Attack card defeats it", () => {
+    const initial = createGameState("1x4", setup);
+    const summoned = summonRandomMonster(initial, "Common", "webby", () => 0.45);
+    const result = resolveCardEffect(summoned.state, "blue_monster_hunter", {
+      targetMonsterId: "webby"
+    });
+    expect(result.monsterDamageEvents[0].defeated).toBe(true);
+    expect(result.monsterDamageEvents[0].rewardSuppressed).toBe(true);
   });
 
   it("does not apply secondary statuses when invulnerability prevents the attack", () => {

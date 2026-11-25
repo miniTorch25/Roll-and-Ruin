@@ -94,6 +94,10 @@ export interface GameMonster {
   targetCount?: number;
   /** One-shot target override consumed by this monster's next scheduled attack. */
   forcedTargetPlayerId?: string;
+  /** Last scheduled target, used by Gob's 60% repeat-target behavior. */
+  lastTargetPlayerId?: string;
+  /** Cards held by Sneaky until it is defeated. */
+  stolenCards?: Array<{ ownerPlayerId: string; cardId: string }>;
   turnsSinceLastAttack: number;
   active: boolean;
 }
@@ -303,18 +307,38 @@ export function resolveMonsterAttackPhase(
     const forcedTarget = monster.forcedTargetPlayerId
       ? targets.find((player) => player.id === monster.forcedTargetPlayerId)
       : undefined;
-    const selected = forcedTarget
-      ? [forcedTarget]
-      : monster.attackPattern === "all_living"
-        ? targets
-        : chooseRandomTargets(targets, monster.targetCount ?? 1, random);
+    let selected: GamePlayer[];
+    if (forcedTarget) {
+      selected = [forcedTarget];
+    } else if (monster.attackPattern === "all_living") {
+      selected = targets;
+    } else if (monster.catalogueId === "C01" && targets.length > 0) {
+      const previousTarget = targets.find((player) => player.id === monster.lastTargetPlayerId);
+      if (previousTarget && random() < 0.6) {
+        selected = [previousTarget];
+      } else {
+        const alternatives = previousTarget
+          ? targets.filter((player) => player.id !== previousTarget.id)
+          : targets;
+        selected = chooseRandomTargets(alternatives.length > 0 ? alternatives : targets, 1, random);
+      }
+    } else {
+      selected = chooseRandomTargets(targets, monster.targetCount ?? 1, random);
+    }
 
     attacks.push({
       monsterId: monster.id,
       targetPlayerIds: selected.map((player) => player.id),
       reason: "scheduled"
     });
-    return { ...monster, turnsSinceLastAttack: 0, forcedTargetPlayerId: undefined };
+    return {
+      ...monster,
+      turnsSinceLastAttack: 0,
+      forcedTargetPlayerId: undefined,
+      ...(monster.catalogueId === "C01" && selected[0]
+        ? { lastTargetPlayerId: selected[0].id }
+        : {})
+    };
   });
 
   return { state: { ...state, monsters, phase: "turn_start" }, attacks };

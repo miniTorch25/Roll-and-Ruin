@@ -40,3 +40,13 @@ This is the shared baseline, not a complete implementation of all 50 monsters. S
 
 - **Shroomy (C07):** when a player defeats Shroomy with an Attack card, its spores deal 1 direct HP loss to that player. This loss bypasses shields and uses the normal death/Resurrection flow.
 - **Rocky (C09):** Attack-card damage against Rocky is reduced by 1, with a minimum of 1 damage. This applies to Monster Hunter and monster splash damage from Grenade.
+
+
+## Additional Common monster targeting and card-theft abilities
+
+- **Gob (C01):** remembers the player it targeted on its previous scheduled attack. If that player is still alive, Gob targets them again with a 60% chance; otherwise, or on the remaining 40%, it chooses a different living player when one exists.
+- **Bone (C02):** targets up to two distinct living players per scheduled attack. Its catalogue already defines the two-target count.
+- **Ratty (C04):** attacks every turn, as defined by its one-turn interval.
+- **Webby (C05):** an Attack-card defeat marks its monster-damage event with `rewardSuppressed: true`, including Monster Hunter and Grenade splash. The reward consumer can use this flag to withhold the normal reward.
+- **Batty (C08):** uses a fresh random target selection for each scheduled attack; no target is remembered.
+- **Sneaky (C10):** on each scheduled attack, steals one random card from every selected target who has a card. The stolen cards are stored on Sneaky and returned to their original owners when it is defeated.
