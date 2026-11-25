@@ -95,3 +95,12 @@ This is the shared baseline, not a complete implementation of all 50 monsters. S
 - **Dwarfy (L09):** leaves after two blue cards and grants up to three random blue Defense cards.
 - **Kingo (L10):** accepts five contributed cards from one or more players, leaves, and gives one random Curse card to a player tied for the largest contribution.
 - Offerings are resolved through `resolveLegendOffering`; callers provide explicit card selections and the current shared deck. Contributions move to the discard pile.
+
+
+### Legend reflection damage
+
+- **Sphinxy (L02), Dwarfy (L09), and Kingo (L10):** reflect 50% of HP damage dealt to them.
+- **Lepri (L05) and Treeo (L08):** reflect 30% of HP damage dealt to them.
+- **Unico (L04) and Mirro (L07):** reflect 100% of HP damage dealt to them.
+- Reflected damage is rounded down to a whole HP. Mirro's reflected damage bypasses Defense shields; the other Legend reflections can be absorbed by shields.
+- Reflection is applied to Monster Hunter hits and monster splash hits from Grenade.
