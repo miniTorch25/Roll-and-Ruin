@@ -332,11 +332,16 @@ export function resolveMonsterAttackEvents(
       throw new Error(`Monster ${monster.id} has no catalogue attack damage.`);
     }
     const pierceShield = monster.rules?.some((rule) => rule.includes("ทะลุเกราะ")) ?? false;
+    const wolfPackBonus = monster.catalogueId === "C06" &&
+      state.monsters.filter((item) => item.active && item.catalogueId === "C06").length > 1
+      ? 1
+      : 0;
+    const attackDamage = monster.attackDamage + wolfPackBonus;
 
     for (const targetPlayerId of attack.targetPlayerIds) {
       const target = state.players.find((player) => player.id === targetPlayerId);
       if (!target || target.status !== "alive") continue;
-      const hit = applyDamage(state, targetPlayerId, monster.attackDamage, random, {
+      const hit = applyDamage(state, targetPlayerId, attackDamage, random, {
         kind: "monster_attack",
         sourceMonsterId: monster.id,
         pierceShield
@@ -369,12 +374,13 @@ export function resolveMonsterAttackEvents(
       }
     }
 
-    if (monster.catalogueId === "R05") {
+    const selfHeal = monster.catalogueId === "R05" ? 2 : monster.catalogueId === "C03" ? 1 : 0;
+    if (selfHeal > 0) {
       state = {
         ...state,
         monsters: state.monsters.map((item) => item.id === monster.id && item.active &&
           typeof item.hp === "number" && typeof item.maxHp === "number"
-          ? { ...item, hp: Math.min(item.maxHp, item.hp + 2) }
+          ? { ...item, hp: Math.min(item.maxHp, item.hp + selfHeal) }
           : item)
       };
     }
