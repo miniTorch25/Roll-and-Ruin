@@ -61,14 +61,16 @@ describe("Roll and Ruin board rules", () => {
   });
 
   it("fires the ordinary special-tile check only on the landing space", () => {
-    const board = createBoardState({ mystery: 0, monster: 0, dice: 0 }, [], () => 0);
-    const prison = board.tiles.find((tile) => tile.special === "prison");
-    const from = (prison!.position + BOARD_SIZE - 1) % BOARD_SIZE;
-    const movement = resolveBoardMovement(board, from, 2);
-    expect(movement.passedPositions).toContain(prison!.position);
+    const generated = createBoardState({ mystery: 0, monster: 0, dice: 0 }, [], () => 0);
+    const tiles = generated.tiles.map((tile) => ({ position: tile.position }));
+    tiles[5] = { position: 5, special: "prison" };
+    tiles[10] = { position: 10, special: "prison" };
+    const board = { ...generated, tiles };
+    const movement = resolveBoardMovement(board, 4, 2);
+    expect(movement.passedPositions).toContain(5);
     expect(movement.landedTile).toBeUndefined();
 
-    const landed = resolveBoardMovement(board, from, 1);
+    const landed = resolveBoardMovement(board, 4, 1);
     expect(landed.landedTile).toBe("prison");
   });
 
