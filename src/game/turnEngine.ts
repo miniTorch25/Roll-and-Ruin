@@ -74,9 +74,19 @@ export interface GamePlayer {
 
 export interface GameMonster {
   id: string;
+  /** Catalogue identity and combat data are present for monsters summoned from the 50-entry catalogue. */
+  catalogueId?: string;
+  name?: string;
+  rank?: "Common" | "Rare" | "Epic" | "Legend" | "Myth";
+  hp?: number | null;
+  maxHp?: number | null;
+  attackDamage?: number;
+  rules?: readonly string[];
+  reward?: string | null;
+  info?: string | null;
   attackPattern: MonsterAttackPattern;
-  /** The monster-specific interval from the rules file. */
-  attackInterval: number;
+  /** null means the rules define no fixed scheduled attack interval. */
+  attackInterval: number | null;
   /** Number of distinct living targets for a scheduled attack. */
   targetCount?: number;
   /** One-shot target override consumed by this monster's next scheduled attack. */
@@ -249,8 +259,8 @@ export function summonMonster(
   if (state.monsters.filter((item) => item.active).length >= 4) {
     throw new Error("A maximum of four active monsters may be on the board.");
   }
-  if (!Number.isInteger(monster.attackInterval) || monster.attackInterval < 1) {
-    throw new Error("A monster must define its own positive attack interval.");
+  if (monster.attackInterval !== null && (!Number.isInteger(monster.attackInterval) || monster.attackInterval < 1)) {
+    throw new Error("A scheduled monster attack interval must be a positive integer.");
   }
   if (monster.targetCount !== undefined && (!Number.isInteger(monster.targetCount) || monster.targetCount < 1)) {
     throw new Error("targetCount must be a positive integer when provided.");
@@ -282,7 +292,7 @@ export function resolveMonsterAttackPhase(
 
   const attacks: MonsterAttackEvent[] = [];
   const monsters = state.monsters.map((monster) => {
-    if (!monster.active || monster.turnsSinceLastAttack < monster.attackInterval) {
+    if (!monster.active || monster.attackInterval === null || monster.turnsSinceLastAttack < monster.attackInterval) {
       return monster;
     }
 
