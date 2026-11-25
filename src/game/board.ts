@@ -150,3 +150,19 @@ export function resolveBoardMovement(board: BoardState, from: number, steps: num
     completedLaps: path.completedLapPositions.length
   };
 }
+
+/** Resolves movement and regenerates the special-tile layout once for every completed lap. */
+export function moveAndRegenerateBoard(
+  board: BoardState,
+  from: number,
+  steps: number,
+  occupiedPositionsAfterMove: number[],
+  random: () => number = Math.random
+): { board: BoardState; movement: BoardMovement } {
+  const movement = resolveBoardMovement(board, from, steps);
+  let nextBoard = board;
+  for (let lap = 0; lap < movement.completedLaps; lap++) {
+    nextBoard = regenerateSpecialTiles(nextBoard, occupiedPositionsAfterMove, random);
+  }
+  return { board: nextBoard, movement };
+}
