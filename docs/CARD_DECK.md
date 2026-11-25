@@ -13,4 +13,5 @@ The game uses the authoritative 60-card list in `Roll_and_Ruin_Rules.txt`, repre
 - The local prototype now shuffles the 60 real catalogue IDs and deals four starting cards to each player.
 - `playCatalogueCard` now removes a real catalogue card, applies its confirmed score value, and returns its effect definition.
 - Used cards are not automatically placed in the discard pile; the caller must explicitly discard them after effect resolution.
-- The effect resolver, target-selection UI, curse-cost selection, and discard timing still need integration.
+- The effect resolver now handles 50 of the 55 catalogue effect IDs; Monster/Board integration and the final unsupported effects remain open.
+- Resurrection can be used on one eliminated player or automatically from the holder's hand on final-heart loss.
