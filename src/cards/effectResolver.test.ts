@@ -234,7 +234,7 @@ describe("catalogue card effect resolver foundation", () => {
   });
 
   it("rejects effects that depend on systems not integrated yet", () => {
-    expect(() => resolveCardEffect(cardPlayState(), "blue_monster_hunter")).toThrow(/not implemented yet/);
+    expect(() => resolveCardEffect(cardPlayState(), "yellow_magic_shortcut")).toThrow(/not implemented yet/);
   });
 });
 
