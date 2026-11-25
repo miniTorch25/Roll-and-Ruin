@@ -14,6 +14,11 @@ export interface CardRuntimePlayerState {
   curseCooldownTurnsRemaining: number;
   curseCooldownUses: number;
   curseCooldownFresh: boolean;
+  bonusDiceThisTurn: number;
+  bonusDiceGrantedThisTurn: boolean;
+  rerollsRemaining: number;
+  controlledDiceValues?: number[];
+  controlledDiceUsedThisTurn: boolean;
 }
 
 export interface CardRuntimeState {
@@ -36,6 +41,8 @@ export interface ResolveCardEffectOptions {
   deck?: CardDeckState;
   /** Required payment choice when playing a Curse card. */
   cursePayment?: CursePayment;
+  /** Dice faces selected by Control Dice (one to three values, each from 1 to 6). */
+  controlledDiceValues?: number[];
   /** Injectable random source, including random card-loss when a player dies. */
   random?: () => number;
 }
@@ -81,7 +88,11 @@ const EMPTY_PLAYER_RUNTIME = (): CardRuntimePlayerState => ({
   negativeStatuses: [],
   curseCooldownTurnsRemaining: 0,
   curseCooldownUses: 0,
-  curseCooldownFresh: false
+  curseCooldownFresh: false,
+  bonusDiceThisTurn: 0,
+  bonusDiceGrantedThisTurn: false,
+  rerollsRemaining: 0,
+  controlledDiceUsedThisTurn: false
 });
 
 function withRuntime(state: GameState): CardEffectGameState {
@@ -328,6 +339,9 @@ function takeAttackBonus(state: CardEffectGameState, playerId: string): {
 }
 
 const IMPLEMENTED_EFFECTS = new Set<CardEffectId>([
+  "gain_bonus_die",
+  "reroll_one_die",
+  "control_dice_values",
   "damage_single",
   "damage_single_pierce_shield",
   "damage_and_remove_shields",
@@ -470,6 +484,46 @@ export function resolveCardEffect(
   }
 
   switch (card.effectId) {
+    case "gain_bonus_die": {
+      const runtime = state.cardRuntime.players[active.id];
+      if (runtime.bonusDiceGrantedThisTurn) {
+        throw new Error("Lucky Dice can only be used once per turn.");
+      }
+      state = updatePlayerRuntime(state, active.id, (current) => ({
+        ...current,
+        bonusDiceThisTurn: current.bonusDiceThisTurn + Number(card.parameters?.dice ?? 1),
+        bonusDiceGrantedThisTurn: true
+      }));
+      break;
+    }
+    case "reroll_one_die": {
+      const runtime = state.cardRuntime.players[active.id];
+      if (runtime.rerollsRemaining > 0) {
+        throw new Error("Only one die reroll is available per turn.");
+      }
+      state = updatePlayerRuntime(state, active.id, (current) => ({
+        ...current,
+        rerollsRemaining: Number(card.parameters?.rerolls ?? 1)
+      }));
+      break;
+    }
+    case "control_dice_values": {
+      const runtime = state.cardRuntime.players[active.id];
+      const values = options.controlledDiceValues;
+      if (runtime.controlledDiceUsedThisTurn) {
+        throw new Error("Control Dice can only be used once per turn.");
+      }
+      if (!values || values.length < 1 || values.length > Number(card.parameters?.maximumDice ?? 3) ||
+          values.some((value) => !Number.isInteger(value) || value < 1 || value > 6)) {
+        throw new Error("Control Dice requires one to three selected die values from 1 to 6.");
+      }
+      state = updatePlayerRuntime(state, active.id, (current) => ({
+        ...current,
+        controlledDiceValues: [...values],
+        controlledDiceUsedThisTurn: true
+      }));
+      break;
+    }
     case "damage_single":
     case "damage_single_pierce_shield":
     case "damage_and_remove_shields":
