@@ -29,6 +29,7 @@ describe("authoritative Roll and Ruin card catalogue", () => {
     expect(curses).toHaveLength(19);
     expect(curses.every((card) => card.curseCostOptions?.length === 3)).toBe(true);
     expect(curses.every((card) => card.cooldownLimitPerGame === 3)).toBe(true);
+    expect(curses.every((card) => card.cooldownEligibility === "hp_or_cards_insufficient")).toBe(true);
   });
 
   it("exposes stable IDs and complete descriptions for every card", () => {
