@@ -23,7 +23,10 @@ export type PlayerStatusEffectType =
   | "movement_blocked"
   | "reverse_movement"
   | "attack_damage_reduction"
-  | "reveal_hand";
+  | "reveal_hand"
+  | "poison"
+  | "cards_limit"
+  | "movement_reduction";
 
 export interface PlayerStatusEffect {
   type: PlayerStatusEffectType;
@@ -317,7 +320,7 @@ export function resolveMonsterAttackPhase(
   return { state: { ...state, monsters, phase: "turn_start" }, attacks };
 }
 
-export function startPlayerTurn(state: GameState): GameState {
+export function startPlayerTurn(state: GameState, random: () => number = Math.random): GameState {
   if (state.phase !== "turn_start") {
     throw new Error("A player turn can only start after the monster attack phase.");
   }
@@ -332,8 +335,29 @@ export function startPlayerTurn(state: GameState): GameState {
       }
     }
   }
-  const activePlayer = state.players[activePlayerIndex];
-  const players = state.players.map((player, index) =>
+
+  const selectedPlayer = state.players[activePlayerIndex];
+  const poisonDamage = selectedPlayer.statusEffects
+    .filter((effect) => effect.type === "poison" && effect.turnsRemaining > 0)
+    .reduce((total, effect) => total + (effect.amount ?? 1), 0);
+  let preparedState = state;
+  if (poisonDamage > 0) {
+    preparedState = {
+      ...state,
+      players: state.players.map((player) => player.id === selectedPlayer.id
+        ? { ...player, hp: Math.max(0, player.hp - poisonDamage) }
+        : player)
+    };
+    if (selectedPlayer.hp <= poisonDamage) {
+      preparedState = applyPlayerDeath(preparedState, selectedPlayer.id, random).state;
+    }
+  }
+  if (livingPlayers(preparedState).length === 0) {
+    return { ...preparedState, phase: "game_over" };
+  }
+
+  const activePlayer = preparedState.players[activePlayerIndex];
+  const players = preparedState.players.map((player, index) =>
     index === activePlayerIndex
       ? {
           ...player,
@@ -346,10 +370,12 @@ export function startPlayerTurn(state: GameState): GameState {
     effect.type === "skip_turn" && effect.turnsRemaining > 0
   );
   return {
-    ...state,
+    ...preparedState,
     players,
     activePlayerIndex,
-    phase: activePlayer.prisonTurnsRemaining > 0 || isSkippedByStatus ? "turn_end" : "choose_action",
+    phase: activePlayer.status !== "alive" || activePlayer.prisonTurnsRemaining > 0 || isSkippedByStatus
+      ? "turn_end"
+      : "choose_action",
     selectedAction: undefined,
     movementSteps: 0,
     movementDirection: activePlayer.statusEffects.some((effect) =>
@@ -357,7 +383,6 @@ export function startPlayerTurn(state: GameState): GameState {
     ) ? -1 : 1
   };
 }
-
 /** Resolve one of the three activities defined by the rules. Card IDs are supplied by the deck layer. */
 export function selectPlayerAction(
   state: GameState,
@@ -428,8 +453,11 @@ export function playCardFromHand(state: GameState, cardId: string, scoreValue = 
   if (isAttackCard && state.cardRuntime?.players[active.id]?.blockedAttackCardsThisTurn) {
     throw new Error("Attack cards are blocked for the rest of this turn.");
   }
-  if (active.cardsPlayedThisTurn >= MAX_CARDS_PER_TURN) {
-    throw new Error(`A player may use at most ${MAX_CARDS_PER_TURN} cards per turn.`);
+  const cardLimit = active.statusEffects
+    .filter((effect) => effect.type === "cards_limit" && effect.turnsRemaining > 0)
+    .reduce((limit, effect) => Math.min(limit, effect.amount ?? 2), MAX_CARDS_PER_TURN);
+  if (active.cardsPlayedThisTurn >= cardLimit) {
+    throw new Error(`A player may use at most ${cardLimit} cards per turn.`);
   }
   const cardIndex = active.hand.indexOf(cardId);
   if (cardIndex < 0) throw new Error("The selected card is not in the player's hand.");
@@ -566,7 +594,10 @@ export function moveActivePlayer(state: GameState): {
   const movementBlocked = activeRuntimeStatuses.some((effect) =>
     effect.type === "movement_blocked" && effect.turnsRemaining > 0
   );
-  const steps = movementBlocked ? 0 : state.movementSteps;
+  const movementReduction = activeRuntimeStatuses
+    .filter((effect) => effect.type === "movement_reduction" && effect.turnsRemaining > 0)
+    .reduce((maximum, effect) => Math.max(maximum, effect.amount ?? 1), 0);
+  const steps = movementBlocked ? 0 : Math.max(0, state.movementSteps - movementReduction);
   const totalPosition = from + steps * state.movementDirection;
   const to = ((totalPosition % state.boardLength) + state.boardLength) % state.boardLength;
   const completedLaps = state.movementDirection === 1
