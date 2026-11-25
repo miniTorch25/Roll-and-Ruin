@@ -14,7 +14,9 @@ The authoritative source is `Roll_and_Ruin_Rules.txt`. This document describes o
 - Starting hand: exactly 4 card IDs supplied by the deck/catalogue layer.
 - Board: 32 spaces, four sides with nine spaces per side and corners counted once.
 
-The engine does not invent card IDs. The caller supplies the four starting cards from the authoritative 60-card catalogue.
+The engine does not invent card IDs. The caller supplies the four starting cards from the authoritative 60-card catalogue. Human player counts may range from 1 to the selected mode's capacity. Missing seats are filled with bot players, and the deck layer must supply four starting cards for each generated bot.
+
+Bot seats and team assignments are represented in state; automated bot decision-making is a separate controller that has not yet been implemented.
 
 ## Turn sequence
 1. Monster Attack.
@@ -54,4 +56,4 @@ The engine accepts drawn card IDs from the deck layer and does not create placeh
 - Card catalogue/effects and discard-pile policy.
 - Prison, Mystery, Monster, and Dice tile events and board regeneration.
 - Monster damage, status effects, per-monster special behavior, rewards, and summon cap.
-- Mode timers, bot fill, and match victory/tie resolution.
+- Mode timers, automated bot decision-making, and match victory/tie resolution.

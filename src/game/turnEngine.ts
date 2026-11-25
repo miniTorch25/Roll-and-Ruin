@@ -31,6 +31,7 @@ export interface GamePlayer {
   hand: string[];
   cardsPlayedThisTurn: number;
   status: PlayerStatus;
+  isBot: boolean;
 }
 
 export interface GameMonster {
@@ -85,29 +86,61 @@ const MODE_RULES: Record<GameMode, { players: number; teams: number; playersPerT
 export function createGameState(
   mode: GameMode,
   playerSetup: PlayerSetup[],
-  boardLength = 32
+  boardLength = 32,
+  botStartingHands: string[][] = []
 ): GameState {
   const rules = MODE_RULES[mode];
-  const teamIds = new Set(playerSetup.map((player) => player.teamId));
+  if (playerSetup.length < 1 || playerSetup.length > rules.players) {
+    throw new Error(`Mode ${mode} accepts between 1 and ${rules.players} human player(s).`);
+  }
+  const playerIds = new Set(playerSetup.map((player) => player.id));
+  if (playerIds.size !== playerSetup.length) {
+    throw new Error("Player IDs must be unique.");
+  }
 
-  if (playerSetup.length !== rules.players) {
-    throw new Error(`Mode ${mode} requires exactly ${rules.players} players.`);
+  const teamIds = [...new Set(playerSetup.map((player) => player.teamId))];
+  if (teamIds.length > rules.teams) {
+    throw new Error(`Mode ${mode} supports at most ${rules.teams} teams.`);
   }
-  if (teamIds.size !== rules.teams) {
-    throw new Error(`Mode ${mode} requires exactly ${rules.teams} teams.`);
-  }
+  const teamCounts = new Map<string, number>();
   for (const teamId of teamIds) {
-    if (playerSetup.filter((player) => player.teamId === teamId).length !== rules.playersPerTeam) {
-      throw new Error(`Team ${teamId} must contain ${rules.playersPerTeam} player(s).`);
+    const count = playerSetup.filter((player) => player.teamId === teamId).length;
+    if (count > rules.playersPerTeam) {
+      throw new Error(`Team ${teamId} cannot contain more than ${rules.playersPerTeam} player(s).`);
     }
+    teamCounts.set(teamId, count);
+  }
+  let generatedTeamNumber = 1;
+  while (teamIds.length < rules.teams) {
+    let candidate = `bot-team-${generatedTeamNumber++}`;
+    while (teamIds.includes(candidate)) candidate = `bot-team-${generatedTeamNumber++}`;
+    teamIds.push(candidate);
+    teamCounts.set(candidate, 0);
+  }
+
+  const botCount = rules.players - playerSetup.length;
+  if (botStartingHands.length !== botCount) {
+    throw new Error(`Provide exactly ${botCount} bot starting hand(s) to fill this match.`);
+  }
+  const expandedSetup: (PlayerSetup & { isBot: boolean })[] =
+    playerSetup.map((player) => ({ ...player, isBot: false }));
+  let nextBotId = 1;
+  for (const hand of botStartingHands) {
+    if (hand.length !== STARTING_HAND_SIZE) {
+      throw new Error(`Each bot must start with exactly ${STARTING_HAND_SIZE} cards.`);
+    }
+    const teamId = teamIds.find((id) => (teamCounts.get(id) ?? 0) < rules.playersPerTeam);
+    if (!teamId) throw new Error("Unable to assign a bot to an available team.");
+    let id = `bot-${nextBotId++}`;
+    while (playerIds.has(id)) id = `bot-${nextBotId++}`;
+    playerIds.add(id);
+    expandedSetup.push({ id, teamId, startingHand: hand, isBot: true });
+    teamCounts.set(teamId, (teamCounts.get(teamId) ?? 0) + 1);
   }
   if (!Number.isInteger(boardLength) || boardLength !== 32) {
     throw new Error("The confirmed board contains exactly 32 spaces.");
   }
-  if (new Set(playerSetup.map((player) => player.id)).size !== playerSetup.length) {
-    throw new Error("Player IDs must be unique.");
-  }
-  for (const player of playerSetup) {
+  for (const player of expandedSetup) {
     if (player.startingHand.length !== STARTING_HAND_SIZE) {
       throw new Error(`Player ${player.id} must start with exactly ${STARTING_HAND_SIZE} cards.`);
     }
@@ -119,7 +152,7 @@ export function createGameState(
     turnNumber: 1,
     activePlayerIndex: 0,
     boardLength,
-    players: playerSetup.map((player) => ({
+    players: expandedSetup.map((player) => ({
       id: player.id,
       teamId: player.teamId,
       position: 0,
@@ -129,7 +162,8 @@ export function createGameState(
       score: 0,
       hand: [...player.startingHand],
       cardsPlayedThisTurn: 0,
-      status: "alive"
+      status: "alive",
+      isBot: player.isBot
     })),
     monsters: [],
     movementSteps: 0
