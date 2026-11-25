@@ -14,6 +14,12 @@ export interface CardRuntimePlayerState {
   curseCooldownTurnsRemaining: number;
   curseCooldownUses: number;
   curseCooldownFresh: boolean;
+  bonusDiceThisTurn: number;
+  luckyDiceUsedThisTurn: boolean;
+  rerollsRemaining: number;
+  rerollCardUsedThisTurn: boolean;
+  controlledDiceValues: number[];
+  diceControlUsedThisTurn: boolean;
 }
 
 export interface CardRuntimeState {
@@ -36,6 +42,8 @@ export interface ResolveCardEffectOptions {
   deck?: CardDeckState;
   /** Required payment choice when playing a Curse card. */
   cursePayment?: CursePayment;
+  /** Selected values for Control Dice; one value for each die that will be rolled. */
+  diceValues?: number[];
   /** Injectable random source, including random card-loss when a player dies. */
   random?: () => number;
 }
@@ -81,7 +89,13 @@ const EMPTY_PLAYER_RUNTIME = (): CardRuntimePlayerState => ({
   negativeStatuses: [],
   curseCooldownTurnsRemaining: 0,
   curseCooldownUses: 0,
-  curseCooldownFresh: false
+  curseCooldownFresh: false,
+  bonusDiceThisTurn: 0,
+  luckyDiceUsedThisTurn: false,
+  rerollsRemaining: 0,
+  rerollCardUsedThisTurn: false,
+  controlledDiceValues: [],
+  diceControlUsedThisTurn: false
 });
 
 function withRuntime(state: GameState): CardEffectGameState {
@@ -341,6 +355,9 @@ const IMPLEMENTED_EFFECTS = new Set<CardEffectId>([
   "force_discard_selected_card",
   "draw_cards",
   "draw_and_distribute_cards",
+  "gain_bonus_die",
+  "reroll_one_die",
+  "control_dice_values",
   "skip_next_turn",
   "limit_next_turn_dice",
   "weaken_attack_damage",
@@ -850,6 +867,58 @@ export function resolveCardEffect(
         })
       };
       appliedToPlayerIds.push(target.id);
+      break;
+    }
+    case "gain_bonus_die": {
+      const runtime = state.cardRuntime.players[active.id];
+      if (runtime.luckyDiceUsedThisTurn) {
+        throw new Error("Lucky Dice can only be used once per turn.");
+      }
+      const bonusDice = Number(card.parameters?.dice ?? 1);
+      state = updatePlayerRuntime(state, active.id, (current) => ({
+        ...current,
+        bonusDiceThisTurn: Math.min(2, current.bonusDiceThisTurn + bonusDice),
+        luckyDiceUsedThisTurn: true
+      }));
+      break;
+    }
+    case "reroll_one_die": {
+      const runtime = state.cardRuntime.players[active.id];
+      if (runtime.rerollCardUsedThisTurn) {
+        throw new Error("Only one reroll card may be used per turn.");
+      }
+      const rerolls = Number(card.parameters?.rerolls ?? 1);
+      state = updatePlayerRuntime(state, active.id, (current) => ({
+        ...current,
+        rerollsRemaining: Math.max(current.rerollsRemaining, rerolls),
+        rerollCardUsedThisTurn: true
+      }));
+      break;
+    }
+    case "control_dice_values": {
+      const runtime = state.cardRuntime.players[active.id];
+      if (runtime.diceControlUsedThisTurn) {
+        throw new Error("Dice values can only be controlled once per turn.");
+      }
+      const maximumDice = Number(card.parameters?.maximumDice ?? 3);
+      const diceValues = options.diceValues;
+      if (
+        !diceValues ||
+        diceValues.length < 1 ||
+        diceValues.length > maximumDice ||
+        diceValues.some((value) => !Number.isInteger(value) || value < 1 || value > 6)
+      ) {
+        throw new Error(`Control Dice requires 1 to ${maximumDice} integer die value(s), each from 1 to 6.`);
+      }
+      const expectedDice = Math.min(3, 1 + runtime.bonusDiceThisTurn);
+      if (diceValues.length !== expectedDice) {
+        throw new Error(`Choose exactly ${expectedDice} value(s) for the dice rolled this turn.`);
+      }
+      state = updatePlayerRuntime(state, active.id, (current) => ({
+        ...current,
+        controlledDiceValues: [...diceValues],
+        diceControlUsedThisTurn: true
+      }));
       break;
     }
     case "heal": {
