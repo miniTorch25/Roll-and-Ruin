@@ -9,4 +9,14 @@ The monster catalogue is connected to the game-state monster records through `sr
 - Monsters with `attackInterval: null` can still emit their first-summon event, but are not included in later scheduled attacks.
 - `clearActiveMonsters` deactivates all active monsters while retaining their records; reward resolution remains explicit.
 
-This is the shared data/combat foundation. Monster-specific abilities, attack damage application to players, death rewards, special tile triggers, and card/UI integration are not implied by these generic functions.
+## Monster attack damage
+
+`resolveMonsterAttackEvents` consumes the attack events returned by the turn engine or by a summon card and applies the monster's catalogue attack damage to each still-living target.
+
+- Player shields absorb ordinary monster damage before HP.
+- Catalogue rules containing the explicit shield-bypass wording bypass shields (currently Vampy and Ragnar).
+- Player invulnerability prevents ordinary monster damage.
+- A player's one-hit reflection charge can reflect the HP damage back to the attacking monster.
+- Vampy restores 2 HP after an attack, up to its maximum HP.
+
+This is the shared baseline, not a complete implementation of all 50 monsters. Special attack effects, target selection exceptions, triggered tile attacks, poison and other status effects, instant-kill rules, monster-specific removal conditions, death rewards, and BoardScene integration remain separate work.
