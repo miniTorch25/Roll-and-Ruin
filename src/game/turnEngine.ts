@@ -148,12 +148,6 @@ function livingPlayers(state: GameState): GamePlayer[] {
   return state.players.filter((player) => player.status === "alive");
 }
 
-function chooseRandom<T>(items: T[], random: () => number): T | undefined {
-  if (items.length === 0) return undefined;
-  const index = Math.min(items.length - 1, Math.floor(random() * items.length));
-  return items[index];
-}
-
 function chooseRandomTargets<T>(items: T[], amount: number, random: () => number): T[] {
   const pool = [...items];
   const selected: T[] = [];
