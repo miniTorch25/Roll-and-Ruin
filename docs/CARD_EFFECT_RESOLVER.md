@@ -48,6 +48,7 @@ Every supported Curse effect requires an explicit `cursePayment`:
 
 ## Implemented player-targeted Curse effects
 
+- **ชุบชีวิต:** revives one selected eliminated player with 1 heart, full HP, and position 0. A player holding this card also automatically consumes it when losing their final heart, before random hand loss, and returns with 1 heart.
 - **สังหารทันที:** deals enough damage to pass through the target's shields and reduce HP to zero; invulnerability blocks it.
 - **คุกบังคับ:** sends the selected living player to prison for 3 turns.
 - **พลิกโต๊ะ:** sends every other living player to position 0.
@@ -90,4 +91,4 @@ Call `resolveCardEffect(state, cardDefinitionOrId, options)` after `playCatalogu
 
 ## Not yet implemented
 
-Grenade splash needs monster/player target integration; Monster Hunter needs the monster HP catalogue and damage rules. Resurrection sequencing, remaining monster/tile effects, monster HP/damage and reward resolution, and BoardScene dice/card-choice integration remain separate work.
+Grenade splash needs monster/player target integration; Monster Hunter needs the monster HP catalogue and damage rules. Remaining monster/tile effects, monster HP/damage and reward resolution, and BoardScene dice/card-choice integration remain separate work.
