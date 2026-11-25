@@ -909,14 +909,16 @@ describe("manual Resurrection card effect", () => {
 });
 
 
+const SUMMON_CARD_CASES: [string, string, number, number][] = [
+  ["red_summon_common", "C01", 5, 1],
+  ["red_summon_rare", "R01", 40, 3],
+  ["red_summon_epic", "E01", 60, 6],
+  ["red_summon_legend", "L01", 100, 10],
+  ["red_summon_myth", "M01", 10000, 0]
+];
+
 describe("rank-based monster summon card effects", () => {
-  it.each([
-    ["red_summon_common", "C01", 5, 1],
-    ["red_summon_rare", "R01", 40, 3],
-    ["red_summon_epic", "E01", 60, 6],
-    ["red_summon_legend", "L01", 100, 10],
-    ["red_summon_myth", "M01", 10000, 0]
-  ])("summons the correct rank for %s and performs the summon-time target event", (cardId, catalogueId, hp, damage) => {
+  it.each(SUMMON_CARD_CASES)("summons the correct rank for %s and performs the summon-time target event", (cardId, catalogueId, hp, damage) => {
     const result = resolveCardEffect(cardPlayState(), cardId, { random: () => 0 });
     expect(result.state.monsters).toHaveLength(1);
     expect(result.state.monsters[0]).toMatchObject({
