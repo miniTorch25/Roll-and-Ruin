@@ -20,3 +20,11 @@ The monster catalogue is connected to the game-state monster records through `sr
 - Vampy restores 2 HP after an attack, up to its maximum HP.
 
 This is the shared baseline, not a complete implementation of all 50 monsters. Special attack effects, target selection exceptions, triggered tile attacks, poison and other status effects, instant-kill rules, monster-specific removal conditions, death rewards, and BoardScene integration remain separate work.
+
+
+## Implemented monster-applied player statuses
+
+- **Stoney (R04):** a successful attack applies a one-turn one-die limit.
+- **Scorpy (R07):** a successful attack applies Poison for three owner turns. Poison deals 1 HP directly at the start of each affected player's turn, before their action; it bypasses shields and can trigger the normal heart-loss, Resurrection, and elimination flow.
+- **Frosty (R10):** a successful attack limits the target to two cards during their next turn.
+- Status effects are refreshed when the same monster applies the same status again. Invulnerability-prevented attacks and attacks that already caused a death do not apply these secondary effects.

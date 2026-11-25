@@ -343,6 +343,30 @@ export function resolveMonsterAttackEvents(
       });
       state = hit.state;
       damageEvents.push(hit.event);
+
+      if (!hit.event.preventedBy && !hit.event.death && hit.event.attemptedDamage > 0) {
+        const status = monster.catalogueId === "R07"
+          ? { type: "poison" as const, turnsRemaining: 3, amount: 1 }
+          : monster.catalogueId === "R04"
+            ? { type: "dice_limit" as const, turnsRemaining: 1, amount: 1 }
+            : monster.catalogueId === "R10"
+              ? { type: "cards_limit" as const, turnsRemaining: 1, amount: 2 }
+              : undefined;
+        if (status && state.players.some((player) => player.id === targetPlayerId && player.status === "alive")) {
+          state = {
+            ...state,
+            players: state.players.map((player) => player.id === targetPlayerId
+              ? {
+                  ...player,
+                  statusEffects: [
+                    ...player.statusEffects.filter((effect) => effect.type !== status.type),
+                    status
+                  ]
+                }
+              : player)
+          };
+        }
+      }
     }
 
     if (monster.catalogueId === "R05") {
