@@ -383,7 +383,6 @@ export function resolveMonsterAttackEvents(
           const harpyTarget = state.players.find((player) => player.id === targetPlayerId && player.status === "alive");
           if (harpyTarget && harpyTarget.hand.length > 0) {
             const discardedIndex = Math.min(harpyTarget.hand.length - 1, Math.max(0, Math.floor(random() * harpyTarget.hand.length)));
-            const discardedCard = harpyTarget.hand[discardedIndex];
             state = {
               ...state,
               players: state.players.map((player) => player.id === targetPlayerId
