@@ -12,9 +12,11 @@ const setup: PlayerSetup[] = [
 ];
 const deck = { drawPile: CARD_CATALOGUE.map(card => card.id), discardPile: [] as string[] };
 
-function summon(id: string, random = 0) {
+function summon(id: string) {
   const state = createGameState("1x4", setup);
-  return summonRandomMonster(state, "Legend", id, () => random).state;
+  const index = ["lizzie", "sphinxy", "gini", "unico", "lepri", "fenny", "mirro", "treeo", "dwarfy", "kingo"].indexOf(id);
+  if (index < 0) throw new Error(`Unknown test Legend ${id}`);
+  return summonRandomMonster(state, "Legend", id, () => (index + 0.1) / 10).state;
 }
 
 describe("Legend monster offerings", () => {
