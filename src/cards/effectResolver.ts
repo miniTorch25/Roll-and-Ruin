@@ -1,6 +1,7 @@
-import { applyPlayerDeath, getActivePlayer, imprisonPlayer, resurrectPlayer, MAX_CARDS_PER_TURN, type DeathResult, type GameState, type PlayerStatusEffect, type PlayerStatusEffectType } from "../game/turnEngine";
+import { applyPlayerDeath, getActivePlayer, imprisonPlayer, resurrectPlayer, summonMonster, MAX_CARDS_PER_TURN, type DeathResult, type GameState, type MonsterAttackEvent, type PlayerStatusEffect, type PlayerStatusEffectType } from "../game/turnEngine";
 import { getCardDefinition, type CardDefinition, type CardEffectId } from "./catalogue";
 import { drawCards, type CardDeckState } from "./deck";
+import { createMonsterInstance, getMonstersByRank, type MonsterRank } from "../game/monsterCatalogue";
 
 export interface CardRuntimePlayerState {
   shields: number;
@@ -76,6 +77,8 @@ export interface ResolveCardEffectResult {
   drawEvents: CardDrawEvent[];
   deck?: CardDeckState;
   cursePayment?: CursePayment;
+  summonEvents: MonsterAttackEvent[];
+  summonedMonsterIds: string[];
 }
 
 const EMPTY_PLAYER_RUNTIME = (): CardRuntimePlayerState => ({
@@ -355,6 +358,7 @@ const IMPLEMENTED_EFFECTS = new Set<CardEffectId>([
   "force_discard_selected_card",
   "draw_cards",
   "draw_and_distribute_cards",
+  "summon_random_monster",
   "resurrection",
   "gain_bonus_die",
   "reroll_one_die",
@@ -421,6 +425,8 @@ export function resolveCardEffect(
   const revealedHands: Array<{ playerId: string; cardIds: string[] }> = [];
   const discardedCardIds: string[] = [];
   const drawEvents: CardDrawEvent[] = [];
+  const summonEvents: MonsterAttackEvent[] = [];
+  const summonedMonsterIds: string[] = [];
   let updatedDeck: CardDeckState | undefined = options.deck
     ? { drawPile: [...options.deck.drawPile], discardPile: [...options.deck.discardPile] }
     : undefined;
@@ -777,6 +783,29 @@ export function resolveCardEffect(
       appliedToPlayerIds.push(target.id);
       break;
     }
+    case "summon_random_monster": {
+      const rank = card.parameters?.rank;
+      const validRanks: readonly MonsterRank[] = ["Common", "Rare", "Epic", "Legend", "Myth"];
+      if (typeof rank !== "string" || !validRanks.includes(rank as MonsterRank)) {
+        throw new Error("Summon card has an unknown monster rank.");
+      }
+      const candidates = getMonstersByRank(rank as MonsterRank);
+      if (candidates.length === 0) {
+        throw new Error(`No monsters are registered for rank ${rank}.`);
+      }
+      const index = Math.min(candidates.length - 1, Math.max(0, Math.floor(random() * candidates.length)));
+      const definition = candidates[index];
+      let instanceId = `monster-${definition.id}-turn-${state.turnNumber}`;
+      let suffix = 1;
+      while (state.monsters.some((monster) => monster.id === instanceId)) {
+        instanceId = `monster-${definition.id}-turn-${state.turnNumber}-${suffix++}`;
+      }
+      const summoned = summonMonster(state, createMonsterInstance(definition, instanceId));
+      state = summoned.state as CardEffectGameState;
+      summonEvents.push(summoned.attack);
+      summonedMonsterIds.push(instanceId);
+      break;
+    }
     case "instant_kill": {
       const target = requireOpponentTarget(state, active.id, options.targetPlayerId);
       const shields = state.cardRuntime.players[target.id].shields;
@@ -1093,7 +1122,7 @@ export function resolveCardEffect(
     }
   }
 
-  return { state, card, appliedToPlayerIds, endsCardPlay, damageEvents, revealedHands, discardedCardIds, drawEvents, deck: updatedDeck, cursePayment: options.cursePayment };
+  return { state, card, appliedToPlayerIds, endsCardPlay, damageEvents, revealedHands, discardedCardIds, drawEvents, deck: updatedDeck, cursePayment: options.cursePayment, summonEvents, summonedMonsterIds };
 }
 
 
