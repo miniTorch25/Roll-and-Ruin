@@ -451,6 +451,7 @@ export function applyPlayerDeath(
           position: 0,
           hand: remaining,
           cardsPlayedThisTurn: 0,
+          prisonTurnsRemaining: 0,
           status: eliminated ? "eliminated" as const : "alive" as const
         }
       : player
