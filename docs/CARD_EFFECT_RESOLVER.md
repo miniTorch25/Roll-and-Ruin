@@ -89,6 +89,16 @@ Armor Seal prevents further attack cards during the current turn. Its effect is 
 
 Call `resolveCardEffect(state, cardDefinitionOrId, options)` after `playCatalogueCard`. Player-targeted effects require `targetPlayerId`; effects requiring a hand choice also require `selectedCardId`. Draw effects require `deck` and return the updated deck plus `drawEvents`. Curse cards require `cursePayment`. Results include `damageEvents`, `revealedHands`, and `discardedCardIds` for the caller/UI. Used and forcibly discarded cards still require explicit deck discard handling by the caller.
 
+## Implemented monster-card effects
+
+- **นักล่ามอนสเตอร์:** deals 5 damage to one selected active monster. Infinite-HP monsters reject ordinary damage and remain active.
+- **ระเบิดมือ:** deals 3 damage to one selected opposing living player, then deals 1 damage to one random other living player or active monster.
+- **Summon cards:** select a random monster from the rank encoded in the catalogue, create a live monster instance, and return its first-summon attack event.
+
+## Monster attack resolution
+
+Pass the attack events returned by the turn engine or summon cards to `resolveMonsterAttackEvents`. It applies catalogue attack damage, shield bypass when explicitly specified by the monster rules, player invulnerability, one-hit player reflection back to the attacking monster, and Vampy's +2 HP attack recovery.
+
 ## Not yet implemented
 
-Grenade splash needs monster/player target integration; Monster Hunter needs the monster HP catalogue and damage rules. Remaining monster/tile effects, monster HP/damage and reward resolution, and BoardScene dice/card-choice integration remain separate work.
+Monster-specific traits beyond the generic attack rules (poison, special targeting, triggered tile attacks, instant-kill effects, and condition-based removal), monster death rewards, board-tile relocation/regeneration, and BoardScene card/monster interaction remain separate work.
