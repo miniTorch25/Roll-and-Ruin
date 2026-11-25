@@ -1,4 +1,4 @@
-import { applyPlayerDeath, getActivePlayer, imprisonPlayer, MAX_CARDS_PER_TURN, type DeathResult, type GameState, type PlayerStatusEffect, type PlayerStatusEffectType } from "../game/turnEngine";
+import { applyPlayerDeath, getActivePlayer, imprisonPlayer, resurrectPlayer, MAX_CARDS_PER_TURN, type DeathResult, type GameState, type PlayerStatusEffect, type PlayerStatusEffectType } from "../game/turnEngine";
 import { getCardDefinition, type CardDefinition, type CardEffectId } from "./catalogue";
 import { drawCards, type CardDeckState } from "./deck";
 
@@ -355,6 +355,7 @@ const IMPLEMENTED_EFFECTS = new Set<CardEffectId>([
   "force_discard_selected_card",
   "draw_cards",
   "draw_and_distribute_cards",
+  "resurrection",
   "gain_bonus_die",
   "reroll_one_die",
   "control_dice_values",
@@ -867,6 +868,18 @@ export function resolveCardEffect(
         })
       };
       appliedToPlayerIds.push(target.id);
+      break;
+    }
+    case "resurrection": {
+      const targetId = options.targetPlayerId;
+      if (!targetId) {
+        throw new Error("Resurrection requires targetPlayerId for an eliminated player.");
+      }
+      if (targetId === active.id) {
+        throw new Error("A living active player cannot target themselves with Resurrection; keep the card to self-revive automatically.");
+      }
+      state = resurrectPlayer(state, targetId) as CardEffectGameState;
+      appliedToPlayerIds.push(targetId);
       break;
     }
     case "gain_bonus_die": {

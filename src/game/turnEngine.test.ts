@@ -559,3 +559,59 @@ describe("dice status precedence and controlled die faces", () => {
     expect(result.diceRolls).toEqual([1, 1, 1]);
   });
 });
+
+
+describe("Resurrection during death processing", () => {
+  it("consumes a held Resurrection before applying random hand loss when the last heart is lost", () => {
+    const state = {
+      ...readyState(),
+      players: readyState().players.map((player) => player.id === "p1"
+        ? {
+            ...player,
+            hearts: 1,
+            hand: ["a", "b", "yellow_resurrection", "c", "d"]
+          }
+        : player)
+    };
+    const death = applyPlayerDeath(state, "p1", () => 0);
+    expect(death.result).toMatchObject({
+      lostHeart: true,
+      eliminated: false,
+      selfResurrected: true,
+      discardedCards: ["a", "b"]
+    });
+    expect(death.state.players[0]).toMatchObject({
+      hp: 20,
+      hearts: 1,
+      position: 0,
+      status: "alive",
+      hand: ["c", "d"]
+    });
+    expect(death.state.players[0].hand).not.toContain("yellow_resurrection");
+  });
+
+  it("keeps a held Resurrection card when the player still has hearts remaining", () => {
+    const state = {
+      ...readyState(),
+      players: readyState().players.map((player) => player.id === "p1"
+        ? { ...player, hearts: 2, hand: ["yellow_resurrection", "a", "b"] }
+        : player)
+    };
+    const death = applyPlayerDeath(state, "p1", () => 0);
+    expect(death.result).toMatchObject({ eliminated: false, selfResurrected: false });
+    expect(death.state.players[0].hearts).toBe(1);
+    expect(death.state.players[0].hand).toEqual(["yellow_resurrection", "a", "b"]);
+  });
+
+  it("still eliminates a player who has no Resurrection card when their last heart is lost", () => {
+    const state = {
+      ...readyState(),
+      players: readyState().players.map((player) => player.id === "p1"
+        ? { ...player, hearts: 1, hand: ["a", "b", "c"] }
+        : player)
+    };
+    const death = applyPlayerDeath(state, "p1");
+    expect(death.result).toMatchObject({ eliminated: true, selfResurrected: false });
+    expect(death.state.players[0].status).toBe("eliminated");
+  });
+});

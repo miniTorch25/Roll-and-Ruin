@@ -81,8 +81,9 @@ Holy Water clears the player's timed negative statuses. Reapplying the same stat
 
 ## Death and elimination
 - Death removes one heart and restores HP to maximum at the starting space.
-- If the player has at least 4 cards, randomly discard half, rounded up; otherwise discard none.
-- A player with no hearts is eliminated. Resurrection card handling is not integrated yet.
+- If the player has at least 4 cards after any automatic Resurrection is consumed, randomly discard half, rounded up; otherwise discard none.
+- If the final heart is lost while the player's hand contains `yellow_resurrection`, that card is consumed before random hand loss, and the player returns with 1 heart instead of being eliminated.
+- An eliminated player can also be revived manually by another player's Resurrection card. Revival restores 1 heart, full HP, and position 0.
 
 ## Not implemented by this engine
 - Special-tile event execution and board regeneration integration.
