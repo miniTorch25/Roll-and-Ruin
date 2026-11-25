@@ -910,7 +910,10 @@ export function resolveCardEffect(
       ) {
         throw new Error(`Control Dice requires 1 to ${maximumDice} integer die value(s), each from 1 to 6.`);
       }
-      const expectedDice = Math.min(3, 1 + runtime.bonusDiceThisTurn);
+      const diceLimited = active.statusEffects.some((effect) =>
+        effect.type === "dice_limit" && effect.turnsRemaining > 0
+      );
+      const expectedDice = diceLimited ? 1 : Math.min(3, 1 + runtime.bonusDiceThisTurn);
       if (diceValues.length !== expectedDice) {
         throw new Error(`Choose exactly ${expectedDice} value(s) for the dice rolled this turn.`);
       }
