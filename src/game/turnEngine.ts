@@ -39,6 +39,11 @@ export interface TurnCardRuntimePlayer {
   blockedAttackCardsThisTurn?: boolean;
   curseCooldownTurnsRemaining?: number;
   curseCooldownFresh?: boolean;
+  bonusDiceThisTurn?: number;
+  bonusDiceGrantedThisTurn?: boolean;
+  rerollsRemaining?: number;
+  controlledDiceValues?: number[];
+  controlledDiceUsedThisTurn?: boolean;
 }
 
 export interface TurnCardRuntime {
@@ -449,9 +454,25 @@ export function finishCardActivity(
   const minimum = active.statusEffects
     .filter((effect) => effect.type === "dice_reduction" && effect.turnsRemaining > 0)
     .reduce((value, effect) => Math.max(value, effect.minimum ?? 1), 1);
-  const diceRolls = [Math.max(minimum, rollD6(random) - reduction)];
+  const runtime = state.cardRuntime?.players[active.id];
+  const controlledValues = runtime?.controlledDiceValues;
+  const diceRolls = controlledValues?.length
+    ? controlledValues.map((value) => Math.max(minimum, value - reduction))
+    : Array.from({ length: 1 + (runtime?.bonusDiceThisTurn ?? 0) }, () =>
+        Math.max(minimum, rollD6(random) - reduction)
+      );
+  let cardRuntime = state.cardRuntime;
+  if (cardRuntime && runtime) {
+    cardRuntime = {
+      ...cardRuntime,
+      players: {
+        ...cardRuntime.players,
+        [active.id]: { ...runtime, bonusDiceThisTurn: 0, controlledDiceValues: undefined }
+      }
+    };
+  }
   return {
-    state: { ...state, movementSteps: diceRolls[0], phase: "move" },
+    state: { ...state, cardRuntime, movementSteps: diceRolls.reduce((sum, value) => sum + value, 0), phase: "move" },
     diceRolls
   };
 }
@@ -596,6 +617,11 @@ export function endPlayerTurn(state: GameState): GameState {
             attackDamageBonus: 0,
             defenseShieldBonus: 0,
             blockedAttackCardsThisTurn: false,
+            bonusDiceThisTurn: 0,
+            bonusDiceGrantedThisTurn: false,
+            rerollsRemaining: 0,
+            controlledDiceValues: undefined,
+            controlledDiceUsedThisTurn: false,
             curseCooldownTurnsRemaining: runtime.curseCooldownFresh
               ? (runtime.curseCooldownTurnsRemaining ?? 0)
               : Math.max(0, (runtime.curseCooldownTurnsRemaining ?? 0) - 1),
