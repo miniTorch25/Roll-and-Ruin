@@ -13,6 +13,7 @@ export interface CardRuntimePlayerState {
   negativeStatuses: string[];
   curseCooldownTurnsRemaining: number;
   curseCooldownUses: number;
+  curseCooldownFresh: boolean;
 }
 
 export interface CardRuntimeState {
@@ -79,7 +80,8 @@ const EMPTY_PLAYER_RUNTIME = (): CardRuntimePlayerState => ({
   blockedAttackCardsThisTurn: false,
   negativeStatuses: [],
   curseCooldownTurnsRemaining: 0,
-  curseCooldownUses: 0
+  curseCooldownUses: 0,
+  curseCooldownFresh: false
 });
 
 function withRuntime(state: GameState): CardEffectGameState {
@@ -447,7 +449,8 @@ export function resolveCardEffect(
       state = updatePlayerRuntime(state, active.id, (current) => ({
         ...current,
         curseCooldownTurnsRemaining: 3,
-        curseCooldownUses: current.curseCooldownUses + 1
+        curseCooldownUses: current.curseCooldownUses + 1,
+        curseCooldownFresh: true
       }));
     }
   }
@@ -935,6 +938,9 @@ export function advanceCurseCooldown(inputState: GameState, playerId: string): C
   requireLivingPlayer(state, playerId);
   return updatePlayerRuntime(state, playerId, (current) => ({
     ...current,
-    curseCooldownTurnsRemaining: Math.max(0, current.curseCooldownTurnsRemaining - 1)
+    curseCooldownTurnsRemaining: current.curseCooldownFresh
+      ? current.curseCooldownTurnsRemaining
+      : Math.max(0, current.curseCooldownTurnsRemaining - 1),
+    curseCooldownFresh: false
   }));
 }
