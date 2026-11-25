@@ -23,9 +23,9 @@ function sendAction(action: PlayerAction): void {
 }
 
 document.querySelector<HTMLButtonElement>("#roll-button")
-  ?.addEventListener("click", () => sendAction("roll_dice"));
+  ?.addEventListener("click", () => sendAction("roll_two_dice"));
 document.querySelector<HTMLButtonElement>("#draw-button")
-  ?.addEventListener("click", () => sendAction("draw_card"));
+  ?.addEventListener("click", () => sendAction("draw_two_roll_one"));
 document.querySelector<HTMLButtonElement>("#use-card-button")
-  ?.addEventListener("click", () => sendAction("use_card"));
+  ?.addEventListener("click", () => sendAction("use_cards"));
 window.addEventListener("resize", () => game.scale.refresh());
