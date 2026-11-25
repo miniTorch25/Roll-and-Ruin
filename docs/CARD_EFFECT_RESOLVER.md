@@ -80,6 +80,14 @@ Armor Seal prevents further attack cards during the current turn. Its effect is 
 
 Call `resolveCardEffect(state, cardDefinitionOrId, options)` after `playCatalogueCard`. Player-targeted effects require `targetPlayerId`; effects requiring a hand choice also require `selectedCardId`. Draw effects require `deck` and return the updated deck plus `drawEvents`. Curse cards require `cursePayment`. Results include `damageEvents`, `revealedHands`, and `discardedCardIds` for the caller/UI. Used and forcibly discarded cards still require explicit deck discard handling by the caller.
 
+## Implemented dice effects
+
+- **ลูกเต๋าโชคดี:** adds one extra movement die after the normal card-activity roll; may be used once per owner turn.
+- **ใบโคลเวอร์นำโชค:** grants one reroll of a movement die. The caller selects the die index; the reroll respects active cursed-dice reduction and updates the movement total.
+- **ควบคุมลูกเต๋า:** accepts one to three explicitly selected die faces (each 1–6), once per turn. These values replace the normal card-activity movement roll. The normal dice-reduction status is applied to selected values as it is to rolled values.
+
+The turn engine clears the temporary dice allowances at the end of the owner's turn. `rerollOneMovementDie` is available after `finishCardActivity` has moved the game into the movement phase.
+
 ## Not yet implemented
 
-Grenade splash needs monster/player target integration; Monster Hunter needs the monster HP catalogue and damage rules. Resurrection sequencing, remaining curses, bonus dice and rerolls, tile effects, monster HP/damage and reward resolution, and BoardScene integration remain separate work.
+Grenade splash and Monster Hunter require monster HP/damage integration. Resurrection sequencing, summoning and clearing monsters, board-tile relocation, monster HP/damage and reward resolution, and BoardScene integration remain separate work.
