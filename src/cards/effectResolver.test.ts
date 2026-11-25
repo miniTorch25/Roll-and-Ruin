@@ -674,7 +674,7 @@ describe("remaining player-targeted Curse effects", () => {
       cursePayment: { type: "discard", cardIds: ["green_herbal_potion", "green_life_core"] },
       random: () => 0
     });
-    expect(result.discardedCardIds).toEqual(["hand-1", "hand-2", "hand-3"]);
+    expect(result.discardedCardIds).toEqual(["green_herbal_potion", "green_life_core", "hand-1", "hand-2", "hand-3"]);
     expect(result.state.players[1].hand).toEqual(["hand-4", "hand-5"]);
   });
 
