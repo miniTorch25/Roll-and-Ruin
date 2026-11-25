@@ -29,7 +29,13 @@ function cardPlayState(mode: "1x4" | "2v2" = "1x4"): CardEffectGameState {
         negativeStatuses: [],
         curseCooldownTurnsRemaining: 0,
         curseCooldownUses: 0,
-        curseCooldownFresh: false
+        curseCooldownFresh: false,
+        bonusDiceThisTurn: 0,
+        luckyDiceUsedThisTurn: false,
+        rerollsRemaining: 0,
+        rerollCardUsedThisTurn: false,
+        controlledDiceValues: [],
+        diceControlUsedThisTurn: false
       }]))
     }
   };
@@ -788,5 +794,63 @@ describe("remaining player-targeted Curse effects", () => {
       targetPlayerId: "p2",
       cursePayment: { type: "discard", cardIds: ["green_herbal_potion", "green_life_core"] }
     })).toThrow(/active monster/);
+  });
+});
+
+
+describe("dice manipulation card effects", () => {
+  it("grants one bonus die and allows Lucky Dice only once per turn", () => {
+    const result = resolveCardEffect(cardPlayState(), "yellow_lucky_dice");
+    expect(result.state.cardRuntime.players.p1.bonusDiceThisTurn).toBe(1);
+    expect(result.state.cardRuntime.players.p1.luckyDiceUsedThisTurn).toBe(true);
+    expect(() => resolveCardEffect(result.state, "yellow_lucky_dice")).toThrow(/once per turn/);
+  });
+
+  it("grants one reroll charge and prevents a second reroll card in the same turn", () => {
+    const result = resolveCardEffect(cardPlayState(), "green_lucky_clover");
+    expect(result.state.cardRuntime.players.p1.rerollsRemaining).toBe(1);
+    expect(result.state.cardRuntime.players.p1.rerollCardUsedThisTurn).toBe(true);
+    expect(() => resolveCardEffect(result.state, "green_lucky_clover")).toThrow(/one reroll card/);
+  });
+
+  it("stores user-selected dice values for the current turn", () => {
+    const result = resolveCardEffect(cardPlayState(), "red_dice_control", {
+      diceValues: [5],
+      cursePayment: { type: "discard", cardIds: ["green_herbal_potion", "green_life_core"] }
+    });
+    expect(result.state.cardRuntime.players.p1.controlledDiceValues).toEqual([5]);
+    expect(result.state.cardRuntime.players.p1.diceControlUsedThisTurn).toBe(true);
+  });
+
+  it("rejects invalid, excessive, or repeated controlled dice choices", () => {
+    const paid = { type: "discard" as const, cardIds: ["green_herbal_potion", "green_life_core"] as [string, string] };
+    expect(() => resolveCardEffect(cardPlayState(), "red_dice_control", {
+      diceValues: [0],
+      cursePayment: paid
+    })).toThrow(/each from 1 to 6/);
+    expect(() => resolveCardEffect(cardPlayState(), "red_dice_control", {
+      diceValues: [1, 2, 3, 4],
+      cursePayment: paid
+    })).toThrow(/1 to 3/);
+
+    const controlled = resolveCardEffect(cardPlayState(), "red_dice_control", {
+      diceValues: [6],
+      cursePayment: paid
+    });
+    expect(() => resolveCardEffect(controlled.state, "red_dice_control", {
+      diceValues: [4],
+      cursePayment: {
+        type: "discard",
+        cardIds: ["green_extra_heart", "blue_wooden_shield"]
+      }
+    })).toThrow(/once per turn/);
+  });
+
+  it("requires one selected value for each die that will be rolled this turn", () => {
+    const withBonusDie = resolveCardEffect(cardPlayState(), "yellow_lucky_dice");
+    expect(() => resolveCardEffect(withBonusDie.state, "red_dice_control", {
+      diceValues: [4],
+      cursePayment: { type: "discard", cardIds: ["green_herbal_potion", "green_life_core"] }
+    })).toThrow(/exactly 2 value/);
   });
 });
