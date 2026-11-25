@@ -779,7 +779,7 @@ describe("remaining player-targeted Curse effects", () => {
       ...firstAttack.state,
       phase: "monster_attack" as const,
       monsters: firstAttack.state.monsters.map((monster) => monster.id === "slow"
-        ? { ...monster, turnsSinceLastAttack: monster.attackInterval }
+        ? { ...monster, turnsSinceLastAttack: monster.attackInterval ?? 1 }
         : monster)
     };
     const secondAttack = resolveMonsterAttackPhase(slowMonsterDue, () => 0);
