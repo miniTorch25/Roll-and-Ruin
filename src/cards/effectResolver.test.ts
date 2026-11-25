@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { createGameState, resolveMonsterAttackPhase, selectPlayerAction, startPlayerTurn } from "../game/turnEngine";
-import { advanceCurseCooldown, resolveCardEffect, type CardEffectGameState } from "./effectResolver";
+import { advanceCurseCooldown, resolveCardEffect, resolveMonsterAttackEvents, type CardEffectGameState } from "./effectResolver";
 import { summonRandomMonster } from "../monsters/engine";
 
 function cardPlayState(mode: "1x4" | "2v2" = "1x4"): CardEffectGameState {
@@ -994,5 +994,99 @@ describe("monster card effects", () => {
       targetPlayerIds: ["p1", "p2", "p3", "p4"],
       reason: "first_summon"
     }]);
+  });
+});
+
+
+describe("monster attack damage pipeline", () => {
+  it("applies ordinary monster damage through shields before HP", () => {
+    const summoned = summonRandomMonster(cardPlayState(), "Common", "gob", () => 0);
+    const state = withRuntime(summoned.state as CardEffectGameState, "p1", { shields: 2 });
+    const result = resolveMonsterAttackEvents(state, [{
+      monsterId: "gob",
+      targetPlayerIds: ["p1"],
+      reason: "scheduled"
+    }]);
+    expect(result.damageEvents[0]).toMatchObject({
+      kind: "monster_attack",
+      sourceMonsterId: "gob",
+      targetPlayerId: "p1",
+      attemptedDamage: 1,
+      shieldAbsorbed: 1,
+      hpDamage: 0
+    });
+    expect(result.state.cardRuntime.players.p1.shields).toBe(1);
+    expect(result.state.players[0].hp).toBe(20);
+  });
+
+  it("lets Vampy bypass shields and heal itself after attacking", () => {
+    const summoned = summonRandomMonster(cardPlayState(), "Rare", "vampy", () => 0.4);
+    const state = {
+      ...summoned.state,
+      monsters: summoned.state.monsters.map((monster) => ({ ...monster, hp: 10 }))
+    } as CardEffectGameState;
+    const shielded = withRuntime(state, "p1", { shields: 3 });
+    const result = resolveMonsterAttackEvents(shielded, [{
+      monsterId: "vampy",
+      targetPlayerIds: ["p1"],
+      reason: "scheduled"
+    }]);
+    expect(result.damageEvents[0]).toMatchObject({
+      attemptedDamage: 2,
+      shieldAbsorbed: 0,
+      hpDamage: 2
+    });
+    expect(result.state.cardRuntime.players.p1.shields).toBe(3);
+    expect(result.state.players[0].hp).toBe(18);
+    expect(result.state.monsters[0].hp).toBe(12);
+  });
+
+  it("lets Ragnar bypass shields while retaining its high damage", () => {
+    const summoned = summonRandomMonster(cardPlayState(), "Myth", "ragnar", () => 0.5);
+    const shielded = withRuntime(summoned.state as CardEffectGameState, "p1", { shields: 3 });
+    const result = resolveMonsterAttackEvents(shielded, [{
+      monsterId: "ragnar",
+      targetPlayerIds: ["p1"],
+      reason: "scheduled"
+    }]);
+    expect(result.damageEvents[0]).toMatchObject({
+      attemptedDamage: 15,
+      shieldAbsorbed: 0,
+      hpDamage: 15
+    });
+    expect(result.state.players[0].hp).toBe(5);
+    expect(result.state.cardRuntime.players.p1.shields).toBe(3);
+  });
+
+  it("reflects one monster hit back to the attacking monster", () => {
+    const summoned = summonRandomMonster(cardPlayState(), "Common", "gob", () => 0);
+    const reflected = withRuntime(summoned.state as CardEffectGameState, "p1", { reflectionCharges: 1 });
+    const result = resolveMonsterAttackEvents(reflected, [{
+      monsterId: "gob",
+      targetPlayerIds: ["p1"],
+      reason: "scheduled"
+    }]);
+    expect(result.state.players[0].hp).toBe(19);
+    expect(result.state.monsters[0].hp).toBe(4);
+    expect(result.state.cardRuntime.players.p1.reflectionCharges).toBe(0);
+    expect(result.damageEvents[0].monsterReflection).toMatchObject({
+      monsterId: "gob",
+      sourcePlayerId: "p1",
+      hpDamage: 1
+    });
+  });
+
+  it("does not damage a player protected by invulnerability", () => {
+    const summoned = summonRandomMonster(cardPlayState(), "Epic", "ogre", () => 0);
+    const protectedState = withRuntime(summoned.state as CardEffectGameState, "p1", {
+      invulnerableOwnerTurns: 2
+    });
+    const result = resolveMonsterAttackEvents(protectedState, [{
+      monsterId: "ogre",
+      targetPlayerIds: ["p1"],
+      reason: "scheduled"
+    }]);
+    expect(result.damageEvents[0].preventedBy).toBe("invulnerability");
+    expect(result.state.players[0].hp).toBe(20);
   });
 });

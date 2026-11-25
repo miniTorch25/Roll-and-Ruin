@@ -1,9 +1,8 @@
-import { applyPlayerDeath, getActivePlayer, imprisonPlayer, resurrectPlayer, MAX_CARDS_PER_TURN, type DeathResult, type GameState, type PlayerStatusEffect, type PlayerStatusEffectType } from "../game/turnEngine";
+import { applyPlayerDeath, getActivePlayer, imprisonPlayer, resurrectPlayer, MAX_CARDS_PER_TURN, type DeathResult, type GameState, type PlayerStatusEffect, type PlayerStatusEffectType, type MonsterAttackEvent } from "../game/turnEngine";
 import { getCardDefinition, type CardDefinition, type CardEffectId } from "./catalogue";
 import { drawCards, type CardDeckState } from "./deck";
 import { damageMonster, summonRandomMonster, type MonsterDamageEvent } from "../monsters/engine";
 import type { MonsterRank } from "../monsters/catalogue";
-import type { MonsterAttackEvent } from "../game/turnEngine";
 
 export interface CardRuntimePlayerState {
   shields: number;
@@ -54,8 +53,9 @@ export interface ResolveCardEffectOptions {
 }
 
 export interface DamageEvent {
-  kind: "attack" | "hp_cost" | "direct_hp_loss" | "reflection";
+  kind: "attack" | "monster_attack" | "hp_cost" | "direct_hp_loss" | "reflection";
   sourcePlayerId?: string;
+  sourceMonsterId?: string;
   targetPlayerId: string;
   attemptedDamage: number;
   shieldAbsorbed: number;
@@ -63,6 +63,7 @@ export interface DamageEvent {
   preventedBy?: "invulnerability";
   death?: DeathResult;
   reflection?: DamageEvent;
+  monsterReflection?: MonsterDamageEvent;
 }
 
 export interface CardDrawEvent {
@@ -203,6 +204,7 @@ function requireEliminatedTarget(state: CardEffectGameState, activePlayerId: str
 interface DamageOptions {
   kind?: DamageEvent["kind"];
   sourcePlayerId?: string;
+  sourceMonsterId?: string;
   pierceShield?: boolean;
   ignoreShield?: boolean;
   ignoreInvulnerability?: boolean;
@@ -224,6 +226,7 @@ function applyDamage(
   const event: DamageEvent = {
     kind: options.kind ?? "attack",
     sourcePlayerId: options.sourcePlayerId,
+    sourceMonsterId: options.sourceMonsterId,
     targetPlayerId,
     attemptedDamage: amount,
     shieldAbsorbed: 0,
@@ -291,7 +294,69 @@ function applyDamage(
     event.reflection = reflected.event;
   }
 
+  if (
+    event.hpDamage > 0 &&
+    options.sourceMonsterId &&
+    state.cardRuntime.players[targetPlayerId].reflectionCharges > 0
+  ) {
+    state = updatePlayerRuntime(state, targetPlayerId, (current) => ({
+      ...current,
+      reflectionCharges: current.reflectionCharges - 1
+    }));
+    const reflected = damageMonster(state, options.sourceMonsterId, event.hpDamage, targetPlayerId);
+    state = reflected.state as CardEffectGameState;
+    event.monsterReflection = reflected.event;
+  }
+
   return { state, event };
+}
+
+export interface MonsterAttackResolution {
+  state: CardEffectGameState;
+  damageEvents: DamageEvent[];
+}
+
+/** Applies the attack events emitted by summonMonster or resolveMonsterAttackPhase. */
+export function resolveMonsterAttackEvents(
+  inputState: GameState,
+  attacks: MonsterAttackEvent[],
+  random: () => number = Math.random
+): MonsterAttackResolution {
+  let state = withRuntime(inputState);
+  const damageEvents: DamageEvent[] = [];
+
+  for (const attack of attacks) {
+    const monster = state.monsters.find((item) => item.id === attack.monsterId && item.active);
+    if (!monster) continue;
+    if (monster.attackDamage === undefined) {
+      throw new Error(`Monster ${monster.id} has no catalogue attack damage.`);
+    }
+    const pierceShield = monster.rules?.some((rule) => rule.includes("ทะลุเกราะ")) ?? false;
+
+    for (const targetPlayerId of attack.targetPlayerIds) {
+      const target = state.players.find((player) => player.id === targetPlayerId);
+      if (!target || target.status !== "alive") continue;
+      const hit = applyDamage(state, targetPlayerId, monster.attackDamage, random, {
+        kind: "monster_attack",
+        sourceMonsterId: monster.id,
+        pierceShield
+      });
+      state = hit.state;
+      damageEvents.push(hit.event);
+    }
+
+    if (monster.catalogueId === "R05") {
+      state = {
+        ...state,
+        monsters: state.monsters.map((item) => item.id === monster.id && item.active &&
+          typeof item.hp === "number" && typeof item.maxHp === "number"
+          ? { ...item, hp: Math.min(item.maxHp, item.hp + 2) }
+          : item)
+      };
+    }
+  }
+
+  return { state, damageEvents };
 }
 
 function applyHpCost(
