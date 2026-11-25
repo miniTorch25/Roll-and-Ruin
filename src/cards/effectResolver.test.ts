@@ -873,3 +873,37 @@ describe("dice effects with active turn limits", () => {
     expect(controlled.state.cardRuntime.players.p1.controlledDiceValues).toEqual([4]);
   });
 });
+
+
+describe("manual Resurrection card effect", () => {
+  it("revives one selected eliminated player with one heart, full HP, and the start position", () => {
+    const state = withPlayer(cardPlayState(), "p2", {
+      status: "eliminated",
+      hearts: 0,
+      hp: 0,
+      position: 19
+    });
+    const result = resolveCardEffect(state, "yellow_resurrection", { targetPlayerId: "p2" });
+    expect(result.state.players[1]).toMatchObject({
+      status: "alive",
+      hearts: 1,
+      hp: 20,
+      maxHp: 20,
+      position: 0
+    });
+    expect(result.appliedToPlayerIds).toContain("p2");
+  });
+
+  it("requires the selected target to be eliminated", () => {
+    expect(() => resolveCardEffect(cardPlayState(), "yellow_resurrection", {
+      targetPlayerId: "p2"
+    })).toThrow(/eliminated/);
+  });
+
+  it("requires a target and does not let a living player waste the held-card self-revival", () => {
+    expect(() => resolveCardEffect(cardPlayState(), "yellow_resurrection")).toThrow(/targetPlayerId/);
+    expect(() => resolveCardEffect(cardPlayState(), "yellow_resurrection", {
+      targetPlayerId: "p1"
+    })).toThrow(/cannot target themselves/);
+  });
+});
