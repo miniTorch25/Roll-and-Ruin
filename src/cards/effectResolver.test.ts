@@ -6,11 +6,11 @@ function cardPlayState(teamMate = false) {
   const players = [
     { id: "p1", teamId: teamMate ? "red" : "red", startingHand: ["green_herbal_potion", "green_life_core", "green_extra_heart", "blue_wooden_shield"] },
     { id: "p2", teamId: teamMate ? "red" : "blue", startingHand: ["x", "x", "x", "x"] },
-    { id: "p3", teamId: "green", startingHand: ["x", "x", "x", "x"] },
-    { id: "p4", teamId: "yellow", startingHand: ["x", "x", "x", "x"] }
+    { id: "p3", teamId: teamMate ? "blue" : "green", startingHand: ["x", "x", "x", "x"] },
+    { id: "p4", teamId: teamMate ? "blue" : "yellow", startingHand: ["x", "x", "x", "x"] }
   ];
   return selectPlayerAction(
-    startPlayerTurn(resolveMonsterAttackPhase(createGameState("1x4", players)).state),
+    startPlayerTurn(resolveMonsterAttackPhase(createGameState(teamMate ? "2v2" : "1x4", players)).state),
     "use_cards"
   ).state;
 }
