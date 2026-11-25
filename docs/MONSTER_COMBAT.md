@@ -64,3 +64,9 @@ This is the shared baseline, not a complete implementation of all 50 monsters. S
 - **Harpy (R08):** after attacking, discards one random card from the target if they still have cards.
 - **Minoo (R09):** its start-corner movement trigger remains unimplemented; the board movement resolver needs monster tile-position integration.
 - **Frosty (R10):** limits the target to two cards on their next turn.
+
+
+## Minoo and Chesty reward metadata
+
+- **Minoo (R09):** receives a randomly selected corner position (0, 8, 16, or 24) when summoned. Movement across that position emits a movement-trigger attack event against the moving player, and the scene resolves the event immediately.
+- **Chesty (R02):** its defeat event now includes `bonusReward: { greenCards: 1 }`. This exposes the additional reward to the caller; actual card creation/distribution still depends on the shared deck/reward consumer.

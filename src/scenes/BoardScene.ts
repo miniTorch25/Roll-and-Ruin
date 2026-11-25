@@ -4,6 +4,7 @@ import {
   moveActivePlayer, resolveMonsterAttackPhase,
   selectPlayerAction, startPlayerTurn, type GameState, type PlayerAction
 } from "../game/turnEngine";
+import { resolveMonsterAttackEvents } from "../cards/effectResolver";
 import { createCardDeck, drawCards } from "../cards/deck";
 import { CARD_CATALOGUE } from "../cards/catalogue";
 
@@ -132,7 +133,13 @@ export class BoardScene extends Phaser.Scene {
 
       this.state = selected.state;
       const moved = moveActivePlayer(this.state);
-      this.state = finishSpecialTileCheck(moved.state);
+      this.state = moved.state;
+      if (moved.monsterAttackEvents.length > 0) {
+        const triggered = resolveMonsterAttackEvents(this.state, moved.monsterAttackEvents);
+        this.state = triggered.state;
+        message += " · มิโนทอร์โจมตีจากช่องมุม";
+      }
+      this.state = finishSpecialTileCheck(this.state);
       this.state = finishStatusCheck(this.state);
       this.state = endPlayerTurn(this.state);
 

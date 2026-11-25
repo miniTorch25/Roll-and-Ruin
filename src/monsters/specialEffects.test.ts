@@ -262,6 +262,40 @@ describe("monster-applied player status effects", () => {
     expect(result.monsterDamageEvents[0].rewardSuppressed).toBe(true);
   });
 
+  it("assigns Minoo a random corner and attacks a player who crosses that corner", () => {
+    const initial = createGameState("1x4", setup);
+    let roll = 0;
+    const summoned = summonRandomMonster(initial, "Rare", "minoo", () => roll++ === 0 ? 0.85 : 0);
+    expect(summoned.monster.catalogueId).toBe("R09");
+    expect(summoned.monster.triggerPosition).toBe(0);
+    const positioned = {
+      ...summoned.state,
+      phase: "move" as const,
+      players: summoned.state.players.map((player) => player.id === "p1"
+        ? { ...player, position: 31 }
+        : player),
+      movementSteps: 1
+    };
+    const moved = moveActivePlayer(positioned);
+    expect(moved.state.players[0].position).toBe(0);
+    expect(moved.monsterAttackEvents).toEqual([{
+      monsterId: "minoo",
+      targetPlayerIds: ["p1"],
+      reason: "movement_trigger"
+    }]);
+    const attacked = resolveMonsterAttackEvents(moved.state, moved.monsterAttackEvents, () => 0);
+    expect(attacked.state.players[0].hp).toBe(16);
+  });
+
+  it("records Chesty's extra green-card reward when defeated", () => {
+    const initial = createGameState("1x4", setup);
+    const summoned = summonRandomMonster(initial, "Rare", "chesty", () => 0.15);
+    expect(summoned.monster.catalogueId).toBe("R02");
+    const defeated = damageMonster(summoned.state, "chesty", 30, "p1");
+    expect(defeated.event.defeated).toBe(true);
+    expect(defeated.event.bonusReward).toEqual({ greenCards: 1 });
+  });
+
   it("makes Ghosty immune to attacks dealing less than 3 damage", () => {
     const initial = createGameState("1x4", setup);
     const summoned = summonRandomMonster(initial, "Rare", "ghosty", () => 0.5);
