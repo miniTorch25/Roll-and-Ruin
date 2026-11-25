@@ -1,5 +1,5 @@
+import { applyPlayerDeath, getActivePlayer, MAX_CARDS_PER_TURN, type DeathResult, type GameState } from "../game/turnEngine";
 import { getCardDefinition, type CardDefinition, type CardEffectId } from "./catalogue";
-import { getActivePlayer, MAX_CARDS_PER_TURN, type GameState } from "../game/turnEngine";
 
 export interface CardRuntimePlayerState {
   shields: number;
@@ -19,10 +19,22 @@ export interface CardRuntimeState {
 export type CardEffectGameState = GameState & { cardRuntime: CardRuntimeState };
 
 export interface ResolveCardEffectOptions {
-  /** Required only by effects that name a single teammate or player target. */
+  /** Required by effects that name one player or teammate. */
   targetPlayerId?: string;
-  /** Injectable random source for deterministic tests and future random effects. */
+  /** Injectable random source, including random card-loss when a player dies. */
   random?: () => number;
+}
+
+export interface DamageEvent {
+  kind: "attack" | "hp_cost" | "reflection";
+  sourcePlayerId?: string;
+  targetPlayerId: string;
+  attemptedDamage: number;
+  shieldAbsorbed: number;
+  hpDamage: number;
+  preventedBy?: "invulnerability";
+  death?: DeathResult;
+  reflection?: DamageEvent;
 }
 
 export interface ResolveCardEffectResult {
@@ -30,6 +42,7 @@ export interface ResolveCardEffectResult {
   card: CardDefinition;
   appliedToPlayerIds: string[];
   endsCardPlay: boolean;
+  damageEvents: DamageEvent[];
 }
 
 const EMPTY_PLAYER_RUNTIME = (): CardRuntimePlayerState => ({
@@ -85,7 +98,170 @@ function addShield(
   }));
 }
 
+function requireLivingPlayer(state: CardEffectGameState, playerId: string) {
+  const player = state.players.find((item) => item.id === playerId);
+  if (!player || player.status !== "alive") {
+    throw new Error(`Target player ${playerId} is not alive.`);
+  }
+  return player;
+}
+
+function requireOpponentTarget(state: CardEffectGameState, attackerId: string, targetId?: string) {
+  if (!targetId) throw new Error("This card effect requires targetPlayerId.");
+  if (targetId === attackerId) throw new Error("An attack card must target another player.");
+  return requireLivingPlayer(state, targetId);
+}
+
+interface DamageOptions {
+  kind?: DamageEvent["kind"];
+  sourcePlayerId?: string;
+  pierceShield?: boolean;
+  ignoreShield?: boolean;
+  ignoreInvulnerability?: boolean;
+  allowReflection?: boolean;
+}
+
+function applyDamage(
+  inputState: CardEffectGameState,
+  targetPlayerId: string,
+  amount: number,
+  random: () => number,
+  options: DamageOptions = {}
+): { state: CardEffectGameState; event: DamageEvent } {
+  if (!Number.isInteger(amount) || amount < 0) {
+    throw new Error("Damage must be a non-negative integer.");
+  }
+  const target = requireLivingPlayer(inputState, targetPlayerId);
+  let state = inputState;
+  const event: DamageEvent = {
+    kind: options.kind ?? "attack",
+    sourcePlayerId: options.sourcePlayerId,
+    targetPlayerId,
+    attemptedDamage: amount,
+    shieldAbsorbed: 0,
+    hpDamage: 0
+  };
+  if (amount === 0) return { state, event };
+
+  const targetRuntime = state.cardRuntime.players[targetPlayerId];
+  if (!options.ignoreInvulnerability && targetRuntime.invulnerableOwnerTurns > 0) {
+    event.preventedBy = "invulnerability";
+    return { state, event };
+  }
+
+  if (!options.pierceShield && !options.ignoreShield) {
+    event.shieldAbsorbed = Math.min(targetRuntime.shields, amount);
+    if (event.shieldAbsorbed > 0) {
+      state = updatePlayerRuntime(state, targetPlayerId, (current) => ({
+        ...current,
+        shields: current.shields - event.shieldAbsorbed
+      }));
+    }
+  }
+
+  const remainingDamage = amount - event.shieldAbsorbed;
+  event.hpDamage = Math.min(target.hp, remainingDamage);
+  if (event.hpDamage > 0) {
+    state = {
+      ...state,
+      players: state.players.map((player) => player.id === targetPlayerId
+        ? { ...player, hp: Math.max(0, player.hp - event.hpDamage) }
+        : player)
+    };
+    const died = target.hp - event.hpDamage <= 0;
+    if (died) {
+      const death = applyPlayerDeath(state, targetPlayerId, random);
+      state = death.state as CardEffectGameState;
+      event.death = death.result;
+    }
+  }
+
+  if (
+    event.hpDamage > 0 &&
+    options.allowReflection !== false &&
+    options.sourcePlayerId &&
+    options.sourcePlayerId !== targetPlayerId &&
+    state.players.some((player) => player.id === options.sourcePlayerId && player.status === "alive") &&
+    state.cardRuntime.players[targetPlayerId].reflectionCharges > 0
+  ) {
+    state = updatePlayerRuntime(state, targetPlayerId, (current) => ({
+      ...current,
+      reflectionCharges: current.reflectionCharges - 1
+    }));
+    const reflected = applyDamage(
+      state,
+      options.sourcePlayerId,
+      event.hpDamage,
+      random,
+      {
+        kind: "reflection",
+        sourcePlayerId: targetPlayerId,
+        allowReflection: false
+      }
+    );
+    state = reflected.state;
+    event.reflection = reflected.event;
+  }
+
+  return { state, event };
+}
+
+function applyHpCost(
+  inputState: CardEffectGameState,
+  playerId: string,
+  amount: number,
+  random: () => number
+): { state: CardEffectGameState; event: DamageEvent } {
+  if (!Number.isInteger(amount) || amount < 0) {
+    throw new Error("HP cost must be a non-negative integer.");
+  }
+  const player = requireLivingPlayer(inputState, playerId);
+  const hpLoss = Math.min(player.hp, amount);
+  let state: CardEffectGameState = {
+    ...inputState,
+    players: inputState.players.map((item) => item.id === playerId
+      ? { ...item, hp: Math.max(0, item.hp - amount) }
+      : item)
+  };
+  const event: DamageEvent = {
+    kind: "hp_cost",
+    sourcePlayerId: playerId,
+    targetPlayerId: playerId,
+    attemptedDamage: amount,
+    shieldAbsorbed: 0,
+    hpDamage: hpLoss
+  };
+  if (player.hp - amount <= 0) {
+    const death = applyPlayerDeath(state, playerId, random);
+    state = death.state as CardEffectGameState;
+    event.death = death.result;
+  }
+  return { state, event };
+}
+
+function takeAttackBonus(state: CardEffectGameState, playerId: string): {
+  state: CardEffectGameState;
+  bonus: number;
+} {
+  const runtime = state.cardRuntime.players[playerId];
+  const bonus = runtime.attackDamageBonus + runtime.nextAttackDamageBonus;
+  if (runtime.nextAttackDamageBonus === 0) return { state, bonus };
+  return {
+    state: updatePlayerRuntime(state, playerId, (current) => ({
+      ...current,
+      nextAttackDamageBonus: 0
+    })),
+    bonus
+  };
+}
+
 const IMPLEMENTED_EFFECTS = new Set<CardEffectId>([
+  "damage_single",
+  "damage_single_pierce_shield",
+  "damage_and_remove_shields",
+  "damage_all_except_self",
+  "damage_with_self_hp_cost",
+  "conditional_damage",
   "heal",
   "increase_max_hp",
   "gain_heart",
@@ -107,9 +283,8 @@ export function isCardEffectImplemented(effectId: CardEffectId): boolean {
 }
 
 /**
- * Resolves the first deterministic player-state effects from the authoritative catalogue.
- * Targeted, monster, dice, movement, and curse-cost effects are deliberately deferred until
- * their corresponding game systems and player-choice inputs are available.
+ * Resolves supported player-vs-player attacks and deterministic player-state effects.
+ * Monster, deck-manipulation, movement/dice, and curse-cost effects remain explicit TODOs.
  */
 export function resolveCardEffect(
   inputState: GameState,
@@ -122,13 +297,62 @@ export function resolveCardEffect(
     throw new Error(`Card effect ${card.effectId} is not implemented yet.`);
   }
 
+  const random = options.random ?? Math.random;
   let state = withRuntime(inputState);
   const active = getActivePlayer(state);
   const appliedToPlayerIds: string[] = [active.id];
+  const damageEvents: DamageEvent[] = [];
   let endsCardPlay = false;
   const amount = Number(card.parameters?.amount ?? 0);
 
   switch (card.effectId) {
+    case "damage_single":
+    case "damage_single_pierce_shield":
+    case "damage_and_remove_shields":
+    case "damage_with_self_hp_cost":
+    case "conditional_damage": {
+      const target = requireOpponentTarget(state, active.id, options.targetPlayerId);
+      const attack = takeAttackBonus(state, active.id);
+      state = attack.state;
+      let damage = Number(card.parameters?.damage ?? card.parameters?.targetDamage ?? card.parameters?.baseDamage ?? 0);
+      if (card.effectId === "conditional_damage") {
+        const conditionalDamage = Number(card.parameters?.conditionalDamage ?? damage);
+        damage = target.hp < active.hp ? conditionalDamage : Number(card.parameters?.baseDamage ?? 0);
+      }
+      damage = Math.max(1, damage + attack.bonus);
+
+      if (card.effectId === "damage_and_remove_shields") {
+        state = updatePlayerRuntime(state, target.id, (current) => ({ ...current, shields: 0 }));
+      }
+
+      const hit = applyDamage(state, target.id, damage, random, {
+        sourcePlayerId: active.id,
+        pierceShield: card.effectId === "damage_single_pierce_shield"
+      });
+      state = hit.state;
+      damageEvents.push(hit.event);
+      appliedToPlayerIds.push(target.id);
+
+      if (card.effectId === "damage_with_self_hp_cost") {
+        const cost = applyHpCost(state, active.id, Number(card.parameters?.selfHpCost ?? 0), random);
+        state = cost.state;
+        damageEvents.push(cost.event);
+      }
+      break;
+    }
+    case "damage_all_except_self": {
+      const attack = takeAttackBonus(state, active.id);
+      state = attack.state;
+      const damage = Math.max(1, Number(card.parameters?.damage ?? 0) + attack.bonus);
+      const targets = state.players.filter((player) => player.id !== active.id && player.status === "alive");
+      for (const target of targets) {
+        const hit = applyDamage(state, target.id, damage, random, { sourcePlayerId: active.id });
+        state = hit.state;
+        damageEvents.push(hit.event);
+        appliedToPlayerIds.push(target.id);
+      }
+      break;
+    }
     case "heal": {
       state = {
         ...state,
@@ -279,5 +503,5 @@ export function resolveCardEffect(
     }
   }
 
-  return { state, card, appliedToPlayerIds, endsCardPlay };
+  return { state, card, appliedToPlayerIds, endsCardPlay, damageEvents };
 }
