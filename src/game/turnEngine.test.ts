@@ -106,6 +106,18 @@ describe("Roll and Ruin turn engine", () => {
     expect(summoned.state.monsters[0].turnsSinceLastAttack).toBe(0);
   });
 
+  it("enforces the four-active-monster board limit", () => {
+    let state = readyState();
+    for (let index = 1; index <= 4; index++) {
+      state = summonMonster(state, {
+        id: `m${index}`, attackPattern: "random_living", attackInterval: 2
+      }).state;
+    }
+    expect(() => summonMonster(state, {
+      id: "m5", attackPattern: "random_living", attackInterval: 2
+    })).toThrow(/maximum of four/);
+  });
+
   it("uses each monster's own attack interval and target count", () => {
     let state = readyState();
     state = summonMonster(state, {
