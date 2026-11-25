@@ -42,7 +42,8 @@ The engine accepts drawn card IDs from the deck layer and does not create placeh
 - Its scheduled attack counter then starts at zero.
 - Every monster must provide its own positive `attackInterval`; no global interval is assumed.
 - Scheduled attacks support random living targets, a target count, or all living players.
-- The monster data/effect layer remains responsible for exact targeting exceptions, damage, statuses, and summon-cap rules.
+- A maximum of four active monsters may be present at once.
+- The monster data/effect layer remains responsible for exact targeting exceptions, damage, statuses, and summon-cap enforcement is handled by this engine.
 
 ## Death and elimination
 - Death removes one heart and restores HP to maximum at the starting space.
