@@ -63,7 +63,7 @@ describe("Roll and Ruin turn engine", () => {
   it("schedules a monster after two completed player turns", () => {
     let state = readyState();
     state = summonMonster(state, {
-      id: "m1", attackPattern: "random_living", attackEveryPlayerTurns: 2
+      id: "m1", attackPattern: "random_living"
     }).state;
     state = selectPlayerAction(state, "draw_card").state;
     state = moveActivePlayer(state).state;
