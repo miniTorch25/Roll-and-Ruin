@@ -46,6 +46,16 @@ Every supported Curse effect requires an explicit `cursePayment`:
 
 `endPlayerTurn` advances cooldown automatically when the game state has card runtime. `advanceCurseCooldown` remains available for isolated integrations that do not use the turn-engine end-turn path; do not call both for the same owner turn.
 
+## Implemented Summon effect
+
+- Each Summon card selects one random monster from its matching rank in `src/game/monsterCatalogue.ts`.
+- The catalogue has all 50 source monsters: 10 Common, 10 Rare, 10 Epic, 10 Legend, and 10 Myth.
+- Each summoned instance copies its base HP, damage, rank, attack interval, and target count from the catalogue.
+- A source HP of infinity is represented by `null`; monsters with no recurring attack interval also use `null`.
+- Summoning still follows the four-active-monster cap and returns the immediate all-living-player summon attack event.
+
+The summon effect exposes the monster instance ID and attack event to the caller. It does not yet apply monster damage, resolve monster-specific abilities, award monster rewards, or process timed monster disappearance.
+
 ## Implemented player-targeted Curse effects
 
 - **ชุบชีวิต:** revives one selected eliminated player with 1 heart, full HP, and position 0. A player holding this card also automatically consumes it when losing their final heart, before random hand loss, and returns with 1 heart.
@@ -91,4 +101,4 @@ Call `resolveCardEffect(state, cardDefinitionOrId, options)` after `playCatalogu
 
 ## Not yet implemented
 
-Grenade splash needs monster/player target integration; Monster Hunter needs the monster HP catalogue and damage rules. Remaining monster/tile effects, monster HP/damage and reward resolution, and BoardScene dice/card-choice integration remain separate work.
+Grenade splash and Monster Hunter still need the shared monster damage/defeat resolver; monster-specific ability execution and rewards are not integrated yet. Remaining monster/tile effects, monster HP/damage and reward resolution, and BoardScene dice/card-choice integration remain separate work.
