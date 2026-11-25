@@ -1,27 +1,26 @@
 import Phaser from "phaser";
 import {
   createGameState, endPlayerTurn, finishSpecialTileCheck, finishStatusCheck,
-  getActivePlayer, moveActivePlayer, resolveMonsterAttackPhase,
+  moveActivePlayer, resolveMonsterAttackPhase,
   selectPlayerAction, startPlayerTurn, type GameState, type PlayerAction
 } from "../game/turnEngine";
 import { createCardDeck, drawCards } from "../cards/deck";
 
-const PATH_LENGTH = 18;
+const PATH_LENGTH = 32;
 const PLAYER_SETUP = [
   { id: "p1", teamId: "red" },
   { id: "p2", teamId: "blue" },
   { id: "p3", teamId: "green" },
-  { id: "p4", teamId: "gold" }
+  { id: "p4", teamId: "yellow" }
 ];
 const COLORS = [0xe0a85b, 0x75b8d1, 0x9bc47b, 0xc18bd1];
-const PROTOTYPE_HEARTS = 3;
 
 export class BoardScene extends Phaser.Scene {
   private state!: GameState;
   private tileCenters: { x: number; y: number }[] = [];
   private tokens: Phaser.GameObjects.Container[] = [];
   private deck = createCardDeck(
-    Array.from({ length: 24 }, (_, index) => `prototype_card_${String(index + 1).padStart(2, "0")}`)
+    Array.from({ length: 60 }, (_, index) => `prototype_card_${String(index + 1).padStart(2, "0")}`)
   );
   private logText?: Phaser.GameObjects.Text;
   private actionLocked = false;
@@ -29,13 +28,18 @@ export class BoardScene extends Phaser.Scene {
   constructor() { super("BoardScene"); }
 
   create(): void {
-    this.state = createGameState("1x4", PLAYER_SETUP, PROTOTYPE_HEARTS, PATH_LENGTH);
+    const startingSetup = PLAYER_SETUP.map((player) => {
+      const drawn = drawCards([], this.deck, 4);
+      this.deck = drawn.deck;
+      return { ...player, startingHand: drawn.hand };
+    });
+    this.state = createGameState("1x4", startingSetup, PATH_LENGTH);
     this.state = startPlayerTurn(resolveMonsterAttackPhase(this.state).state);
     this.drawBackdrop();
     this.drawBoard();
     this.createPlayers();
     this.createLabels();
-    this.updateHud("เลือกทอยเต๋าหรือจั่วไพ่เพื่อเริ่มเทิร์น");
+    this.updateHud("เริ่มเกม · ผู้เล่นทุกคนมี HP 20 หัวใจ 3 และไพ่เริ่มต้น 4 ใบ");
   }
 
   private drawBackdrop(): void {
@@ -49,32 +53,33 @@ export class BoardScene extends Phaser.Scene {
   }
 
   private createPath(): { x: number; y: number }[] {
-    const steps: [number, number][] = [
-      [0,0],[1,0],[2,0],[3,0],[4,0],[4,1],[4,2],[3,2],[2,2],
-      [1,2],[0,2],[0,3],[0,4],[1,4],[2,4],[3,4],[4,4],[5,4]
-    ];
-    return steps.slice(0, PATH_LENGTH).map(([col,row]) => ({
-      x: 150 + col * 105 - row * 42,
-      y: 285 + row * 52 - col * 21
+    const perimeter: [number, number][] = [];
+    for (let col = 0; col <= 8; col++) perimeter.push([col, 0]);
+    for (let row = 1; row <= 8; row++) perimeter.push([8, row]);
+    for (let col = 7; col >= 0; col--) perimeter.push([col, 8]);
+    for (let row = 7; row >= 1; row--) perimeter.push([0, row]);
+    return perimeter.map(([col, row]) => ({
+      x: 450 + (col - row) * 35,
+      y: 280 + (col + row - 8) * 17
     }));
   }
 
   private drawBoard(): void {
     this.tileCenters = this.createPath();
     this.tileCenters.forEach((p, i) => {
-      const color = i === 0 ? 0x3b806b : i === PATH_LENGTH - 1 ? 0x9a654c : i % 4 === 0 ? 0x596b83 : 0x46566d;
-      this.add.polygon(p.x, p.y, [0,-19,37,0,0,19,-37,0], color)
+      const color = i === 0 ? 0x3b806b : i % 8 === 0 ? 0x596b83 : 0x46566d;
+      this.add.polygon(p.x, p.y, [0,-14,28,0,0,14,-28,0], color)
         .setStrokeStyle(2, 0x9ba9bd, 0.8).setDepth(p.y);
-      if (i > 0 && i < PATH_LENGTH - 1) {
-        this.add.text(p.x, p.y - 7, String(i), {
-          fontFamily: "monospace", fontSize: "14px", color: "#dce5f2"
+      if (i % 4 === 0) {
+        this.add.text(p.x, p.y - 6, String(i + 1), {
+          fontFamily: "monospace", fontSize: "11px", color: "#dce5f2"
         }).setOrigin(0.5).setDepth(p.y + 1);
       }
     });
     const ruins = this.add.graphics().setDepth(10);
     ruins.fillStyle(0x111722, 0.75);
-    [[110,110],[755,100],[760,430],[120,440]].forEach(([x,y]) => {
-      ruins.fillRect(x,y,28,42); ruins.fillRect(x+34,y+12,20,30);
+    [[400,210],[500,210],[400,340],[500,340]].forEach(([x,y]) => {
+      ruins.fillRect(x,y,22,32); ruins.fillRect(x+27,y+10,16,22);
     });
   }
 
@@ -93,14 +98,13 @@ export class BoardScene extends Phaser.Scene {
   }
 
   private createLabels(): void {
-    this.add.text(92, 245, "START", {
+    this.add.text(395, 252, "START", {
       fontFamily: "monospace", fontSize: "13px", color: "#a9e0c3", fontStyle: "bold"
     });
-    const end = this.tileCenters[PATH_LENGTH - 1];
-    this.add.text(end.x + 10, end.y - 45, "RUIN", {
+    this.add.text(455, 252, "RUIN", {
       fontFamily: "monospace", fontSize: "13px", color: "#e8b18d", fontStyle: "bold"
     }).setOrigin(0.5);
-    this.logText = this.add.text(450, 510, "YOUR EXPEDITION BEGINS", {
+    this.logText = this.add.text(450, 520, "YOUR EXPEDITION BEGINS", {
       fontFamily: "monospace", fontSize: "14px", color: "#d5deec"
     }).setOrigin(0.5);
   }
@@ -109,32 +113,25 @@ export class BoardScene extends Phaser.Scene {
     if (this.actionLocked || this.state.phase !== "choose_action") {
       return { ok: false, message: "กรุณารอให้เทิร์นปัจจุบันดำเนินการเสร็จ" };
     }
-    if (action === "use_card") {
-      return { ok: false, message: "ระบบไพ่จริงกำลังรอเชื่อมรายการไพ่และเอฟเฟกต์" };
+    if (action === "use_cards") {
+      return { ok: false, message: "ระบบใช้ไพ่จะเปิดใช้งานเมื่อเชื่อมต่อรายการไพ่และเอฟเฟกต์จริง" };
     }
 
     this.actionLocked = true;
     try {
-      const selected = selectPlayerAction(this.state, action);
-      this.state = selected.state;
+      let selected;
       let message = "";
-      if (action === "roll_dice") {
-        message = `ทอยเต๋าได้ ${selected.dieRoll} แต้ม`;
-      } else {
-        const active = getActivePlayer(this.state);
-        const drawn = drawCards(active.hand, this.deck, 1);
+      if (action === "draw_two_roll_one") {
+        const drawn = drawCards([], this.deck, 2);
         this.deck = drawn.deck;
-        this.state = {
-          ...this.state,
-          players: this.state.players.map(player =>
-            player.id === active.id ? { ...player, hand: drawn.hand } : player
-          )
-        };
-        message = drawn.drawnCardIds.length
-          ? "จั่วไพ่ต้นแบบ 1 ใบ · ยังไม่เปิดใช้เอฟเฟกต์"
-          : "กองจั่วหมดแล้ว";
+        selected = selectPlayerAction(this.state, action, { drawnCardIds: drawn.drawnCardIds });
+        message = `จั่วไพ่ ${drawn.drawnCardIds.length} ใบ · ทอยเต๋า 1 ลูกได้ ${selected.diceRolls[0]}`;
+      } else {
+        selected = selectPlayerAction(this.state, action);
+        message = `ทอยเต๋า 2 ลูกได้ ${selected.diceRolls.join(" + ")} = ${selected.diceRolls.reduce((sum, value) => sum + value, 0)}`;
       }
 
+      this.state = selected.state;
       const moved = moveActivePlayer(this.state);
       this.state = finishSpecialTileCheck(moved.state);
       this.state = finishStatusCheck(this.state);
@@ -170,27 +167,30 @@ export class BoardScene extends Phaser.Scene {
 
   private updateHud(message: string): void {
     const active = this.state.players[this.state.activePlayerIndex];
+    if (!active) return;
     const position = document.querySelector<HTMLElement>("#position");
     const score = document.querySelector<HTMLElement>("#score");
     const hand = document.querySelector<HTMLElement>("#hand-count");
     const turn = document.querySelector<HTMLElement>("#turn-label");
     const hearts = document.querySelector<HTMLElement>("#hearts");
+    const hp = document.querySelector<HTMLElement>("#hp");
     const dice = document.querySelector<HTMLElement>("#dice-result");
     const players = document.querySelector<HTMLElement>("#player-list");
     const phase = document.querySelector<HTMLElement>("#phase-label");
 
-    if (position) position.textContent = active.position === 0 ? "จุดเริ่มต้น" : `ช่อง ${active.position + 1}`;
+    if (position) position.textContent = `ช่อง ${active.position + 1} / ${this.state.boardLength}`;
     if (score) score.textContent = String(active.score);
     if (hand) hand.textContent = String(active.hand.length);
     if (turn) turn.textContent = `เทิร์น ${this.state.turnNumber} · ผู้เล่น ${this.state.activePlayerIndex + 1}`;
     if (hearts) hearts.textContent = "♥ ".repeat(active.hearts).trim() || "หมด";
-    if (dice && message.includes("เต๋าได้")) dice.textContent = message.match(/\d+/)?.[0] ?? "—";
+    if (hp) hp.textContent = `${active.hp} / ${active.maxHp}`;
+    if (dice && message.includes("เต๋า")) dice.textContent = message.match(/ได้ (.*)$/)?.[1] ?? "—";
     if (phase) phase.textContent = this.state.phase === "choose_action" ? "เลือกกิจกรรม" : this.state.phase;
     if (players) {
       players.innerHTML = this.state.players.map((player, index) =>
         `<div class="player-row ${index === this.state.activePlayerIndex ? "active" : ""}">
           <span><i style="background:#${COLORS[index].toString(16)}"></i> ผู้เล่น ${index + 1}</span>
-          <strong>♥ ${player.hearts} · ช่อง ${player.position + 1}</strong>
+          <strong>♥ ${player.hearts} · HP ${player.hp} · ช่อง ${player.position + 1}</strong>
         </div>`
       ).join("");
     }
