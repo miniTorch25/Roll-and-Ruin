@@ -19,7 +19,7 @@ const deck = {
 describe("centralized monster defeat rewards", () => {
   it("grants the default three random Prank or Curse cards", () => {
     const state = createGameState("1x4", setup);
-    const summoned = summonRandomMonster(state, "Rare", "ratty", () => 0.4);
+    const summoned = summonRandomMonster(state, "Common", "ratty", () => 0.3);
     const defeated = damageMonster(summoned.state, "ratty", 3, "p1");
     const result = resolveMonsterDefeatRewards(defeated.state, [defeated.event], deck, () => 0);
     const reward = result.events[0].cardIds;
@@ -59,7 +59,7 @@ describe("centralized monster defeat rewards", () => {
 
   it("does not recycle discarded cards when the requested reward pool is exhausted", () => {
     const state = createGameState("1x4", setup);
-    const summoned = summonRandomMonster(state, "Rare", "ratty", () => 0.4);
+    const summoned = summonRandomMonster(state, "Common", "ratty", () => 0.3);
     const defeated = damageMonster(summoned.state, "ratty", 3, "p1");
     const result = resolveMonsterDefeatRewards(defeated.state, [defeated.event], {
       drawPile: [],
