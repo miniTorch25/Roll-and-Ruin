@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   createGameState,
   endPlayerTurn,
+  moveActivePlayer,
   playCardFromHand,
   selectPlayerAction,
   startPlayerTurn,
@@ -28,6 +29,20 @@ function hitMonster(rank: "Rare", random: () => number) {
 }
 
 describe("monster-applied player status effects", () => {
+  it("applies Bob's slow status and reduces movement by one on the next turn", () => {
+    const hit = hitMonster("Rare", () => 0);
+    expect(hit.state.players[0].statusEffects).toContainEqual({
+      type: "movement_reduction",
+      turnsRemaining: 1,
+      amount: 1
+    });
+    const started = startPlayerTurn({ ...hit.state, phase: "turn_start" });
+    const action = selectPlayerAction(started, "roll_two_dice", { random: () => 0.5 });
+    expect(action.diceRolls).toEqual([4, 4]);
+    const moved = moveActivePlayer(action.state);
+    expect(moved.state.players[0].position).toBe(7);
+  });
+
   it("applies Scorpy poison and deals direct HP damage at the start of each affected turn", () => {
     const hit = hitMonster("Rare", () => 0.6);
     expect(hit.state.players[0].statusEffects).toContainEqual({
@@ -81,6 +96,25 @@ describe("monster-applied player status effects", () => {
     const started = startPlayerTurn({ ...hit.state, phase: "turn_start" });
     const action = selectPlayerAction(started, "roll_two_dice", { random: () => 0.99 });
     expect(action.diceRolls).toHaveLength(1);
+  });
+
+  it("makes Wizzy roll for a 2-damage bonus blast on a 1 or 2", () => {
+    const initial = createGameState("1x4", setup);
+    const summoned = summonRandomMonster(initial, "Rare", "wizzy", () => 0.2);
+    const result = resolveMonsterAttackEvents(summoned.state, [{
+      monsterId: "wizzy", targetPlayerIds: ["p1"], reason: "scheduled"
+    }], () => 0);
+    expect(result.damageEvents.map((event) => event.attemptedDamage)).toEqual([3, 2]);
+    expect(result.state.players[0].hp).toBe(15);
+  });
+
+  it("makes Harpy discard one random card from its target", () => {
+    const initial = createGameState("1x4", setup);
+    const summoned = summonRandomMonster(initial, "Rare", "harpy", () => 0.75);
+    const result = resolveMonsterAttackEvents(summoned.state, [{
+      monsterId: "harpy", targetPlayerIds: ["p1"], reason: "scheduled"
+    }], () => 0);
+    expect(result.state.players[0].hand).toEqual(["b", "c", "d"]);
   });
 
   it("applies Frosty's two-card limit for the target's next turn", () => {
@@ -226,6 +260,17 @@ describe("monster-applied player status effects", () => {
     });
     expect(result.monsterDamageEvents[0].defeated).toBe(true);
     expect(result.monsterDamageEvents[0].rewardSuppressed).toBe(true);
+  });
+
+  it("makes Ghosty immune to attacks dealing less than 3 damage", () => {
+    const initial = createGameState("1x4", setup);
+    const summoned = summonRandomMonster(initial, "Rare", "ghosty", () => 0.5);
+    const blocked = damageMonster(summoned.state, "ghosty", 2, "p1");
+    expect(blocked.event.preventedBy).toBe("attack_below_threshold");
+    expect(blocked.state.monsters[0].hp).toBe(12);
+    const hit = damageMonster(blocked.state, "ghosty", 3, "p1");
+    expect(hit.event.hpDamage).toBe(3);
+    expect(hit.state.monsters[0].hp).toBe(9);
   });
 
   it("does not apply secondary statuses when invulnerability prevents the attack", () => {
