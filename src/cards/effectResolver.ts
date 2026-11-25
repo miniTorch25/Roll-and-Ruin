@@ -169,6 +169,16 @@ function requireOpponentTarget(state: CardEffectGameState, attackerId: string, t
   return requireLivingPlayer(state, targetId);
 }
 
+function requireEliminatedTarget(state: CardEffectGameState, activePlayerId: string, targetId?: string) {
+  if (!targetId) throw new Error("This card effect requires targetPlayerId.");
+  if (targetId === activePlayerId) throw new Error("The active player cannot be the eliminated target.");
+  const target = state.players.find((player) => player.id === targetId);
+  if (!target || target.status !== "eliminated") {
+    throw new Error("This card requires a player who has been eliminated.");
+  }
+  return target;
+}
+
 interface DamageOptions {
   kind?: DamageEvent["kind"];
   sourcePlayerId?: string;
@@ -339,6 +349,10 @@ const IMPLEMENTED_EFFECTS = new Set<CardEffectId>([
   "reverse_movement_direction",
   "reduce_dice_values",
   "reveal_player_hand",
+  "discard_random_half_hand",
+  "mark_monster_attack_target",
+  "remove_buffs_and_shields",
+  "steal_eliminated_player_cards",
   "instant_kill",
   "force_prison",
   "reset_other_players_positions",
@@ -681,6 +695,67 @@ export function resolveCardEffect(
         })
       };
       discardedCardIds.push(options.selectedCardId);
+      appliedToPlayerIds.push(target.id);
+      break;
+    }
+    case "discard_random_half_hand": {
+      const target = requireOpponentTarget(state, active.id, options.targetPlayerId);
+      const discardCount = Math.ceil(target.hand.length * Number(card.parameters?.fraction ?? 0.5));
+      const remaining = [...target.hand];
+      const discarded: string[] = [];
+      for (let index = 0; index < discardCount; index++) {
+        const randomIndex = Math.min(remaining.length - 1, Math.max(0, Math.floor(random() * remaining.length)));
+        discarded.push(remaining.splice(randomIndex, 1)[0]);
+      }
+      state = {
+        ...state,
+        players: state.players.map((player) => player.id === target.id
+          ? { ...player, hand: remaining }
+          : player)
+      };
+      discardedCardIds.push(...discarded);
+      appliedToPlayerIds.push(target.id);
+      break;
+    }
+    case "steal_eliminated_player_cards": {
+      const target = requireEliminatedTarget(state, active.id, options.targetPlayerId);
+      const stolenCards = [...target.hand];
+      state = {
+        ...state,
+        players: state.players.map((player) => {
+          if (player.id === target.id) return { ...player, hand: [] };
+          if (player.id === active.id) return { ...player, hand: [...player.hand, ...stolenCards] };
+          return player;
+        })
+      };
+      appliedToPlayerIds.push(target.id);
+      break;
+    }
+    case "remove_buffs_and_shields": {
+      const target = requireOpponentTarget(state, active.id, options.targetPlayerId);
+      state = updatePlayerRuntime(state, target.id, (current) => ({
+        ...current,
+        shields: 0,
+        invulnerableOwnerTurns: 0,
+        reflectionCharges: 0,
+        attackDamageBonus: 0,
+        defenseShieldBonus: 0,
+        nextAttackDamageBonus: 0
+      }));
+      appliedToPlayerIds.push(target.id);
+      break;
+    }
+    case "mark_monster_attack_target": {
+      const target = requireOpponentTarget(state, active.id, options.targetPlayerId);
+      if (!state.monsters.some((monster) => monster.active)) {
+        throw new Error("เหยื่อล่ requires at least one active monster on the board.");
+      }
+      state = {
+        ...state,
+        monsters: state.monsters.map((monster) => monster.active
+          ? { ...monster, forcedTargetPlayerId: target.id }
+          : monster)
+      };
       appliedToPlayerIds.push(target.id);
       break;
     }
