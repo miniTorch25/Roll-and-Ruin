@@ -3,6 +3,7 @@ import { CARD_CATALOGUE } from "../cards/catalogue";
 import { createGameState, type PlayerSetup } from "../game/turnEngine";
 import { damageMonster, summonRandomMonster } from "./engine";
 import { resolveLegendOffering } from "./legend";
+import { resolveCardEffect } from "../cards/effectResolver";
 
 const setup: PlayerSetup[] = [
   { id: "p1", teamId: "red", startingHand: ["green_herbal_potion", "green_life_core", "green_extra_heart", "green_lucky_clover"] },
@@ -115,6 +116,40 @@ describe("Legend monster offerings", () => {
     expect(result.event.selectedPlayerId).toBe("p1");
     expect(result.event.awardedCardIds).toHaveLength(1);
     expect(result.state.players[0].hand).toContain(result.event.awardedCardIds[0]);
+  });
+
+  it.each([
+    ["sphinxy", 50, 2],
+    ["unico", 100, 5],
+    ["lepri", 30, 1],
+    ["mirro", 100, 5],
+    ["treeo", 30, 1],
+    ["dwarfy", 50, 2],
+    ["kingo", 50, 2]
+  ])("%s reflects the configured percentage of actual HP damage", (id, _percentage, expected) => {
+    const state = summon(id);
+    const result = resolveCardEffect(state, "blue_monster_hunter", {
+      targetMonsterId: id,
+      random: () => 0
+    });
+    const reflection = result.damageEvents.find(event => event.kind === "reflection");
+    expect(reflection?.hpDamage).toBe(expected);
+    expect(result.state.players[0].hp).toBe(20 - expected);
+    expect(result.monsterDamageEvents[0].reflectedDamage).toBe(expected);
+  });
+
+  it("makes Mirro's reflected damage bypass the attacker's shields", () => {
+    const base = summon("mirro");
+    const state = {
+      ...base,
+      cardRuntime: { players: { p1: { shields: 3 } } }
+    };
+    const result = resolveCardEffect(state, "blue_monster_hunter", {
+      targetMonsterId: "mirro",
+      random: () => 0
+    });
+    expect(result.state.players[0].hp).toBe(15);
+    expect(result.state.cardRuntime.players.p1.shields).toBe(3);
   });
 
   it("rejects invalid card types and duplicate contributions without mutating input", () => {
