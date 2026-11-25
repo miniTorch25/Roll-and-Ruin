@@ -662,3 +662,131 @@ describe("timed combat modifiers", () => {
     expect(shielded.state.cardRuntime.players.p1.shields).toBe(1);
   });
 });
+
+
+describe("remaining player-targeted Curse effects", () => {
+  it("randomly discards half of a target's hand, rounded up", () => {
+    const state = withPlayer(cardPlayState(), "p2", {
+      hand: ["hand-1", "hand-2", "hand-3", "hand-4", "hand-5"]
+    });
+    const result = resolveCardEffect(state, "red_hand_robbery", {
+      targetPlayerId: "p2",
+      cursePayment: { type: "discard", cardIds: ["green_herbal_potion", "green_life_core"] },
+      random: () => 0
+    });
+    expect(result.discardedCardIds).toEqual(["hand-1", "hand-2", "hand-3"]);
+    expect(result.state.players[1].hand).toEqual(["hand-4", "hand-5"]);
+  });
+
+  it("steals every card from one eliminated player without taking cards from living players", () => {
+    let state = withPlayer(cardPlayState(), "p3", {
+      status: "eliminated",
+      hand: ["grave-1", "grave-2", "grave-3"]
+    });
+    const result = resolveCardEffect(state, "red_grave_robbery", {
+      targetPlayerId: "p3",
+      cursePayment: { type: "discard", cardIds: ["green_herbal_potion", "green_life_core"] }
+    });
+    expect(result.state.players[0].hand).toEqual([
+      "green_extra_heart", "blue_wooden_shield", "grave-1", "grave-2", "grave-3"
+    ]);
+    expect(result.state.players[2].hand).toEqual([]);
+    expect(result.state.players[2].status).toBe("eliminated");
+  });
+
+  it("requires an eliminated target for Grave Robbery", () => {
+    expect(() => resolveCardEffect(cardPlayState(), "red_grave_robbery", {
+      targetPlayerId: "p2",
+      cursePayment: { type: "discard", cardIds: ["green_herbal_potion", "green_life_core"] }
+    })).toThrow(/eliminated/);
+  });
+
+  it("removes shields, invulnerability, reflection, and positive combat buffs from the target", () => {
+    let state = withRuntime(cardPlayState(), "p2", {
+      shields: 3,
+      invulnerableOwnerTurns: 2,
+      reflectionCharges: 1,
+      attackDamageBonus: 2,
+      defenseShieldBonus: 1,
+      nextAttackDamageBonus: 1
+    });
+    state = withPlayer(state, "p2", {
+      statusEffects: [{ type: "cards_silenced", turnsRemaining: 1 }]
+    });
+    const result = resolveCardEffect(state, "red_power_wipe", {
+      targetPlayerId: "p2",
+      cursePayment: { type: "discard", cardIds: ["green_herbal_potion", "green_life_core"] }
+    });
+    expect(result.state.cardRuntime.players.p2).toMatchObject({
+      shields: 0,
+      invulnerableOwnerTurns: 0,
+      reflectionCharges: 0,
+      attackDamageBonus: 0,
+      defenseShieldBonus: 0,
+      nextAttackDamageBonus: 0
+    });
+    expect(result.state.players[1].statusEffects).toEqual([
+      { type: "cards_silenced", turnsRemaining: 1 }
+    ]);
+  });
+
+  it("marks every active monster to attack the selected player on its next scheduled attack", () => {
+    const state = {
+      ...cardPlayState(),
+      monsters: [
+        {
+          id: "fast",
+          attackPattern: "all_living" as const,
+          attackInterval: 1,
+          turnsSinceLastAttack: 1,
+          active: true
+        },
+        {
+          id: "slow",
+          attackPattern: "random_living" as const,
+          attackInterval: 4,
+          turnsSinceLastAttack: 0,
+          active: true
+        }
+      ]
+    };
+    const marked = resolveCardEffect(state, "red_hunt_bait", {
+      targetPlayerId: "p2",
+      cursePayment: { type: "discard", cardIds: ["green_herbal_potion", "green_life_core"] }
+    });
+    expect(marked.state.monsters.every((monster) => monster.forcedTargetPlayerId === "p2")).toBe(true);
+
+    const firstAttack = resolveMonsterAttackPhase({
+      ...marked.state,
+      phase: "monster_attack"
+    }, () => 0);
+    expect(firstAttack.attacks).toEqual([{
+      monsterId: "fast",
+      targetPlayerIds: ["p2"],
+      reason: "scheduled"
+    }]);
+    expect(firstAttack.state.monsters.find((monster) => monster.id === "fast")?.forcedTargetPlayerId).toBeUndefined();
+    expect(firstAttack.state.monsters.find((monster) => monster.id === "slow")?.forcedTargetPlayerId).toBe("p2");
+
+    const slowMonsterDue = {
+      ...firstAttack.state,
+      phase: "monster_attack" as const,
+      monsters: firstAttack.state.monsters.map((monster) => monster.id === "slow"
+        ? { ...monster, turnsSinceLastAttack: monster.attackInterval }
+        : monster)
+    };
+    const secondAttack = resolveMonsterAttackPhase(slowMonsterDue, () => 0);
+    expect(secondAttack.attacks).toEqual([{
+      monsterId: "slow",
+      targetPlayerIds: ["p2"],
+      reason: "scheduled"
+    }]);
+  });
+
+  it("requires at least one active monster before applying Hunt Bait", () => {
+    expect(() => resolveCardEffect(cardPlayState(), "red_hunt_bait", {
+      targetPlayerId: "p2",
+      cursePayment: { type: "discard", cardIds: ["green_herbal_potion", "green_life_core"] }
+    })).toThrow(/active monster/);
+  });
+});
