@@ -49,7 +49,7 @@ function withRuntime(state: GameState): CardEffectGameState {
   for (const player of state.players) {
     const current = existing?.players[player.id];
     players[player.id] = current
-      ? { ...EMPTY_PLAYER_RUNTIME(), ...current, negativeStatuses: [...current.negativeStatuses] }
+      ? { ...EMPTY_PLAYER_RUNTIME(), ...current, negativeStatuses: [...(current.negativeStatuses ?? [])] }
       : EMPTY_PLAYER_RUNTIME();
   }
   return { ...state, cardRuntime: { players } };
@@ -72,19 +72,6 @@ function updatePlayerRuntime(
       }
     }
   };
-}
-
-function requireLivingPlayer(state: CardEffectGameState, playerId: string) {
-  const player = state.players.find((item) => item.id === playerId);
-  if (!player || player.status !== "alive") {
-    throw new Error(`Target player ${playerId} is not alive.`);
-  }
-  return player;
-}
-
-function requireTarget(state: CardEffectGameState, playerId?: string) {
-  if (!playerId) throw new Error("This card effect requires targetPlayerId.");
-  return requireLivingPlayer(state, playerId);
 }
 
 function addShield(
@@ -288,8 +275,7 @@ export function resolveCardEffect(
       break;
     }
     default: {
-      const exhaustive: never = card.effectId;
-      throw new Error(`Unsupported card effect: ${exhaustive}`);
+      throw new Error(`Unsupported card effect: ${card.effectId}`);
     }
   }
 
