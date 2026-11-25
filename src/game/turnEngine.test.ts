@@ -398,7 +398,7 @@ describe("timed player status processing", () => {
         }
       }
     };
-    expect(() => playCardFromHand(state, "attack-card", 1, true)).toThrow(/Attack cards are blocked/);
-    expect(() => playCardFromHand(state, "support-card", 1, false)).not.toThrow();
+    expect(() => playCardFromHand(state, "a", 1, true)).toThrow(/Attack cards are blocked/);
+    expect(() => playCardFromHand(state, "b", 1, false)).not.toThrow();
   });
 });
