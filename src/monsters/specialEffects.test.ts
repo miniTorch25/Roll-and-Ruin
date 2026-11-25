@@ -97,6 +97,63 @@ describe("monster-applied player status effects", () => {
     expect(() => playCardFromHand(two, "c")).toThrow(/at most 2 cards/);
   });
 
+
+  it("heals Zomzom by 1 after each attack without exceeding maximum HP", () => {
+    const initial = createGameState("1x4", setup);
+    const summoned = summonRandomMonster(initial, "Common", "zomzom", () => 0.25);
+    const damaged = {
+      ...summoned.state,
+      monsters: summoned.state.monsters.map((monster) => monster.id === "zomzom"
+        ? { ...monster, hp: 10 }
+        : monster)
+    };
+    const result = resolveMonsterAttackEvents(damaged, [{
+      monsterId: "zomzom",
+      targetPlayerIds: ["p1"],
+      reason: "scheduled"
+    }]);
+    expect(result.damageEvents[0].attemptedDamage).toBe(1);
+    expect(result.state.monsters[0].hp).toBe(11);
+
+    const nearMaximum = {
+      ...result.state,
+      monsters: result.state.monsters.map((monster) => monster.id === "zomzom"
+        ? { ...monster, hp: 20 }
+        : monster)
+    };
+    const capped = resolveMonsterAttackEvents(nearMaximum, [{
+      monsterId: "zomzom",
+      targetPlayerIds: ["p1"],
+      reason: "scheduled"
+    }]);
+    expect(capped.state.monsters[0].hp).toBe(20);
+  });
+
+  it("gives Fang +1 attack damage while at least two Wolves are active", () => {
+    const initial = createGameState("1x4", setup);
+    const first = summonRandomMonster(initial, "Common", "fang-1", () => 0.55);
+    const second = summonRandomMonster(first.state, "Common", "fang-2", () => 0.55);
+    const result = resolveMonsterAttackEvents(second.state, [{
+      monsterId: "fang-1",
+      targetPlayerIds: ["p1"],
+      reason: "scheduled"
+    }]);
+    expect(result.damageEvents[0].attemptedDamage).toBe(3);
+    expect(result.state.players[0].hp).toBe(17);
+  });
+
+  it("does not give Fang the pack bonus when it is the only active Wolf", () => {
+    const initial = createGameState("1x4", setup);
+    const summoned = summonRandomMonster(initial, "Common", "fang-1", () => 0.55);
+    const result = resolveMonsterAttackEvents(summoned.state, [{
+      monsterId: "fang-1",
+      targetPlayerIds: ["p1"],
+      reason: "scheduled"
+    }]);
+    expect(result.damageEvents[0].attemptedDamage).toBe(2);
+    expect(result.state.players[0].hp).toBe(18);
+  });
+
   it("does not apply secondary statuses when invulnerability prevents the attack", () => {
     const initial = createGameState("1x4", setup);
     const summoned = summonRandomMonster(initial, "Rare", "monster-1", () => 0.6);

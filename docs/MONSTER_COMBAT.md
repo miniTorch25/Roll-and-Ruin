@@ -28,3 +28,9 @@ This is the shared baseline, not a complete implementation of all 50 monsters. S
 - **Scorpy (R07):** a successful attack applies Poison for three owner turns. Poison deals 1 HP directly at the start of each affected player's turn, before their action; it bypasses shields and can trigger the normal heart-loss, Resurrection, and elimination flow.
 - **Frosty (R10):** a successful attack limits the target to two cards during their next turn.
 - Status effects are refreshed when the same monster applies the same status again. Invulnerability-prevented attacks and attacks that already caused a death do not apply these secondary effects.
+
+
+## Implemented Common monster abilities
+
+- **Zomzom (C03):** restores 1 HP after each attack, up to its catalogue maximum HP.
+- **Fang (C06):** each Fang deals +1 damage while at least two active Fang/Wolf instances are on the board. The bonus is recalculated for every attack, so it disappears when the pack is reduced to one active Wolf.
