@@ -349,6 +349,24 @@ export function resolveMonsterAttackEvents(
       state = hit.state;
       damageEvents.push(hit.event);
 
+      if (monster.catalogueId === "C10" && attack.reason === "scheduled") {
+        for (const targetPlayerId of attack.targetPlayerIds) {
+          const target = state.players.find((player) => player.id === targetPlayerId && player.status === "alive");
+          if (!target || target.hand.length === 0) continue;
+          const index = Math.min(target.hand.length - 1, Math.max(0, Math.floor(random() * target.hand.length)));
+          const [cardId] = target.hand.slice(index, index + 1);
+          state = {
+            ...state,
+            players: state.players.map((player) => player.id === targetPlayerId
+              ? { ...player, hand: player.hand.filter((_, cardIndex) => cardIndex !== index) }
+              : player),
+            monsters: state.monsters.map((item) => item.id === monster.id
+              ? { ...item, stolenCards: [...(item.stolenCards ?? []), { ownerPlayerId: targetPlayerId, cardId }] }
+              : item)
+          };
+        }
+      }
+
       if (!hit.event.preventedBy && !hit.event.death && hit.event.attemptedDamage > 0) {
         const status = monster.catalogueId === "R07"
           ? { type: "poison" as const, turnsRemaining: 3, amount: 1 }
@@ -611,6 +629,7 @@ export function resolveCardEffect(
         active.id
       );
       state = hit.state as CardEffectGameState;
+      if (hit.event.defeated && targetMonster.catalogueId === "C05") hit.event.rewardSuppressed = true;
       monsterDamageEvents.push(hit.event);
       if (hit.event.defeated && targetMonster.catalogueId === "C07") {
         const hazard = applyHpCost(state, active.id, 1, random, "direct_hp_loss");
@@ -656,6 +675,7 @@ export function resolveCardEffect(
           const rockyReduction = splashMonster?.catalogueId === "C09" ? 1 : 0;
           const splash = damageMonster(state, splashTarget.id, Math.max(1, splashDamage - rockyReduction), active.id);
           state = splash.state as CardEffectGameState;
+          if (splash.event.defeated && splashMonster?.catalogueId === "C05") splash.event.rewardSuppressed = true;
           monsterDamageEvents.push(splash.event);
           if (splash.event.defeated && splashMonster?.catalogueId === "C07") {
             const hazard = applyHpCost(state, active.id, 1, random, "direct_hp_loss");

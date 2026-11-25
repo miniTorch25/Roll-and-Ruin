@@ -10,6 +10,10 @@ export interface MonsterDamageEvent {
   hpDamage: number;
   defeated: boolean;
   preventedBy?: "infinite_hp";
+  /** True when Webby's Attack-card defeat rule suppresses its normal reward. */
+  rewardSuppressed?: boolean;
+  /** Cards returned to their original owners when Sneaky is defeated. */
+  returnedCards?: Array<{ ownerPlayerId: string; cardId: string }>;
 }
 
 export interface CatalogueSummonResult {
@@ -88,11 +92,21 @@ export function damageMonster(
   event.hpAfter = hpAfter;
   event.defeated = hpAfter === 0;
 
+  const returnedCards = hpAfter === 0 ? [...(monster.stolenCards ?? [])] : [];
+  const players = returnedCards.length > 0
+    ? state.players.map((player) => {
+        const cards = returnedCards
+          .filter((stolen) => stolen.ownerPlayerId === player.id)
+          .map((stolen) => stolen.cardId);
+        return cards.length > 0 ? { ...player, hand: [...player.hand, ...cards] } : player;
+      })
+    : state.players;
   const monsters = state.monsters.map((item) => item.id === monsterId
-    ? { ...item, hp: hpAfter, active: hpAfter > 0 }
+    ? { ...item, hp: hpAfter, active: hpAfter > 0, ...(hpAfter === 0 ? { stolenCards: [] } : {}) }
     : item
   );
-  return { state: { ...state, monsters }, event };
+  if (returnedCards.length > 0) event.returnedCards = returnedCards;
+  return { state: { ...state, players, monsters }, event };
 }
 
 /** Deactivates every active monster; reward handling remains explicit for the caller. */
