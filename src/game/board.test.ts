@@ -3,6 +3,7 @@ import {
   BOARD_SIZE,
   createBoardState,
   getMovementPath,
+  moveAndRegenerateBoard,
   regenerateSpecialTiles,
   resolveBoardMovement
 } from "./board";
@@ -48,6 +49,15 @@ describe("Roll and Ruin board rules", () => {
     const path = getMovementPath(30, 4);
     expect(path.positions).toEqual([31, 0, 1, 2]);
     expect(path.completedLapPositions).toEqual([0]);
+  });
+
+  it("regenerates the layout once per completed lap after movement", () => {
+    const initial = createBoardState({ mystery: 1, monster: 1, dice: 1 }, [0], () => 0);
+    const result = moveAndRegenerateBoard(initial, 30, 4, [2, 0], () => 0.5);
+    expect(result.movement.completedLaps).toBe(1);
+    expect(result.board.regenerationCount).toBe(1);
+    expect(result.board.tiles[0].special).toBeUndefined();
+    expect(result.board.tiles[2].special).toBeUndefined();
   });
 
   it("fires the ordinary special-tile check only on the landing space", () => {
