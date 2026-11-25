@@ -73,6 +73,8 @@ export interface GameMonster {
   attackInterval: number;
   /** Number of distinct living targets for a scheduled attack. */
   targetCount?: number;
+  /** One-shot target override consumed by this monster's next scheduled attack. */
+  forcedTargetPlayerId?: string;
   turnsSinceLastAttack: number;
   active: boolean;
 }
@@ -278,16 +280,21 @@ export function resolveMonsterAttackPhase(
     }
 
     const targets = livingPlayers(state);
-    const selected = monster.attackPattern === "all_living"
-      ? targets
-      : chooseRandomTargets(targets, monster.targetCount ?? 1, random);
+    const forcedTarget = monster.forcedTargetPlayerId
+      ? targets.find((player) => player.id === monster.forcedTargetPlayerId)
+      : undefined;
+    const selected = forcedTarget
+      ? [forcedTarget]
+      : monster.attackPattern === "all_living"
+        ? targets
+        : chooseRandomTargets(targets, monster.targetCount ?? 1, random);
 
     attacks.push({
       monsterId: monster.id,
       targetPlayerIds: selected.map((player) => player.id),
       reason: "scheduled"
     });
-    return { ...monster, turnsSinceLastAttack: 0 };
+    return { ...monster, turnsSinceLastAttack: 0, forcedTargetPlayerId: undefined };
   });
 
   return { state: { ...state, monsters, phase: "turn_start" }, attacks };
