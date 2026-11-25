@@ -1,6 +1,7 @@
 import { applyPlayerDeath, getActivePlayer, imprisonPlayer, MAX_CARDS_PER_TURN, type DeathResult, type GameState, type PlayerStatusEffect, type PlayerStatusEffectType } from "../game/turnEngine";
 import { getCardDefinition, type CardDefinition, type CardEffectId } from "./catalogue";
 import { drawCards, type CardDeckState } from "./deck";
+import { rollD6 } from "../game/dice";
 
 export interface CardRuntimePlayerState {
   shields: number;
@@ -1077,4 +1078,43 @@ export function advanceCurseCooldown(inputState: GameState, playerId: string): C
       : Math.max(0, current.curseCooldownTurnsRemaining - 1),
     curseCooldownFresh: false
   }));
+}
+
+
+/** Re-rolls one already-rolled movement die using the current turn's Clover allowance. */
+export function rerollOneMovementDie(
+  inputState: GameState,
+  currentRolls: number[],
+  dieIndex: number,
+  random: () => number = Math.random
+): { state: CardEffectGameState; diceRolls: number[] } {
+  if (inputState.phase !== "move") {
+    throw new Error("A movement die can only be re-rolled during the movement phase.");
+  }
+  const state = withRuntime(inputState);
+  const active = getActivePlayer(state);
+  const runtime = state.cardRuntime.players[active.id];
+  if (runtime.rerollsRemaining < 1) {
+    throw new Error("No movement die reroll is available this turn.");
+  }
+  if (!Number.isInteger(dieIndex) || dieIndex < 0 || dieIndex >= currentRolls.length) {
+    throw new Error("Select an existing movement die to re-roll.");
+  }
+
+  const reduction = active.statusEffects
+    .filter((effect) => effect.type === "dice_reduction" && effect.turnsRemaining > 0)
+    .reduce((maximum, effect) => Math.max(maximum, effect.amount ?? 0), 0);
+  const minimum = active.statusEffects
+    .filter((effect) => effect.type === "dice_reduction" && effect.turnsRemaining > 0)
+    .reduce((value, effect) => Math.max(value, effect.minimum ?? 1), 1);
+  const diceRolls = [...currentRolls];
+  diceRolls[dieIndex] = Math.max(minimum, rollD6(random) - reduction);
+  const nextState = updatePlayerRuntime(state, active.id, (current) => ({
+    ...current,
+    rerollsRemaining: current.rerollsRemaining - 1
+  }));
+  return {
+    state: { ...nextState, movementSteps: diceRolls.reduce((sum, value) => sum + value, 0) },
+    diceRolls
+  };
 }
