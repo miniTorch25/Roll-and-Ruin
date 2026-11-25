@@ -5,6 +5,7 @@ import {
   selectPlayerAction, startPlayerTurn, type GameState, type PlayerAction
 } from "../game/turnEngine";
 import { createCardDeck, drawCards } from "../cards/deck";
+import { CARD_CATALOGUE } from "../cards/catalogue";
 
 const PATH_LENGTH = 32;
 const PLAYER_SETUP = [
@@ -19,9 +20,7 @@ export class BoardScene extends Phaser.Scene {
   private state!: GameState;
   private tileCenters: { x: number; y: number }[] = [];
   private tokens: Phaser.GameObjects.Container[] = [];
-  private deck = createCardDeck(
-    Array.from({ length: 60 }, (_, index) => `prototype_card_${String(index + 1).padStart(2, "0")}`)
-  );
+  private deck = createCardDeck(CARD_CATALOGUE.map((card) => card.id));
   private logText?: Phaser.GameObjects.Text;
   private actionLocked = false;
 
