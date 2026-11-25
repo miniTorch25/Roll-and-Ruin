@@ -631,3 +631,34 @@ describe("timed player status card effects", () => {
     expect(result.state.players[0].statusEffects).toEqual([]);
   });
 });
+
+
+describe("timed combat modifiers", () => {
+  it("reduces attack card damage by two for three target turns", () => {
+    const state = {
+      ...cardPlayState(),
+      players: cardPlayState().players.map((player, index) => index === 0
+        ? {
+            ...player,
+            statusEffects: [{ type: "attack_damage_reduction" as const, turnsRemaining: 3, amount: 2 }]
+          }
+        : player)
+    };
+    const result = resolveCardEffect(state, "blue_common_sword", { targetPlayerId: "p2" });
+    expect(result.damageEvents[0].attemptedDamage).toBe(1);
+    expect(result.state.players[1].hp).toBe(19);
+  });
+
+  it("adds the Power Armor bonus to a defense card's shield gain", () => {
+    const powered = resolveCardEffect(cardPlayState(), "green_power_armor");
+    const shielded = resolveCardEffect(powered.state, "blue_wooden_shield");
+    expect(shielded.state.cardRuntime.players.p1.shields).toBe(2);
+    expect(shielded.state.cardRuntime.players.p1.defenseShieldBonus).toBe(1);
+  });
+
+  it("does not add the defense-card bonus to a direct shield grant", () => {
+    const powered = resolveCardEffect(cardPlayState(), "green_power_armor");
+    const shielded = resolveCardEffect(powered.state, "green_double_blessing");
+    expect(shielded.state.cardRuntime.players.p1.shields).toBe(1);
+  });
+});
