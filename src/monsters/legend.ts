@@ -1,4 +1,4 @@
-import { CARD_CATALOGUE, type CardColor, type CardDefinition } from "../cards/catalogue";
+import { CARD_CATALOGUE, type CardDefinition } from "../cards/catalogue";
 import { type CardDeckState } from "../cards/deck";
 import type { GameState } from "../game/turnEngine";
 
