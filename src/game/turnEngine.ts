@@ -38,6 +38,7 @@ export interface TurnCardRuntimePlayer {
   defenseShieldBonus?: number;
   blockedAttackCardsThisTurn?: boolean;
   curseCooldownTurnsRemaining?: number;
+  curseCooldownFresh?: boolean;
 }
 
 export interface TurnCardRuntime {
@@ -585,7 +586,10 @@ export function endPlayerTurn(state: GameState): GameState {
             attackDamageBonus: 0,
             defenseShieldBonus: 0,
             blockedAttackCardsThisTurn: false,
-            curseCooldownTurnsRemaining: Math.max(0, (runtime.curseCooldownTurnsRemaining ?? 0) - 1)
+            curseCooldownTurnsRemaining: runtime.curseCooldownFresh
+              ? (runtime.curseCooldownTurnsRemaining ?? 0)
+              : Math.max(0, (runtime.curseCooldownTurnsRemaining ?? 0) - 1),
+            curseCooldownFresh: false
           }
         }
       };
