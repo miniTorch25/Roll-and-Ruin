@@ -81,7 +81,7 @@ describe("Roll and Ruin turn engine", () => {
   it("requires exactly enough four-card starting hands for generated bots", () => {
     const oneHuman = [{ id: "human", teamId: "red", startingHand: ["a", "b", "c", "d"] }];
     expect(() => createGameState("1v1", oneHuman)).toThrow(/bot starting hand/);
-    expect(() => createGameState("1v1", oneHuman, 32, [["a", "b", "c"]])).toThrow(/four cards/);
+    expect(() => createGameState("1v1", oneHuman, 32, [["a", "b", "c"]])).toThrow(/4 cards/);
   });
 
   it("uses confirmed starting HP, hearts, hand size, and 32-space board", () => {
