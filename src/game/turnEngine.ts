@@ -14,6 +14,8 @@ export type PlayerAction = "use_card" | "draw_card" | "roll_dice";
 export type PlayerStatus = "alive" | "eliminated";
 export type MonsterAttackPattern = "random_living" | "all_living";
 
+const MONSTER_ATTACK_INTERVAL = 2;
+
 export interface GamePlayer {
   id: string;
   teamId: string;
@@ -28,7 +30,6 @@ export interface GameMonster {
   id: string;
   attackPattern: MonsterAttackPattern;
   turnsSinceLastAttack: number;
-  attackEveryPlayerTurns: number;
   active: boolean;
 }
 
@@ -132,8 +133,7 @@ function chooseRandom<T>(items: T[], random: () => number): T | undefined {
 /** A newly summoned monster attacks all living players immediately. */
 export function summonMonster(
   state: GameState,
-  monster: Omit<GameMonster, "turnsSinceLastAttack" | "active">,
-  random: () => number = Math.random
+  monster: Omit<GameMonster, "turnsSinceLastAttack" | "active">
 ): { state: GameState; attack: MonsterAttackEvent } {
   if (state.monsters.some((item) => item.id === monster.id)) {
     throw new Error(`Monster ${monster.id} already exists.`);
@@ -145,9 +145,6 @@ export function summonMonster(
   };
   const nextState = { ...state, monsters: [...state.monsters, nextMonster] };
   const targets = livingPlayers(nextState);
-  // Consume the injected random source only for deterministic call symmetry;
-  // first-summon targeting itself is intentionally not random.
-  void random;
   return {
     state: nextState,
     attack: {
@@ -169,7 +166,7 @@ export function resolveMonsterAttackPhase(
 
   const attacks: MonsterAttackEvent[] = [];
   const monsters = state.monsters.map((monster) => {
-    if (!monster.active || monster.turnsSinceLastAttack < monster.attackEveryPlayerTurns) {
+    if (!monster.active || monster.turnsSinceLastAttack < MONSTER_ATTACK_INTERVAL) {
       return monster;
     }
 
@@ -193,7 +190,18 @@ export function startPlayerTurn(state: GameState): GameState {
   if (state.phase !== "turn_start") {
     throw new Error("A player turn can only start after the monster attack phase.");
   }
-  return { ...state, phase: "choose_action", selectedAction: undefined, movementSteps: 0 };
+  if (livingPlayers(state).length === 0) return { ...state, phase: "game_over" };
+  let activePlayerIndex = state.activePlayerIndex;
+  if (state.players[activePlayerIndex]?.status !== "alive") {
+    for (let offset = 1; offset <= state.players.length; offset++) {
+      const candidate = (activePlayerIndex + offset) % state.players.length;
+      if (state.players[candidate].status === "alive") {
+        activePlayerIndex = candidate;
+        break;
+      }
+    }
+  }
+  return { ...state, activePlayerIndex, phase: "choose_action", selectedAction: undefined, movementSteps: 0 };
 }
 
 /** Exactly one of use-card, draw-card, or roll-dice may be selected per turn. */
