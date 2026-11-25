@@ -143,7 +143,7 @@ describe("Legend monster offerings", () => {
     const state = {
       ...base,
       cardRuntime: { players: { p1: { shields: 3 } } }
-    };
+    } as unknown as typeof base;
     const result = resolveCardEffect(state, "blue_monster_hunter", {
       targetMonsterId: "mirro",
       random: () => 0
