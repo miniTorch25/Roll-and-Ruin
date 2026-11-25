@@ -227,3 +227,68 @@ describe("catalogue card effect resolver foundation", () => {
     expect(() => resolveCardEffect(cardPlayState(), "blue_monster_hunter")).toThrow(/not implemented yet/);
   });
 });
+
+
+describe("targeted yellow prank card effects", () => {
+  it("returns another player's hand for the view-hand interface without mutating it", () => {
+    const state = withPlayer(cardPlayState(), "p2", { hand: ["blue_common_sword", "green_herbal_potion"] });
+    const result = resolveCardEffect(state, "yellow_peek", { targetPlayerId: "p2" });
+    expect(result.revealedHands).toEqual([{
+      playerId: "p2",
+      cardIds: ["blue_common_sword", "green_herbal_potion"]
+    }]);
+    expect(result.state.players[1].hand).toEqual(["blue_common_sword", "green_herbal_potion"]);
+    expect(result.appliedToPlayerIds).toContain("p2");
+  });
+
+  it("steals one random card and transfers it from the target into the user's hand", () => {
+    const state = withPlayer(cardPlayState(), "p2", { hand: ["card-a", "card-b", "card-c"] });
+    const result = resolveCardEffect(state, "yellow_pickpocket", {
+      targetPlayerId: "p2",
+      random: () => 0.5
+    });
+    expect(result.state.players[0].hand).toContain("card-b");
+    expect(result.state.players[1].hand).toEqual(["card-a", "card-c"]);
+  });
+
+  it("swaps only the two selected players' board positions", () => {
+    let state = withPlayer(cardPlayState(), "p1", { position: 4 });
+    state = withPlayer(state, "p2", { position: 21 });
+    const result = resolveCardEffect(state, "yellow_swap_places", { targetPlayerId: "p2" });
+    expect(result.state.players[0].position).toBe(21);
+    expect(result.state.players[1].position).toBe(4);
+    expect(result.state.players[2].position).toBe(0);
+  });
+
+  it("returns a selected target card for explicit discard-pile handling", () => {
+    const state = withPlayer(cardPlayState(), "p2", { hand: ["card-a", "card-b"] });
+    const result = resolveCardEffect(state, "yellow_forced_discard", {
+      targetPlayerId: "p2",
+      selectedCardId: "card-b"
+    });
+    expect(result.state.players[1].hand).toEqual(["card-a"]);
+    expect(result.discardedCardIds).toEqual(["card-b"]);
+  });
+
+  it("trades one selected user card for one random target card", () => {
+    const state = withPlayer(cardPlayState(), "p2", { hand: ["target-a", "target-b", "target-c"] });
+    const result = resolveCardEffect(state, "yellow_card_trade", {
+      targetPlayerId: "p2",
+      selectedCardId: "green_herbal_potion",
+      random: () => 0.5
+    });
+    expect(result.state.players[0].hand).toContain("target-b");
+    expect(result.state.players[0].hand).not.toContain("green_herbal_potion");
+    expect(result.state.players[1].hand).toContain("green_herbal_potion");
+    expect(result.state.players[1].hand).not.toContain("target-b");
+  });
+
+  it("rejects invalid card choices without mutating the input state", () => {
+    const state = withPlayer(cardPlayState(), "p2", { hand: ["card-a"] });
+    expect(() => resolveCardEffect(state, "yellow_forced_discard", {
+      targetPlayerId: "p2",
+      selectedCardId: "not-in-hand"
+    })).toThrow(/selectedCardId/);
+    expect(state.players[1].hand).toEqual(["card-a"]);
+  });
+});
