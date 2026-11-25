@@ -80,3 +80,18 @@ This is the shared baseline, not a complete implementation of all 50 monsters. S
 - Webby's `rewardSuppressed` event flag withholds its normal reward.
 - `resolveMonsterDefeatRewards` consumes eligible cards from the supplied shared draw pile and adds them to the defeating player's hand. It does not recycle the discard pile when a category is depleted.
 - `resolveCardEffect` automatically resolves monster rewards when a deck is supplied in its options; callers without a deck can invoke the reward resolver separately.
+
+
+## Legend monster offerings and Phoenix revival
+
+- **Lizzie (L01):** leaves after receiving four Support cards.
+- **Sphinxy (L02):** leaves after receiving two Prank (yellow) cards.
+- **Gini (L03):** trades three contributed cards for one card selected from the draw pile.
+- **Unico (L04):** leaves after two green cards and heals every living player by 10 HP (up to max HP).
+- **Lepri (L05):** trades one contributed card for two random draw-pile cards, up to three times; leaves after the third exchange.
+- **Fenny (L06):** revives once at full HP when defeated; a second defeat is final. It also leaves when given a Resurrection card.
+- **Mirro (L07):** leaves after two blue Defense cards.
+- **Treeo (L08):** leaves after three green cards.
+- **Dwarfy (L09):** leaves after two blue cards and grants up to three random blue Defense cards.
+- **Kingo (L10):** accepts five contributed cards from one or more players, leaves, and gives one random Curse card to a player tied for the largest contribution.
+- Offerings are resolved through `resolveLegendOffering`; callers provide explicit card selections and the current shared deck. Contributions move to the discard pile.
