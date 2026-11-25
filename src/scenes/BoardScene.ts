@@ -1,7 +1,7 @@
 import Phaser from "phaser";
 import {
   createGameState, endPlayerTurn, finishSpecialTileCheck, finishStatusCheck,
-  getActivePlayer, moveActivePlayer, resolveMonsterAttackPhase,
+  moveActivePlayer, resolveMonsterAttackPhase,
   selectPlayerAction, startPlayerTurn, type GameState, type PlayerAction
 } from "../game/turnEngine";
 import { createCardDeck, drawCards } from "../cards/deck";
