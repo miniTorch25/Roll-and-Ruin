@@ -1,4 +1,4 @@
-# Card Effect Resolver — Attacks, Pranks, Drawing, and Curses
+# Card Effect Resolver — Attacks, Pranks, Drawing, Curses, and Statuses
 
 The authoritative card descriptions and numeric values remain in `Roll_and_Ruin_Rules.txt` and `src/cards/catalogue.ts`.
 
@@ -11,7 +11,7 @@ The authoritative card descriptions and numeric values remain in `Roll_and_Ruin_
 - **ดาบสองคม:** deals 6 damage to one target, then charges the user 2 HP separately from shields.
 - **หมัดเอาคืน:** deals 4 damage if the target's current HP is lower than the user's; otherwise 2.
 
-Attack bonuses from the current runtime are added to each attack action. The next-attack bonus is consumed once by the next attack card, not once per target in an area attack.
+Attack bonuses from the current runtime are added to each attack action. A timed Weakness status reduces attack-card damage by 2, to a minimum of 1. The next-attack bonus is consumed once by the next attack card, not once per target in an area attack.
 
 ## Incoming damage order
 
@@ -33,8 +33,8 @@ The axe removes shields before its hit is checked. Double-Edged Sword's self-HP 
 - **บังคับทิ้ง:** removes one card selected by the target and returns its ID in `discardedCardIds` for the caller to place in the discard pile.
 - **ฝนไพ่:** draws up to four cards for the active player.
 - **แจกไพ่:** draws up to two cards for the active player, then up to one card for each other living player in seat order.
-
-Random choices accept an injected random source for deterministic tests. Empty target hands make Pickpocket a no-op; Card Trade requires the target to have a card. Draw effects require the caller to pass the current shared deck.
+- **มนต์หลับ:** marks the selected player to skip their next turn.
+- **ลูกเต๋าอาถรรพ์:** limits the selected player's next turn to one die.
 
 ## Implemented Curse payments
 
@@ -42,9 +42,9 @@ Every supported Curse effect requires an explicit `cursePayment`:
 
 - **HP payment:** choose an integer cost from 5 to 10, not exceeding current HP. It is paid before the effect and can trigger the normal death/respawn flow.
 - **Discard payment:** choose exactly two different cards from the active player's hand. Their IDs are returned in `discardedCardIds` for the caller to move to the deck discard pile.
-- **Cooldown payment:** available only when current HP is below 5 or the hand has fewer than 2 cards. It starts a 3-owner-turn cooldown and can be used at most 3 times per player per game.
+- **Cooldown payment:** available only when current HP is below 5 or the hand has fewer than 2 cards. It starts a 3-owner-turn cooldown and can be used at most 3 times per player per game. The turn engine preserves the cooldown through the casting turn and decrements it at the end of the player's next three owner turns.
 
-The caller must invoke `advanceCurseCooldown(state, playerId)` once when that player's turn starts. This resolver helper is not yet connected to the BoardScene turn loop.
+`endPlayerTurn` advances cooldown automatically when the game state has card runtime. `advanceCurseCooldown` remains available for isolated integrations that do not use the turn-engine end-turn path; do not call both for the same owner turn.
 
 ## Implemented player-targeted Curse effects
 
@@ -55,6 +55,22 @@ The caller must invoke `advanceCurseCooldown(state, playerId)` once when that pl
 - **สิ้นหวัง:** halves target current HP, rounded down, without consuming shields.
 - **สลายโล่:** removes all shields from every other living player.
 - **สลับชะตา:** swaps the user's and target's current HP values exactly.
+- **อ่อนแรง:** reduces the target's attack-card damage by 2 for 3 of their turns.
+- **เงียบงัน:** prevents the target from using cards for 1 turn while still allowing dice actions.
+- **พันธนาการ:** prevents movement for 2 turns while allowing card use.
+- **เดินถอยหลัง:** reverses movement direction for the target's next turn.
+- **เต๋าต้องคำสาป:** reduces each die face by 2, with a minimum of 1, for 2 turns.
+- **เปิดไพ่ประจานตัว:** stores a 3-turn reveal status; the UI can read it to show the target's hand.
+
+## Green status/buff effects
+
+- **พรอมตะ:** invulnerability lasts for 3 owner turns and ticks at the end of each protected player's turn.
+- **สุรากล้าหาญ:** attack-card damage increases by 2 for the current turn.
+- **เกราะเสริมพลัง:** defense cards gain +1 shield for the current turn, subject to the normal shield cap of 3.
+- **น้ำศักดิ์สิทธิ์:** removes the user's timed negative statuses.
+- **พรสองชั้น:** grants one shield immediately and adds +1 damage to the next attack card.
+
+Armor Seal prevents further attack cards during the current turn. Its effect is enforced when `playCatalogueCard` passes the catalogue card kind into `playCardFromHand`.
 
 ## Integration contract
 
@@ -62,4 +78,4 @@ Call `resolveCardEffect(state, cardDefinitionOrId, options)` after `playCatalogu
 
 ## Not yet implemented
 
-Grenade splash needs monster/player target integration; Monster Hunter needs the monster HP catalogue and damage rules. Resurrection sequencing, remaining curses, bonus dice and rerolls, status expiry, movement/dice changes, turn-skipping, and BoardScene integration remain separate work.
+Grenade splash needs monster/player target integration; Monster Hunter needs the monster HP catalogue and damage rules. Resurrection sequencing, remaining curses, bonus dice and rerolls, tile effects, and BoardScene integration remain separate work.
