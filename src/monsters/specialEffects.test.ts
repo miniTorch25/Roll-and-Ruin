@@ -98,9 +98,10 @@ describe("monster-applied player status effects", () => {
   });
 
   it("does not apply secondary statuses when invulnerability prevents the attack", () => {
-    const hit = hitMonster("Rare", () => 0.6);
+    const initial = createGameState("1x4", setup);
+    const summoned = summonRandomMonster(initial, "Rare", "monster-1", () => 0.6);
     const protectedState = {
-      ...hit.state,
+      ...summoned.state,
       cardRuntime: {
         players: {
           p1: { shields: 0, invulnerableOwnerTurns: 1, reflectionCharges: 0 }
