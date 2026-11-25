@@ -1,4 +1,4 @@
-import { applyPlayerDeath, getActivePlayer, imprisonPlayer, MAX_CARDS_PER_TURN, type DeathResult, type GameState } from "../game/turnEngine";
+import { applyPlayerDeath, getActivePlayer, imprisonPlayer, MAX_CARDS_PER_TURN, type DeathResult, type GameState, type PlayerStatusEffect, type PlayerStatusEffectType } from "../game/turnEngine";
 import { getCardDefinition, type CardDefinition, type CardEffectId } from "./catalogue";
 import { drawCards, type CardDeckState } from "./deck";
 
@@ -13,6 +13,7 @@ export interface CardRuntimePlayerState {
   negativeStatuses: string[];
   curseCooldownTurnsRemaining: number;
   curseCooldownUses: number;
+  curseCooldownFresh: boolean;
 }
 
 export interface CardRuntimeState {
@@ -79,7 +80,8 @@ const EMPTY_PLAYER_RUNTIME = (): CardRuntimePlayerState => ({
   blockedAttackCardsThisTurn: false,
   negativeStatuses: [],
   curseCooldownTurnsRemaining: 0,
-  curseCooldownUses: 0
+  curseCooldownUses: 0,
+  curseCooldownFresh: false
 });
 
 function withRuntime(state: GameState): CardEffectGameState {
@@ -116,12 +118,41 @@ function updatePlayerRuntime(
 function addShield(
   state: CardEffectGameState,
   playerId: string,
-  amount: number
+  amount: number,
+  applyDefenseBonus = false
 ): CardEffectGameState {
+  const bonus = applyDefenseBonus
+    ? state.cardRuntime.players[playerId].defenseShieldBonus
+    : 0;
   return updatePlayerRuntime(state, playerId, (current) => ({
     ...current,
-    shields: Math.min(3, current.shields + amount)
+    shields: Math.min(3, current.shields + amount + bonus)
   }));
+}
+
+function applyTimedStatus(
+  state: CardEffectGameState,
+  playerId: string,
+  status: PlayerStatusEffect
+): CardEffectGameState {
+  const player = requireLivingPlayer(state, playerId);
+  const remaining = player.statusEffects.filter((effect) => effect.type !== status.type);
+  remaining.push({ ...status });
+  return {
+    ...state,
+    players: state.players.map((item) => item.id === playerId
+      ? { ...item, statusEffects: remaining }
+      : item)
+  };
+}
+
+function createTimedStatus(
+  type: PlayerStatusEffectType,
+  turnsRemaining: number,
+  amount?: number,
+  minimum?: number
+): PlayerStatusEffect {
+  return { type, turnsRemaining, ...(amount === undefined ? {} : { amount }), ...(minimum === undefined ? {} : { minimum }) };
 }
 
 function requireLivingPlayer(state: CardEffectGameState, playerId: string) {
@@ -271,7 +302,11 @@ function takeAttackBonus(state: CardEffectGameState, playerId: string): {
   bonus: number;
 } {
   const runtime = state.cardRuntime.players[playerId];
-  const bonus = runtime.attackDamageBonus + runtime.nextAttackDamageBonus;
+  const activePlayer = state.players.find((player) => player.id === playerId);
+  const weakness = activePlayer?.statusEffects
+    .filter((effect) => effect.type === "attack_damage_reduction" && effect.turnsRemaining > 0)
+    .reduce((maximum, effect) => Math.max(maximum, effect.amount ?? 0), 0) ?? 0;
+  const bonus = runtime.attackDamageBonus + runtime.nextAttackDamageBonus - weakness;
   if (runtime.nextAttackDamageBonus === 0) return { state, bonus };
   return {
     state: updatePlayerRuntime(state, playerId, (current) => ({
@@ -296,6 +331,14 @@ const IMPLEMENTED_EFFECTS = new Set<CardEffectId>([
   "force_discard_selected_card",
   "draw_cards",
   "draw_and_distribute_cards",
+  "skip_next_turn",
+  "limit_next_turn_dice",
+  "weaken_attack_damage",
+  "silence_card_use",
+  "prevent_movement",
+  "reverse_movement_direction",
+  "reduce_dice_values",
+  "reveal_player_hand",
   "instant_kill",
   "force_prison",
   "reset_other_players_positions",
@@ -406,7 +449,8 @@ export function resolveCardEffect(
       state = updatePlayerRuntime(state, active.id, (current) => ({
         ...current,
         curseCooldownTurnsRemaining: 3,
-        curseCooldownUses: current.curseCooldownUses + 1
+        curseCooldownUses: current.curseCooldownUses + 1,
+        curseCooldownFresh: true
       }));
     }
   }
@@ -457,6 +501,45 @@ export function resolveCardEffect(
         damageEvents.push(hit.event);
         appliedToPlayerIds.push(target.id);
       }
+      break;
+    }
+    case "skip_next_turn":
+    case "limit_next_turn_dice":
+    case "weaken_attack_damage":
+    case "silence_card_use":
+    case "prevent_movement":
+    case "reverse_movement_direction":
+    case "reduce_dice_values":
+    case "reveal_player_hand": {
+      const target = requireOpponentTarget(state, active.id, options.targetPlayerId);
+      const rawDuration = card.parameters?.duration;
+      const duration = typeof rawDuration === "number"
+        ? rawDuration
+        : rawDuration === "next_turn"
+          ? 1
+          : (card.effectId === "weaken_attack_damage" ? 3 : 1);
+      const statusByEffect: Partial<Record<CardEffectId, PlayerStatusEffect>> = {
+        skip_next_turn: createTimedStatus("skip_turn", duration),
+        limit_next_turn_dice: createTimedStatus("dice_limit", duration, Number(card.parameters?.diceCount ?? 1)),
+        weaken_attack_damage: createTimedStatus("attack_damage_reduction", duration, Number(card.parameters?.damageReduction ?? 2)),
+        silence_card_use: createTimedStatus("cards_silenced", duration),
+        prevent_movement: createTimedStatus("movement_blocked", duration),
+        reverse_movement_direction: createTimedStatus("reverse_movement", duration),
+        reduce_dice_values: createTimedStatus(
+          "dice_reduction",
+          duration,
+          Number(card.parameters?.reduction ?? 2),
+          Number(card.parameters?.minimum ?? 1)
+        ),
+        reveal_player_hand: createTimedStatus("reveal_hand", duration)
+      };
+      const status = statusByEffect[card.effectId];
+      if (!status) throw new Error(`Missing timed status mapping for ${card.effectId}.`);
+      state = applyTimedStatus(state, target.id, status);
+      if (card.effectId === "reveal_player_hand") {
+        revealedHands.push({ playerId: target.id, cardIds: [...target.hand] });
+      }
+      appliedToPlayerIds.push(target.id);
       break;
     }
     case "view_player_hand": {
@@ -723,7 +806,7 @@ export function resolveCardEffect(
       break;
     }
     case "gain_shield": {
-      state = addShield(state, active.id, amount);
+      state = addShield(state, active.id, amount, true);
       break;
     }
     case "gain_team_shield": {
@@ -734,8 +817,8 @@ export function resolveCardEffect(
         player.status === "alive"
       );
       if (teammate) {
-        state = addShield(state, active.id, Number(card.parameters?.selfShield ?? 1));
-        state = addShield(state, teammate.id, Number(card.parameters?.teammateShield ?? 1));
+        state = addShield(state, active.id, Number(card.parameters?.selfShield ?? 1), true);
+        state = addShield(state, teammate.id, Number(card.parameters?.teammateShield ?? 1), true);
         appliedToPlayerIds.push(teammate.id);
       } else {
         const hasLivingTeammate = state.players.some((player) =>
@@ -744,12 +827,12 @@ export function resolveCardEffect(
         if (hasLivingTeammate) {
           throw new Error("กำแพงคู่ requires targetPlayerId to select a living teammate.");
         }
-        state = addShield(state, active.id, Number(card.parameters?.noTeammateSelfShield ?? 2));
+        state = addShield(state, active.id, Number(card.parameters?.noTeammateSelfShield ?? 2), true);
       }
       break;
     }
     case "gain_shield_and_block_attack_cards": {
-      state = addShield(state, active.id, Number(card.parameters?.shield ?? 3));
+      state = addShield(state, active.id, Number(card.parameters?.shield ?? 3), true);
       state = updatePlayerRuntime(state, active.id, (current) => ({
         ...current,
         blockedAttackCardsThisTurn: true
@@ -801,6 +884,12 @@ export function resolveCardEffect(
         ...current,
         negativeStatuses: []
       }));
+      state = {
+        ...state,
+        players: state.players.map((player) => player.id === active.id
+          ? { ...player, statusEffects: [] }
+          : player)
+      };
       break;
     }
     case "boost_next_attack_and_shield": {
@@ -854,6 +943,9 @@ export function advanceCurseCooldown(inputState: GameState, playerId: string): C
   requireLivingPlayer(state, playerId);
   return updatePlayerRuntime(state, playerId, (current) => ({
     ...current,
-    curseCooldownTurnsRemaining: Math.max(0, current.curseCooldownTurnsRemaining - 1)
+    curseCooldownTurnsRemaining: current.curseCooldownFresh
+      ? current.curseCooldownTurnsRemaining
+      : Math.max(0, current.curseCooldownTurnsRemaining - 1),
+    curseCooldownFresh: false
   }));
 }

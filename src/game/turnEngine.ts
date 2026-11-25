@@ -15,6 +15,36 @@ export type PlayerAction = "use_cards" | "draw_two_roll_one" | "roll_two_dice";
 export type PlayerStatus = "alive" | "eliminated";
 export type MonsterAttackPattern = "random_living" | "all_living";
 
+export type PlayerStatusEffectType =
+  | "skip_turn"
+  | "dice_limit"
+  | "dice_reduction"
+  | "cards_silenced"
+  | "movement_blocked"
+  | "reverse_movement"
+  | "attack_damage_reduction"
+  | "reveal_hand";
+
+export interface PlayerStatusEffect {
+  type: PlayerStatusEffectType;
+  turnsRemaining: number;
+  amount?: number;
+  minimum?: number;
+}
+
+export interface TurnCardRuntimePlayer {
+  invulnerableOwnerTurns?: number;
+  attackDamageBonus?: number;
+  defenseShieldBonus?: number;
+  blockedAttackCardsThisTurn?: boolean;
+  curseCooldownTurnsRemaining?: number;
+  curseCooldownFresh?: boolean;
+}
+
+export interface TurnCardRuntime {
+  players: Record<string, TurnCardRuntimePlayer>;
+}
+
 export const STARTING_HP = 20;
 export const STARTING_HEARTS = 3;
 export const STARTING_HAND_SIZE = 4;
@@ -33,6 +63,7 @@ export interface GamePlayer {
   status: PlayerStatus;
   isBot: boolean;
   prisonTurnsRemaining: number;
+  statusEffects: PlayerStatusEffect[];
 }
 
 export interface GameMonster {
@@ -56,6 +87,8 @@ export interface GameState {
   monsters: GameMonster[];
   selectedAction?: PlayerAction;
   movementSteps: number;
+  movementDirection: 1 | -1;
+  cardRuntime?: TurnCardRuntime;
 }
 
 export interface PlayerSetup {
@@ -165,10 +198,12 @@ export function createGameState(
       cardsPlayedThisTurn: 0,
       status: "alive",
       isBot: player.isBot,
-      prisonTurnsRemaining: 0
+      prisonTurnsRemaining: 0,
+      statusEffects: []
     })),
     monsters: [],
-    movementSteps: 0
+    movementSteps: 0,
+    movementDirection: 1
   };
 }
 
@@ -283,13 +318,19 @@ export function startPlayerTurn(state: GameState): GameState {
         }
       : player
   );
+  const isSkippedByStatus = activePlayer.statusEffects.some((effect) =>
+    effect.type === "skip_turn" && effect.turnsRemaining > 0
+  );
   return {
     ...state,
     players,
     activePlayerIndex,
-    phase: activePlayer.prisonTurnsRemaining > 0 ? "turn_end" : "choose_action",
+    phase: activePlayer.prisonTurnsRemaining > 0 || isSkippedByStatus ? "turn_end" : "choose_action",
     selectedAction: undefined,
-    movementSteps: 0
+    movementSteps: 0,
+    movementDirection: activePlayer.statusEffects.some((effect) =>
+      effect.type === "reverse_movement" && effect.turnsRemaining > 0
+    ) ? -1 : 1
   };
 }
 
@@ -305,6 +346,10 @@ export function selectPlayerAction(
 
   const random = options.random ?? Math.random;
   if (action === "use_cards") {
+    const active = getActivePlayer(state);
+    if (active.statusEffects.some((effect) => effect.type === "cards_silenced" && effect.turnsRemaining > 0)) {
+      throw new Error("Card use is disabled for this player's current turn.");
+    }
     return {
       state: { ...state, selectedAction: action, phase: "play_cards", movementSteps: 0 },
       diceRolls: []
@@ -315,11 +360,19 @@ export function selectPlayerAction(
     throw new Error("The draw activity can add at most two cards.");
   }
 
-  const diceRolls = action === "draw_two_roll_one"
-    ? [rollD6(random)]
-    : [rollD6(random), rollD6(random)];
-  const drawnCardIds = action === "draw_two_roll_one" ? (options.drawnCardIds ?? []) : [];
   const active = getActivePlayer(state);
+  const diceLimit = active.statusEffects.some((effect) => effect.type === "dice_limit" && effect.turnsRemaining > 0);
+  const requestedDice = action === "draw_two_roll_one" || diceLimit ? 1 : 2;
+  const diceReduction = active.statusEffects
+    .filter((effect) => effect.type === "dice_reduction" && effect.turnsRemaining > 0)
+    .reduce((maximum, effect) => Math.max(maximum, effect.amount ?? 0), 0);
+  const minimumDieValue = active.statusEffects
+    .filter((effect) => effect.type === "dice_reduction" && effect.turnsRemaining > 0)
+    .reduce((minimum, effect) => Math.max(minimum, effect.minimum ?? 1), 1);
+  const diceRolls = Array.from({ length: requestedDice }, () =>
+    Math.max(minimumDieValue, rollD6(random) - diceReduction)
+  );
+  const drawnCardIds = action === "draw_two_roll_one" ? (options.drawnCardIds ?? []) : [];
   const players = state.players.map((player) =>
     player.id === active.id ? { ...player, hand: [...player.hand, ...drawnCardIds] } : player
   );
@@ -337,7 +390,7 @@ export function selectPlayerAction(
 }
 
 /** Play one card ID at a time. The caller resolves the card's catalogue-defined effect. */
-export function playCardFromHand(state: GameState, cardId: string, scoreValue = 0): GameState {
+export function playCardFromHand(state: GameState, cardId: string, scoreValue = 0, isAttackCard = false): GameState {
   if (state.phase !== "play_cards" || state.selectedAction !== "use_cards") {
     throw new Error("Cards can only be played during the use-cards activity.");
   }
@@ -345,6 +398,12 @@ export function playCardFromHand(state: GameState, cardId: string, scoreValue = 
     throw new Error("Card score value must be an integer.");
   }
   const active = getActivePlayer(state);
+  if (active.statusEffects.some((effect) => effect.type === "cards_silenced" && effect.turnsRemaining > 0)) {
+    throw new Error("Card use is disabled for this player's current turn.");
+  }
+  if (isAttackCard && state.cardRuntime?.players[active.id]?.blockedAttackCardsThisTurn) {
+    throw new Error("Attack cards are blocked for the rest of this turn.");
+  }
   if (active.cardsPlayedThisTurn >= MAX_CARDS_PER_TURN) {
     throw new Error(`A player may use at most ${MAX_CARDS_PER_TURN} cards per turn.`);
   }
@@ -376,7 +435,14 @@ export function finishCardActivity(
   if (state.phase !== "play_cards" || state.selectedAction !== "use_cards") {
     throw new Error("The use-cards activity is not active.");
   }
-  const diceRolls = [rollD6(random)];
+  const active = getActivePlayer(state);
+  const reduction = active.statusEffects
+    .filter((effect) => effect.type === "dice_reduction" && effect.turnsRemaining > 0)
+    .reduce((maximum, effect) => Math.max(maximum, effect.amount ?? 0), 0);
+  const minimum = active.statusEffects
+    .filter((effect) => effect.type === "dice_reduction" && effect.turnsRemaining > 0)
+    .reduce((value, effect) => Math.max(value, effect.minimum ?? 1), 1);
+  const diceRolls = [Math.max(minimum, rollD6(random) - reduction)];
   return {
     state: { ...state, movementSteps: diceRolls[0], phase: "move" },
     diceRolls
@@ -394,9 +460,20 @@ export function moveActivePlayer(state: GameState): {
   }
   const active = getActivePlayer(state);
   const from = active.position;
-  const totalPosition = from + state.movementSteps;
-  const completedLaps = Math.floor(totalPosition / state.boardLength);
-  const to = totalPosition % state.boardLength;
+  const activeRuntimeStatuses = active.statusEffects;
+  const movementBlocked = activeRuntimeStatuses.some((effect) =>
+    effect.type === "movement_blocked" && effect.turnsRemaining > 0
+  );
+  const steps = movementBlocked ? 0 : state.movementSteps;
+  const totalPosition = from + steps * state.movementDirection;
+  const to = ((totalPosition % state.boardLength) + state.boardLength) % state.boardLength;
+  const completedLaps = state.movementDirection === 1
+    ? Math.floor((from + steps) / state.boardLength)
+    : from === 0
+      ? Math.floor(steps / state.boardLength)
+      : steps < from
+        ? 0
+        : 1 + Math.floor((steps - from) / state.boardLength);
   const players = state.players.map((player) =>
     player.id === active.id
       ? { ...player, position: to, score: player.score + completedLaps * 2 }
@@ -483,13 +560,53 @@ export function endPlayerTurn(state: GameState): GameState {
     throw new Error("A turn can only end after status has been checked.");
   }
 
+  const activePlayer = state.players[state.activePlayerIndex];
+  const players = state.players.map((player) => player.id === activePlayer?.id
+    ? {
+        ...player,
+        statusEffects: player.statusEffects
+          .map((effect) => ({ ...effect, turnsRemaining: effect.turnsRemaining - 1 }))
+          .filter((effect) => effect.turnsRemaining > 0)
+      }
+    : player
+  );
   const monsters = state.monsters.map((monster) =>
     monster.active
       ? { ...monster, turnsSinceLastAttack: monster.turnsSinceLastAttack + 1 }
       : monster
   );
+  let cardRuntime = state.cardRuntime;
+  if (cardRuntime && activePlayer) {
+    const runtime = cardRuntime.players[activePlayer.id];
+    if (runtime) {
+      cardRuntime = {
+        ...cardRuntime,
+        players: {
+          ...cardRuntime.players,
+          [activePlayer.id]: {
+            ...runtime,
+            invulnerableOwnerTurns: Math.max(0, (runtime.invulnerableOwnerTurns ?? 0) - 1),
+            attackDamageBonus: 0,
+            defenseShieldBonus: 0,
+            blockedAttackCardsThisTurn: false,
+            curseCooldownTurnsRemaining: runtime.curseCooldownFresh
+              ? (runtime.curseCooldownTurnsRemaining ?? 0)
+              : Math.max(0, (runtime.curseCooldownTurnsRemaining ?? 0) - 1),
+            curseCooldownFresh: false
+          }
+        }
+      };
+    }
+  }
 
-  const nextState = { ...state, monsters, turnNumber: state.turnNumber + 1 };
+  const nextState = {
+    ...state,
+    players,
+    monsters,
+    cardRuntime,
+    movementDirection: 1 as const,
+    turnNumber: state.turnNumber + 1
+  };
   const alive = livingPlayers(nextState);
   if (alive.length === 0) return { ...nextState, phase: "game_over" };
 

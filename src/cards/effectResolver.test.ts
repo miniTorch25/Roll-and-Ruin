@@ -28,7 +28,8 @@ function cardPlayState(mode: "1x4" | "2v2" = "1x4"): CardEffectGameState {
         blockedAttackCardsThisTurn: false,
         negativeStatuses: [],
         curseCooldownTurnsRemaining: 0,
-        curseCooldownUses: 0
+        curseCooldownUses: 0,
+        curseCooldownFresh: false
       }]))
     }
   };
@@ -397,10 +398,13 @@ describe("Curse payment and cooldown", () => {
     });
     expect(result.state.cardRuntime.players.p1.curseCooldownTurnsRemaining).toBe(3);
     expect(result.state.cardRuntime.players.p1.curseCooldownUses).toBe(1);
-    const afterOne = advanceCurseCooldown(result.state, "p1");
-    expect(afterOne.cardRuntime.players.p1.curseCooldownTurnsRemaining).toBe(2);
+    const castingTurnEnd = advanceCurseCooldown(result.state, "p1");
+    expect(castingTurnEnd.cardRuntime.players.p1.curseCooldownTurnsRemaining).toBe(3);
     const afterThree = advanceCurseCooldown(
-      advanceCurseCooldown(afterOne, "p1"),
+      advanceCurseCooldown(
+        advanceCurseCooldown(castingTurnEnd, "p1"),
+        "p1"
+      ),
       "p1"
     );
     expect(afterThree.cardRuntime.players.p1.curseCooldownTurnsRemaining).toBe(0);
@@ -423,7 +427,10 @@ describe("Curse payment and cooldown", () => {
       state = result.state;
       state = advanceCurseCooldown(
         advanceCurseCooldown(
-          advanceCurseCooldown(state, "p1"),
+          advanceCurseCooldown(
+            advanceCurseCooldown(state, "p1"),
+            "p1"
+          ),
           "p1"
         ),
         "p1"
@@ -539,5 +546,119 @@ describe("player-targeted Curse effects", () => {
       cursePayment: { type: "discard", cardIds: ["green_herbal_potion", "green_life_core"] }
     });
     expect(result.state.players.map((player) => player.position)).toEqual([7, 0, 0, 0]);
+  });
+});
+
+
+describe("timed player status card effects", () => {
+  it("applies Sleep Spell as a one-turn skip to the selected target", () => {
+    const result = resolveCardEffect(cardPlayState(), "yellow_sleep_spell", { targetPlayerId: "p2" });
+    expect(result.state.players[1].statusEffects).toContainEqual({
+      type: "skip_turn",
+      turnsRemaining: 1
+    });
+  });
+
+  it("limits the target to one die next turn", () => {
+    const result = resolveCardEffect(cardPlayState(), "yellow_cursed_dice", { targetPlayerId: "p2" });
+    expect(result.state.players[1].statusEffects).toContainEqual({
+      type: "dice_limit",
+      turnsRemaining: 1,
+      amount: 1
+    });
+  });
+
+  it("applies Weakness for three turns with the confirmed damage reduction", () => {
+    const result = resolveCardEffect(cardPlayState(), "red_weaken", {
+      targetPlayerId: "p2",
+      cursePayment: { type: "discard", cardIds: ["green_herbal_potion", "green_life_core"] }
+    });
+    expect(result.state.players[1].statusEffects).toContainEqual({
+      type: "attack_damage_reduction",
+      turnsRemaining: 3,
+      amount: 2
+    });
+  });
+
+  it("applies Silence, Binding, Reverse Walk, cursed die faces, and hand reveal durations", () => {
+    const silence = resolveCardEffect(cardPlayState(), "red_silence", {
+      targetPlayerId: "p2",
+      cursePayment: { type: "discard", cardIds: ["green_herbal_potion", "green_life_core"] }
+    });
+    expect(silence.state.players[1].statusEffects).toContainEqual({ type: "cards_silenced", turnsRemaining: 1 });
+
+    const binding = resolveCardEffect(cardPlayState(), "red_binding", {
+      targetPlayerId: "p2",
+      cursePayment: { type: "discard", cardIds: ["green_herbal_potion", "green_life_core"] }
+    });
+    expect(binding.state.players[1].statusEffects).toContainEqual({ type: "movement_blocked", turnsRemaining: 2 });
+
+    const reverse = resolveCardEffect(cardPlayState(), "red_reverse_walk", {
+      targetPlayerId: "p2",
+      cursePayment: { type: "discard", cardIds: ["green_herbal_potion", "green_life_core"] }
+    });
+    expect(reverse.state.players[1].statusEffects).toContainEqual({ type: "reverse_movement", turnsRemaining: 1 });
+
+    const cursedDice = resolveCardEffect(cardPlayState(), "red_cursed_dice", {
+      targetPlayerId: "p2",
+      cursePayment: { type: "discard", cardIds: ["green_herbal_potion", "green_life_core"] }
+    });
+    expect(cursedDice.state.players[1].statusEffects).toContainEqual({
+      type: "dice_reduction", turnsRemaining: 2, amount: 2, minimum: 1
+    });
+
+    const reveal = resolveCardEffect(cardPlayState(), "red_public_hand", { targetPlayerId: "p2",
+      cursePayment: { type: "discard", cardIds: ["green_herbal_potion", "green_life_core"] }
+    });
+    expect(reveal.state.players[1].statusEffects).toContainEqual({ type: "reveal_hand", turnsRemaining: 3 });
+    expect(reveal.revealedHands[0].playerId).toBe("p2");
+  });
+
+  it("lets Holy Water remove all timed negative statuses from the user", () => {
+    const state = {
+      ...cardPlayState(),
+      players: cardPlayState().players.map((player, index) => index === 0
+        ? {
+            ...player,
+            statusEffects: [
+              { type: "cards_silenced" as const, turnsRemaining: 1 },
+              { type: "dice_reduction" as const, turnsRemaining: 2, amount: 2, minimum: 1 }
+            ]
+          }
+        : player)
+    };
+    const result = resolveCardEffect(state, "green_holy_water");
+    expect(result.state.players[0].statusEffects).toEqual([]);
+  });
+});
+
+
+describe("timed combat modifiers", () => {
+  it("reduces attack card damage by two for three target turns", () => {
+    const state = {
+      ...cardPlayState(),
+      players: cardPlayState().players.map((player, index) => index === 0
+        ? {
+            ...player,
+            statusEffects: [{ type: "attack_damage_reduction" as const, turnsRemaining: 3, amount: 2 }]
+          }
+        : player)
+    };
+    const result = resolveCardEffect(state, "blue_common_sword", { targetPlayerId: "p2" });
+    expect(result.damageEvents[0].attemptedDamage).toBe(1);
+    expect(result.state.players[1].hp).toBe(19);
+  });
+
+  it("adds the Power Armor bonus to a defense card's shield gain", () => {
+    const powered = resolveCardEffect(cardPlayState(), "green_power_armor");
+    const shielded = resolveCardEffect(powered.state, "blue_wooden_shield");
+    expect(shielded.state.cardRuntime.players.p1.shields).toBe(2);
+    expect(shielded.state.cardRuntime.players.p1.defenseShieldBonus).toBe(1);
+  });
+
+  it("does not add the defense-card bonus to a direct shield grant", () => {
+    const powered = resolveCardEffect(cardPlayState(), "green_power_armor");
+    const shielded = resolveCardEffect(powered.state, "green_double_blessing");
+    expect(shielded.state.cardRuntime.players.p1.shields).toBe(1);
   });
 });

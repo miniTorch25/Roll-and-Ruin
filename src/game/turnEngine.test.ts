@@ -263,3 +263,142 @@ describe("Roll and Ruin turn engine", () => {
     expect(death.state.players[0].status).toBe("eliminated");
   });
 });
+
+
+describe("timed player status processing", () => {
+  it("skips exactly the target's next turn and expires the skip after that turn", () => {
+    const initial = {
+      ...createGameState("1x4", setup),
+      phase: "turn_start" as const,
+      players: createGameState("1x4", setup).players.map((player) => player.id === "p1"
+        ? { ...player, statusEffects: [{ type: "skip_turn" as const, turnsRemaining: 1 }] }
+        : player)
+    };
+    const skipped = startPlayerTurn(initial);
+    expect(skipped.phase).toBe("turn_end");
+    const ended = endPlayerTurn(skipped);
+    expect(ended.players[0].statusEffects).toEqual([]);
+    expect(ended.activePlayerIndex).toBe(1);
+  });
+
+  it("limits dice count and reduces die faces to the configured minimum", () => {
+    const state = {
+      ...readyState(),
+      players: readyState().players.map((player) => player.id === "p1"
+        ? {
+            ...player,
+            statusEffects: [
+              { type: "dice_limit" as const, turnsRemaining: 1, amount: 1 },
+              { type: "dice_reduction" as const, turnsRemaining: 2, amount: 2, minimum: 1 }
+            ]
+          }
+        : player)
+    };
+    const result = selectPlayerAction(state, "roll_two_dice", { random: () => 0.99 });
+    expect(result.diceRolls).toEqual([4]);
+    expect(result.state.movementSteps).toBe(4);
+  });
+
+  it("allows dice actions but blocks card actions while Silenced", () => {
+    const state = {
+      ...readyState(),
+      players: readyState().players.map((player) => player.id === "p1"
+        ? { ...player, statusEffects: [{ type: "cards_silenced" as const, turnsRemaining: 1 }] }
+        : player)
+    };
+    expect(() => selectPlayerAction(state, "use_cards")).toThrow(/Card use is disabled/);
+    expect(selectPlayerAction(state, "roll_two_dice", { random: () => 0 }).diceRolls).toEqual([1, 1]);
+  });
+
+  it("prevents movement while Bound without preventing the action or dice roll", () => {
+    const state = {
+      ...readyState(),
+      players: readyState().players.map((player) => player.id === "p1"
+        ? {
+            ...player,
+            position: 7,
+            statusEffects: [{ type: "movement_blocked" as const, turnsRemaining: 2 }]
+          }
+        : player),
+      movementSteps: 6,
+      phase: "move" as const
+    };
+    const moved = moveActivePlayer(state);
+    expect(moved.to).toBe(7);
+    expect(moved.completedLaps).toBe(0);
+  });
+
+  it("moves backwards for the reversed turn and counts crossing Start once", () => {
+    const state = {
+      ...readyState(),
+      players: readyState().players.map((player) => player.id === "p1"
+        ? {
+            ...player,
+            position: 1,
+            statusEffects: [{ type: "reverse_movement" as const, turnsRemaining: 1 }]
+          }
+        : player),
+      movementSteps: 3,
+      movementDirection: -1 as const,
+      phase: "move" as const
+    };
+    const moved = moveActivePlayer(state);
+    expect(moved.to).toBe(30);
+    expect(moved.completedLaps).toBe(1);
+    expect(moved.state.players[0].score).toBe(2);
+  });
+
+  it("does not award a backwards lap merely for leaving position zero", () => {
+    const state = {
+      ...readyState(),
+      players: readyState().players.map((player) => player.id === "p1"
+        ? { ...player, position: 0 }
+        : player),
+      movementSteps: 1,
+      movementDirection: -1 as const,
+      phase: "move" as const
+    };
+    const moved = moveActivePlayer(state);
+    expect(moved.to).toBe(31);
+    expect(moved.completedLaps).toBe(0);
+  });
+
+  it("expires owner-turn buffs and temporary attack/defense bonuses at turn end", () => {
+    const initial = {
+      ...readyState(),
+      phase: "turn_end" as const,
+      cardRuntime: {
+        players: {
+          p1: {
+            invulnerableOwnerTurns: 3,
+            attackDamageBonus: 2,
+            defenseShieldBonus: 1,
+            blockedAttackCardsThisTurn: true,
+            curseCooldownTurnsRemaining: 0
+          }
+        }
+      }
+    };
+    const ended = endPlayerTurn(initial);
+    expect(ended.cardRuntime?.players.p1).toMatchObject({
+      invulnerableOwnerTurns: 2,
+      attackDamageBonus: 0,
+      defenseShieldBonus: 0,
+      blockedAttackCardsThisTurn: false
+    });
+  });
+
+  it("blocks catalogue attack cards after Armor Seal but still permits non-attack cards", () => {
+    const ready = readyState();
+    const state = {
+      ...selectPlayerAction(ready, "use_cards").state,
+      cardRuntime: {
+        players: {
+          p1: { blockedAttackCardsThisTurn: true }
+        }
+      }
+    };
+    expect(() => playCardFromHand(state, "a", 1, true)).toThrow(/Attack cards are blocked/);
+    expect(() => playCardFromHand(state, "b", 1, false)).not.toThrow();
+  });
+});
