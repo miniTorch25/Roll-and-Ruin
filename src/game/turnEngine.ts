@@ -1,34 +1,45 @@
 import { rollD6 } from "./dice";
 
-export type GameMode = "1x4" | "2x4";
+export type GameMode = "1v1" | "1x4" | "2v2" | "2x4";
 export type GamePhase =
   | "monster_attack"
   | "turn_start"
   | "choose_action"
+  | "play_cards"
   | "move"
   | "special_tile"
   | "status_check"
   | "turn_end"
   | "game_over";
-export type PlayerAction = "use_card" | "draw_card" | "roll_dice";
+export type PlayerAction = "use_cards" | "draw_two_roll_one" | "roll_two_dice";
 export type PlayerStatus = "alive" | "eliminated";
 export type MonsterAttackPattern = "random_living" | "all_living";
 
-const MONSTER_ATTACK_INTERVAL = 2;
+export const STARTING_HP = 20;
+export const STARTING_HEARTS = 3;
+export const STARTING_HAND_SIZE = 4;
+export const MAX_CARDS_PER_TURN = 3;
 
 export interface GamePlayer {
   id: string;
   teamId: string;
   position: number;
+  hp: number;
+  maxHp: number;
   hearts: number;
   score: number;
   hand: string[];
+  cardsPlayedThisTurn: number;
   status: PlayerStatus;
 }
 
 export interface GameMonster {
   id: string;
   attackPattern: MonsterAttackPattern;
+  /** The monster-specific interval from the rules file. */
+  attackInterval: number;
+  /** Number of distinct living targets for a scheduled attack. */
+  targetCount?: number;
   turnsSinceLastAttack: number;
   active: boolean;
 }
@@ -48,6 +59,8 @@ export interface GameState {
 export interface PlayerSetup {
   id: string;
   teamId: string;
+  /** The deck layer supplies the four real starting cards. */
+  startingHand?: string[];
 }
 
 export interface MonsterAttackEvent {
@@ -62,35 +75,46 @@ export interface DeathResult {
   eliminated: boolean;
 }
 
+const MODE_RULES: Record<GameMode, { players: number; teams: number; playersPerTeam: number }> = {
+  "1v1": { players: 2, teams: 2, playersPerTeam: 1 },
+  "1x4": { players: 4, teams: 4, playersPerTeam: 1 },
+  "2v2": { players: 4, teams: 2, playersPerTeam: 2 },
+  "2x4": { players: 8, teams: 4, playersPerTeam: 2 }
+};
+
 export function createGameState(
   mode: GameMode,
   playerSetup: PlayerSetup[],
-  heartsPerPlayer: number,
-  boardLength: number
+  heartsPerPlayer = STARTING_HEARTS,
+  boardLength = 32
 ): GameState {
-  const playersPerTeam = mode === "1x4" ? 1 : 2;
-  const expectedPlayers = playersPerTeam * 4;
+  const rules = MODE_RULES[mode];
   const teamIds = new Set(playerSetup.map((player) => player.teamId));
 
-  if (playerSetup.length !== expectedPlayers) {
-    throw new Error(`Mode ${mode} requires exactly ${expectedPlayers} players.`);
+  if (playerSetup.length !== rules.players) {
+    throw new Error(`Mode ${mode} requires exactly ${rules.players} players.`);
   }
-  if (teamIds.size !== 4) {
-    throw new Error("A match must contain exactly 4 teams.");
+  if (teamIds.size !== rules.teams) {
+    throw new Error(`Mode ${mode} requires exactly ${rules.teams} teams.`);
   }
   for (const teamId of teamIds) {
-    if (playerSetup.filter((player) => player.teamId === teamId).length !== playersPerTeam) {
-      throw new Error(`Team ${teamId} must contain ${playersPerTeam} player(s).`);
+    if (playerSetup.filter((player) => player.teamId === teamId).length !== rules.playersPerTeam) {
+      throw new Error(`Team ${teamId} must contain ${rules.playersPerTeam} player(s).`);
     }
   }
   if (!Number.isInteger(heartsPerPlayer) || heartsPerPlayer < 1) {
     throw new Error("heartsPerPlayer must be a positive integer.");
   }
-  if (!Number.isInteger(boardLength) || boardLength < 2) {
-    throw new Error("boardLength must be an integer greater than 1.");
+  if (!Number.isInteger(boardLength) || boardLength !== 32) {
+    throw new Error("The confirmed board contains exactly 32 spaces.");
   }
   if (new Set(playerSetup.map((player) => player.id)).size !== playerSetup.length) {
     throw new Error("Player IDs must be unique.");
+  }
+  for (const player of playerSetup) {
+    if (player.startingHand && player.startingHand.length !== STARTING_HAND_SIZE) {
+      throw new Error(`Player ${player.id} must start with exactly ${STARTING_HAND_SIZE} cards.`);
+    }
   }
 
   return {
@@ -100,11 +124,15 @@ export function createGameState(
     activePlayerIndex: 0,
     boardLength,
     players: playerSetup.map((player) => ({
-      ...player,
+      id: player.id,
+      teamId: player.teamId,
       position: 0,
+      hp: STARTING_HP,
+      maxHp: STARTING_HP,
       hearts: heartsPerPlayer,
       score: 0,
-      hand: [],
+      hand: [...(player.startingHand ?? [])],
+      cardsPlayedThisTurn: 0,
       status: "alive"
     })),
     monsters: [],
@@ -130,7 +158,17 @@ function chooseRandom<T>(items: T[], random: () => number): T | undefined {
   return items[index];
 }
 
-/** A newly summoned monster attacks all living players immediately. */
+function chooseRandomTargets<T>(items: T[], amount: number, random: () => number): T[] {
+  const pool = [...items];
+  const selected: T[] = [];
+  while (selected.length < Math.min(amount, pool.length)) {
+    const index = Math.min(pool.length - 1, Math.floor(random() * pool.length));
+    selected.push(pool.splice(index, 1)[0]);
+  }
+  return selected;
+}
+
+/** A newly summoned monster attacks every living player immediately, then starts its own timer at zero. */
 export function summonMonster(
   state: GameState,
   monster: Omit<GameMonster, "turnsSinceLastAttack" | "active">
@@ -138,24 +176,26 @@ export function summonMonster(
   if (state.monsters.some((item) => item.id === monster.id)) {
     throw new Error(`Monster ${monster.id} already exists.`);
   }
+  if (!Number.isInteger(monster.attackInterval) || monster.attackInterval < 1) {
+    throw new Error("A monster must define its own positive attack interval.");
+  }
   const nextMonster: GameMonster = {
     ...monster,
     turnsSinceLastAttack: 0,
     active: true
   };
   const nextState = { ...state, monsters: [...state.monsters, nextMonster] };
-  const targets = livingPlayers(nextState);
   return {
     state: nextState,
     attack: {
       monsterId: monster.id,
-      targetPlayerIds: targets.map((player) => player.id),
+      targetPlayerIds: livingPlayers(nextState).map((player) => player.id),
       reason: "first_summon"
     }
   };
 }
 
-/** Resolve scheduled monster attacks before the next player's turn begins. */
+/** Scheduled attacks resolve before Turn Start; each monster uses its own interval and target count. */
 export function resolveMonsterAttackPhase(
   state: GameState,
   random: () => number = Math.random
@@ -166,14 +206,14 @@ export function resolveMonsterAttackPhase(
 
   const attacks: MonsterAttackEvent[] = [];
   const monsters = state.monsters.map((monster) => {
-    if (!monster.active || monster.turnsSinceLastAttack < MONSTER_ATTACK_INTERVAL) {
+    if (!monster.active || monster.turnsSinceLastAttack < monster.attackInterval) {
       return monster;
     }
 
     const targets = livingPlayers(state);
     const selected = monster.attackPattern === "all_living"
       ? targets
-      : [chooseRandom(targets, random)].filter((player): player is GamePlayer => player !== undefined);
+      : chooseRandomTargets(targets, monster.targetCount ?? 1, random);
 
     attacks.push({
       monsterId: monster.id,
@@ -201,32 +241,98 @@ export function startPlayerTurn(state: GameState): GameState {
       }
     }
   }
-  return { ...state, activePlayerIndex, phase: "choose_action", selectedAction: undefined, movementSteps: 0 };
+  const players = state.players.map((player, index) =>
+    index === activePlayerIndex ? { ...player, cardsPlayedThisTurn: 0 } : player
+  );
+  return {
+    ...state,
+    players,
+    activePlayerIndex,
+    phase: "choose_action",
+    selectedAction: undefined,
+    movementSteps: 0
+  };
 }
 
-/** Exactly one of use-card, draw-card, or roll-dice may be selected per turn. */
+/** Resolve one of the three activities defined by the rules. Card IDs are supplied by the deck layer. */
 export function selectPlayerAction(
   state: GameState,
   action: PlayerAction,
-  options: { movementSteps?: number; random?: () => number } = {}
-): { state: GameState; dieRoll?: number } {
+  options: { drawnCardIds?: string[]; random?: () => number } = {}
+): { state: GameState; diceRolls: number[] } {
   if (state.phase !== "choose_action") {
-    throw new Error("An action can only be selected during the action-choice phase.");
+    throw new Error("An activity can only be selected during the action-choice phase.");
   }
 
   const random = options.random ?? Math.random;
-  const dieRoll = action === "roll_dice" ? rollD6(random) : undefined;
-  const movementSteps = action === "roll_dice"
-    ? dieRoll!
-    : options.movementSteps ?? 0;
-
-  if (!Number.isInteger(movementSteps) || movementSteps < 0) {
-    throw new Error("movementSteps must be a non-negative integer.");
+  if (action === "use_cards") {
+    return {
+      state: { ...state, selectedAction: action, phase: "play_cards", movementSteps: 0 },
+      diceRolls: []
+    };
   }
 
+  if (action === "draw_two_roll_one" && (options.drawnCardIds?.length ?? 0) > 2) {
+    throw new Error("The draw activity can add at most two cards.");
+  }
+
+  const diceRolls = action === "draw_two_roll_one"
+    ? [rollD6(random)]
+    : [rollD6(random), rollD6(random)];
+  const drawnCardIds = action === "draw_two_roll_one" ? (options.drawnCardIds ?? []) : [];
+  const active = getActivePlayer(state);
+  const players = state.players.map((player) =>
+    player.id === active.id ? { ...player, hand: [...player.hand, ...drawnCardIds] } : player
+  );
+
   return {
-    state: { ...state, selectedAction: action, movementSteps, phase: "move" },
-    dieRoll
+    state: {
+      ...state,
+      players,
+      selectedAction: action,
+      movementSteps: diceRolls.reduce((sum, roll) => sum + roll, 0),
+      phase: "move"
+    },
+    diceRolls
+  };
+}
+
+/** Play one card ID at a time. The caller resolves the card's catalogue-defined effect. */
+export function playCardFromHand(state: GameState, cardId: string): GameState {
+  if (state.phase !== "play_cards" || state.selectedAction !== "use_cards") {
+    throw new Error("Cards can only be played during the use-cards activity.");
+  }
+  const active = getActivePlayer(state);
+  if (active.cardsPlayedThisTurn >= MAX_CARDS_PER_TURN) {
+    throw new Error(`A player may use at most ${MAX_CARDS_PER_TURN} cards per turn.`);
+  }
+  const cardIndex = active.hand.indexOf(cardId);
+  if (cardIndex < 0) throw new Error("The selected card is not in the player's hand.");
+
+  const hand = [...active.hand];
+  hand.splice(cardIndex, 1);
+  return {
+    ...state,
+    players: state.players.map((player) =>
+      player.id === active.id
+        ? { ...player, hand, cardsPlayedThisTurn: player.cardsPlayedThisTurn + 1 }
+        : player
+    )
+  };
+}
+
+/** Card play does not consume a movement die; the normal movement roll is one D6. */
+export function finishCardActivity(
+  state: GameState,
+  random: () => number = Math.random
+): { state: GameState; diceRolls: number[] } {
+  if (state.phase !== "play_cards" || state.selectedAction !== "use_cards") {
+    throw new Error("The use-cards activity is not active.");
+  }
+  const diceRolls = [rollD6(random)];
+  return {
+    state: { ...state, movementSteps: diceRolls[0], phase: "move" },
+    diceRolls
   };
 }
 
@@ -234,17 +340,22 @@ export function moveActivePlayer(state: GameState): {
   state: GameState;
   from: number;
   to: number;
+  completedLaps: number;
 } {
   if (state.phase !== "move") {
-    throw new Error("Movement can only happen after the action has been selected.");
+    throw new Error("Movement can only happen after the activity has been resolved.");
   }
   const active = getActivePlayer(state);
   const from = active.position;
-  const to = Math.min(state.boardLength - 1, from + state.movementSteps);
+  const totalPosition = from + state.movementSteps;
+  const completedLaps = Math.floor(totalPosition / state.boardLength);
+  const to = totalPosition % state.boardLength;
   const players = state.players.map((player) =>
-    player.id === active.id ? { ...player, position: to } : player
+    player.id === active.id
+      ? { ...player, position: to, score: player.score + completedLaps * 2 }
+      : player
   );
-  return { state: { ...state, players, phase: "special_tile" }, from, to };
+  return { state: { ...state, players, phase: "special_tile" }, from, to, completedLaps };
 }
 
 export function finishSpecialTileCheck(state: GameState): GameState {
@@ -254,7 +365,7 @@ export function finishSpecialTileCheck(state: GameState): GameState {
   return { ...state, phase: "status_check" };
 }
 
-/** Death removes one heart, returns the player to start, and applies the card-loss rule. */
+/** Death removes one heart, restores HP, returns the player to start, and applies the card-loss rule. */
 export function applyPlayerDeath(
   state: GameState,
   playerId: string,
@@ -280,9 +391,11 @@ export function applyPlayerDeath(
     player.id === playerId
       ? {
           ...player,
+          hp: player.maxHp,
           hearts,
           position: 0,
           hand: remaining,
+          cardsPlayedThisTurn: 0,
           status: eliminated ? "eliminated" as const : "alive" as const
         }
       : player
