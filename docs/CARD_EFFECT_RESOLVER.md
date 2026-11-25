@@ -66,6 +66,14 @@ Every supported Curse effect requires an explicit `cursePayment`:
 - **ล้างพลัง:** removes the target's shields, invulnerability, reflection charges, and positive combat buffs; timed negative statuses remain.
 - **เหยื่อล่า:** marks every currently active monster to target the selected living player on that monster's next scheduled attack. Each monster consumes its own one-shot override when it attacks; if the target is no longer alive, its normal targeting pattern is used instead.
 
+## Dice manipulation effects
+
+- **ลูกเต๋าโชคดี:** grants one extra D6 for the current Use Cards movement roll. It can be used once per turn; the total number of dice never exceeds three, and a one-die status takes precedence.
+- **ใบโคลเวอร์นำโชค:** grants one reroll charge. After the movement roll from Use Cards, the caller can use `rerollOneDie(state, diceRolls, dieIndex, random)` to replace one die and update the movement total. The reroll respects cursed-die reductions.
+- **ควบคุมลูกเต๋า:** accepts `diceValues` in the effect options, one integer value from 1 to 6 for each die that will be rolled. It may be used once per turn and supports up to three dice. Active one-die limits reduce the required choice count to one. Cursed-die reduction is applied to the selected faces when the roll is finalized.
+
+The dice effects modify only the next movement roll within the current Use Cards activity. They do not change the separate Draw or Roll activities.
+
 ## Green status/buff effects
 
 - **พรอมตะ:** invulnerability lasts for 3 owner turns and ticks at the end of each protected player's turn.
@@ -82,4 +90,4 @@ Call `resolveCardEffect(state, cardDefinitionOrId, options)` after `playCatalogu
 
 ## Not yet implemented
 
-Grenade splash needs monster/player target integration; Monster Hunter needs the monster HP catalogue and damage rules. Resurrection sequencing, remaining curses, bonus dice and rerolls, tile effects, monster HP/damage and reward resolution, and BoardScene integration remain separate work.
+Grenade splash needs monster/player target integration; Monster Hunter needs the monster HP catalogue and damage rules. Resurrection sequencing, remaining monster/tile effects, monster HP/damage and reward resolution, and BoardScene dice/card-choice integration remain separate work.
