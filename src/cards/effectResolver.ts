@@ -21,6 +21,11 @@ export interface CardRuntimeState {
 
 export type CardEffectGameState = GameState & { cardRuntime: CardRuntimeState };
 
+export type CursePayment =
+  | { type: "hp"; amount: number }
+  | { type: "discard"; cardIds: [string, string] }
+  | { type: "cooldown" };
+
 export interface ResolveCardEffectOptions {
   /** Required by effects that name one player or teammate. */
   targetPlayerId?: string;
@@ -35,7 +40,7 @@ export interface ResolveCardEffectOptions {
 }
 
 export interface DamageEvent {
-  kind: "attack" | "hp_cost" | "reflection";
+  kind: "attack" | "hp_cost" | "direct_hp_loss" | "reflection";
   sourcePlayerId?: string;
   targetPlayerId: string;
   attemptedDamage: number;
@@ -72,7 +77,9 @@ const EMPTY_PLAYER_RUNTIME = (): CardRuntimePlayerState => ({
   defenseShieldBonus: 0,
   nextAttackDamageBonus: 0,
   blockedAttackCardsThisTurn: false,
-  negativeStatuses: []
+  negativeStatuses: [],
+  curseCooldownTurnsRemaining: 0,
+  curseCooldownUses: 0
 });
 
 function withRuntime(state: GameState): CardEffectGameState {
@@ -229,7 +236,8 @@ function applyHpCost(
   inputState: CardEffectGameState,
   playerId: string,
   amount: number,
-  random: () => number
+  random: () => number,
+  kind: "hp_cost" | "direct_hp_loss" = "hp_cost"
 ): { state: CardEffectGameState; event: DamageEvent } {
   if (!Number.isInteger(amount) || amount < 0) {
     throw new Error("HP cost must be a non-negative integer.");
@@ -243,7 +251,7 @@ function applyHpCost(
       : item)
   };
   const event: DamageEvent = {
-    kind: "hp_cost",
+    kind,
     sourcePlayerId: playerId,
     targetPlayerId: playerId,
     attemptedDamage: amount,
@@ -652,12 +660,7 @@ export function resolveCardEffect(
       const newHp = Math.floor(target.hp / 2);
       const hpLoss = target.hp - newHp;
       const loss = applyHpCost(state, target.id, hpLoss, random, "direct_hp_loss");
-      state = {
-        ...loss.state,
-        players: loss.state.players.map((player) => player.id === target.id
-          ? { ...player, hp: newHp }
-          : player)
-      };
+      state = loss.state;
       if (newHp === 0) {
         const death = loss.event.death;
         if (!death) throw new Error("A zero-HP target must enter the death flow.");
@@ -679,7 +682,7 @@ export function resolveCardEffect(
     }
     case "swap_current_hp": {
       const target = requireOpponentTarget(state, active.id, options.targetPlayerId);
-      const activeHp = active.hp;
+      const activeHp = state.players.find((player) => player.id === active.id)?.hp ?? active.hp;
       state = {
         ...state,
         players: state.players.map((player) => {
