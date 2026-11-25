@@ -854,3 +854,22 @@ describe("dice manipulation card effects", () => {
     })).toThrow(/exactly 2 value/);
   });
 });
+
+
+describe("dice effects with active turn limits", () => {
+  it("requires one controlled die while the active player is under a one-die limit", () => {
+    const state = withPlayer(cardPlayState(), "p1", {
+      statusEffects: [{ type: "dice_limit", turnsRemaining: 1, amount: 1 }]
+    });
+    const result = resolveCardEffect(state, "yellow_lucky_dice");
+    expect(() => resolveCardEffect(result.state, "red_dice_control", {
+      diceValues: [4, 5],
+      cursePayment: { type: "discard", cardIds: ["green_herbal_potion", "green_life_core"] }
+    })).toThrow(/exactly 1 value/);
+    const controlled = resolveCardEffect(result.state, "red_dice_control", {
+      diceValues: [4],
+      cursePayment: { type: "discard", cardIds: ["green_herbal_potion", "green_life_core"] }
+    });
+    expect(controlled.state.cardRuntime.players.p1.controlledDiceValues).toEqual([4]);
+  });
+});
