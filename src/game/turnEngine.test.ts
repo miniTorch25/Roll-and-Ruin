@@ -143,7 +143,7 @@ describe("Roll and Ruin turn engine", () => {
 
 
   it("makes Gob repeat its previous target 60% of the time and pick a different target otherwise", () => {
-    const summoned = summonMonster(readyState(), {
+    const summoned = summonMonster(createGameState("1x4", setup), {
       id: "gob", catalogueId: "C01", attackPattern: "random_living",
       attackInterval: 2, turnsSinceLastAttack: 2, attackDamage: 1,
       lastTargetPlayerId: "p1"
@@ -161,19 +161,19 @@ describe("Roll and Ruin turn engine", () => {
   });
 
   it("uses Bone's two distinct targets, Ratty's one-turn interval, and Batty's fresh random target", () => {
-    const bone = summonMonster(readyState(), {
+    const bone = summonMonster(createGameState("1x4", setup), {
       id: "bone", catalogueId: "C02", attackPattern: "random_living",
       attackInterval: 2, turnsSinceLastAttack: 2, targetCount: 2, attackDamage: 2
     });
     expect(resolveMonsterAttackPhase(bone.state, () => 0).attacks[0].targetPlayerIds).toEqual(["p1", "p2"]);
 
-    const ratty = summonMonster(readyState(), {
+    const ratty = summonMonster(createGameState("1x4", setup), {
       id: "ratty", catalogueId: "C04", attackPattern: "random_living",
       attackInterval: 1, turnsSinceLastAttack: 1, attackDamage: 1
     });
     expect(resolveMonsterAttackPhase(ratty.state, () => 0).attacks).toHaveLength(1);
 
-    const batty = summonMonster(readyState(), {
+    const batty = summonMonster(createGameState("1x4", setup), {
       id: "batty", catalogueId: "C08", attackPattern: "random_living",
       attackInterval: 1, turnsSinceLastAttack: 1, attackDamage: 1
     });
