@@ -9,7 +9,7 @@ export interface MonsterDamageEvent {
   hpAfter: number | null;
   hpDamage: number;
   defeated: boolean;
-  preventedBy?: "infinite_hp";
+  preventedBy?: "infinite_hp" | "attack_below_threshold";
   /** True when Webby's Attack-card defeat rule suppresses its normal reward. */
   rewardSuppressed?: boolean;
   /** Cards returned to their original owners when Sneaky is defeated. */
@@ -83,6 +83,10 @@ export function damageMonster(
   };
   if (monster.hp === null) {
     event.preventedBy = "infinite_hp";
+    return { state, event };
+  }
+  if (monster.catalogueId === "R06" && amount < 3) {
+    event.preventedBy = "attack_below_threshold";
     return { state, event };
   }
 

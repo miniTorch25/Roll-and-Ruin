@@ -368,7 +368,34 @@ export function resolveMonsterAttackEvents(
       }
 
       if (!hit.event.preventedBy && !hit.event.death && hit.event.attemptedDamage > 0) {
-        const status = monster.catalogueId === "R07"
+        if (monster.catalogueId === "R03" && Math.floor(random() * 6) + 1 <= 2 &&
+          state.players.some((player) => player.id === targetPlayerId && player.status === "alive")) {
+          const blast = applyDamage(state, targetPlayerId, 2, random, {
+            kind: "monster_attack",
+            sourceMonsterId: monster.id,
+            pierceShield
+          });
+          state = blast.state;
+          damageEvents.push(blast.event);
+        }
+
+        if (monster.catalogueId === "R08") {
+          const harpyTarget = state.players.find((player) => player.id === targetPlayerId && player.status === "alive");
+          if (harpyTarget && harpyTarget.hand.length > 0) {
+            const discardedIndex = Math.min(harpyTarget.hand.length - 1, Math.max(0, Math.floor(random() * harpyTarget.hand.length)));
+            const discardedCard = harpyTarget.hand[discardedIndex];
+            state = {
+              ...state,
+              players: state.players.map((player) => player.id === targetPlayerId
+                ? { ...player, hand: player.hand.filter((_, index) => index !== discardedIndex) }
+                : player)
+            };
+          }
+        }
+
+        const status = monster.catalogueId === "R01"
+          ? { type: "movement_reduction" as const, turnsRemaining: 1, amount: 1 }
+          : monster.catalogueId === "R07"
           ? { type: "poison" as const, turnsRemaining: 3, amount: 1 }
           : monster.catalogueId === "R04"
             ? { type: "dice_limit" as const, turnsRemaining: 1, amount: 1 }

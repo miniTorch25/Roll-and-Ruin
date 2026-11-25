@@ -312,6 +312,9 @@ export function resolveMonsterAttackPhase(
       selected = [forcedTarget];
     } else if (monster.attackPattern === "all_living") {
       selected = targets;
+    } else if (monster.catalogueId === "R02" && targets.length > 0) {
+      const largestHand = Math.max(...targets.map((player) => player.hand.length));
+      selected = chooseRandomTargets(targets.filter((player) => player.hand.length === largestHand), 1, random);
     } else if (monster.catalogueId === "C01" && targets.length > 0) {
       const previousTarget = targets.find((player) => player.id === monster.lastTargetPlayerId);
       if (previousTarget && random() < 0.6) {

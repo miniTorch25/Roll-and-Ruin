@@ -50,3 +50,17 @@ This is the shared baseline, not a complete implementation of all 50 monsters. S
 - **Webby (C05):** an Attack-card defeat marks its monster-damage event with `rewardSuppressed: true`, including Monster Hunter and Grenade splash. The reward consumer can use this flag to withhold the normal reward.
 - **Batty (C08):** uses a fresh random target selection for each scheduled attack; no target is remembered.
 - **Sneaky (C10):** on each scheduled attack, steals one random card from every selected target who has a card. The stolen cards are stored on Sneaky and returned to their original owners when it is defeated.
+
+
+## Additional Rare monster abilities
+
+- **Bob (R01):** a successful attack applies Slow for the target's next owner turn, reducing movement by one step.
+- **Chesty (R02):** scheduled attacks target a living player with the largest hand; ties are selected randomly. Its extra green-card defeat reward is recorded as a pending reward rule and still requires the centralized reward consumer.
+- **Wizzy (R03):** after a successful attack, the target rolls one D6; on 1–2, a second 2-damage blast is applied.
+- **Stoney (R04):** limits the target to one die on their next turn.
+- **Vampy (R05):** bypasses Defense shields and heals 2 HP after attacking, up to maximum HP.
+- **Ghosty (R06):** ignores damage below 3. The current damage API is used by Attack-card monster damage paths.
+- **Scorpy (R07):** applies three-turn Poison that deals 1 direct HP at the start of the target's turns.
+- **Harpy (R08):** after attacking, discards one random card from the target if they still have cards.
+- **Minoo (R09):** its start-corner movement trigger remains unimplemented; the board movement resolver needs monster tile-position integration.
+- **Frosty (R10):** limits the target to two cards on their next turn.
