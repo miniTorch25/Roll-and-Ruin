@@ -1,4 +1,4 @@
-# Card Effect Resolver — Player Attacks
+# Card Effect Resolver — Player Attacks and Pranks
 
 The authoritative card descriptions and numeric values remain in `Roll_and_Ruin_Rules.txt` and `src/cards/catalogue.ts`.
 
@@ -24,10 +24,20 @@ Attack bonuses from the current runtime are added to each attack action. The nex
 
 The axe removes shields before its hit is checked. Double-Edged Sword's self-HP cost bypasses shields and does not count as an incoming attack.
 
+## Implemented targeted yellow effects
+
+- **แอบดู:** returns the selected player's current hand as a reveal result for the caller/UI; the hand itself is unchanged.
+- **ล้วงกระเป๋า:** transfers one random card from the selected living player's hand to the active player.
+- **สลับที่:** swaps the active player's and selected target's board positions.
+- **แลกไพ่:** transfers one user-selected card to the target and one random card from the target back to the user.
+- **บังคับทิ้ง:** removes one card selected by the target and returns its ID in `discardedCardIds` for the caller to place in the discard pile.
+
+Random choices accept an injected random source for deterministic tests. Empty target hands make Pickpocket a no-op; Card Trade requires the target to have a card.
+
 ## Integration contract
 
-Call `resolveCardEffect(state, cardDefinitionOrId, options)` after `playCatalogueCard`. Targeted effects require `targetPlayerId`. The result includes `damageEvents` and any death outcomes so the caller can present combat feedback. Used cards still require explicit discard by the caller.
+Call `resolveCardEffect(state, cardDefinitionOrId, options)` after `playCatalogueCard`. Player-targeted effects require `targetPlayerId`; effects requiring the target to choose a hand card also require `selectedCardId`. Results include `damageEvents`, `revealedHands`, and `discardedCardIds` for the caller/UI. Used and forcibly discarded cards still require explicit deck discard handling by the caller.
 
 ## Not yet implemented
 
-Grenade splash needs monster/player target integration; Monster Hunter needs the monster HP catalogue and damage rules. Instant Kill, Resurrection sequencing, curses and their payment, status expiry, movement/dice changes, and deck manipulation remain separate work. BoardScene still does not route card selections into this resolver.
+Grenade splash needs monster/player target integration; Monster Hunter needs the monster HP catalogue and damage rules. Instant Kill, Resurrection sequencing, curse payment, draw/distribute cards, bonus dice and rerolls, status expiry, movement/dice changes, turn-skipping, and BoardScene integration remain separate work.

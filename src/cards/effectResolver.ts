@@ -21,6 +21,8 @@ export type CardEffectGameState = GameState & { cardRuntime: CardRuntimeState };
 export interface ResolveCardEffectOptions {
   /** Required by effects that name one player or teammate. */
   targetPlayerId?: string;
+  /** Card id selected by the player who must give or discard a card. */
+  selectedCardId?: string;
   /** Injectable random source, including random card-loss when a player dies. */
   random?: () => number;
 }
@@ -43,6 +45,8 @@ export interface ResolveCardEffectResult {
   appliedToPlayerIds: string[];
   endsCardPlay: boolean;
   damageEvents: DamageEvent[];
+  revealedHands: Array<{ playerId: string; cardIds: string[] }>;
+  discardedCardIds: string[];
 }
 
 const EMPTY_PLAYER_RUNTIME = (): CardRuntimePlayerState => ({
@@ -262,6 +266,11 @@ const IMPLEMENTED_EFFECTS = new Set<CardEffectId>([
   "damage_all_except_self",
   "damage_with_self_hp_cost",
   "conditional_damage",
+  "view_player_hand",
+  "steal_random_card",
+  "swap_positions",
+  "trade_for_random_card",
+  "force_discard_selected_card",
   "heal",
   "increase_max_hp",
   "gain_heart",
@@ -302,6 +311,8 @@ export function resolveCardEffect(
   const active = getActivePlayer(state);
   const appliedToPlayerIds: string[] = [active.id];
   const damageEvents: DamageEvent[] = [];
+  const revealedHands: Array<{ playerId: string; cardIds: string[] }> = [];
+  const discardedCardIds: string[] = [];
   let endsCardPlay = false;
   const amount = Number(card.parameters?.amount ?? 0);
 
@@ -351,6 +362,96 @@ export function resolveCardEffect(
         damageEvents.push(hit.event);
         appliedToPlayerIds.push(target.id);
       }
+      break;
+    }
+    case "view_player_hand": {
+      const target = requireOpponentTarget(state, active.id, options.targetPlayerId);
+      revealedHands.push({ playerId: target.id, cardIds: [...target.hand] });
+      appliedToPlayerIds.push(target.id);
+      break;
+    }
+    case "steal_random_card": {
+      const target = requireOpponentTarget(state, active.id, options.targetPlayerId);
+      if (target.hand.length > 0) {
+        const index = Math.min(target.hand.length - 1, Math.max(0, Math.floor(random() * target.hand.length)));
+        const [stolenCardId] = target.hand.slice(index, index + 1);
+        state = {
+          ...state,
+          players: state.players.map((player) => {
+            if (player.id === target.id) {
+              const hand = [...player.hand];
+              hand.splice(index, 1);
+              return { ...player, hand };
+            }
+            if (player.id === active.id) return { ...player, hand: [...player.hand, stolenCardId] };
+            return player;
+          })
+        };
+      }
+      appliedToPlayerIds.push(target.id);
+      break;
+    }
+    case "swap_positions": {
+      const target = requireOpponentTarget(state, active.id, options.targetPlayerId);
+      state = {
+        ...state,
+        players: state.players.map((player) => {
+          if (player.id === active.id) return { ...player, position: target.position };
+          if (player.id === target.id) return { ...player, position: active.position };
+          return player;
+        })
+      };
+      appliedToPlayerIds.push(target.id);
+      break;
+    }
+    case "trade_for_random_card": {
+      const target = requireOpponentTarget(state, active.id, options.targetPlayerId);
+      if (!options.selectedCardId || !active.hand.includes(options.selectedCardId)) {
+        throw new Error("This trade requires selectedCardId from the active player's hand.");
+      }
+      if (target.hand.length === 0) {
+        throw new Error("The selected player has no card to trade.");
+      }
+      const randomIndex = Math.min(target.hand.length - 1, Math.max(0, Math.floor(random() * target.hand.length)));
+      const receivedCardId = target.hand[randomIndex];
+      state = {
+        ...state,
+        players: state.players.map((player) => {
+          if (player.id === active.id) {
+            const hand = [...player.hand];
+            const givenIndex = hand.indexOf(options.selectedCardId as string);
+            hand.splice(givenIndex, 1);
+            hand.push(receivedCardId);
+            return { ...player, hand };
+          }
+          if (player.id === target.id) {
+            const hand = [...player.hand];
+            hand.splice(randomIndex, 1);
+            hand.push(options.selectedCardId as string);
+            return { ...player, hand };
+          }
+          return player;
+        })
+      };
+      appliedToPlayerIds.push(target.id);
+      break;
+    }
+    case "force_discard_selected_card": {
+      const target = requireOpponentTarget(state, active.id, options.targetPlayerId);
+      if (!options.selectedCardId || !target.hand.includes(options.selectedCardId)) {
+        throw new Error("This discard effect requires selectedCardId from the target player's hand.");
+      }
+      state = {
+        ...state,
+        players: state.players.map((player) => {
+          if (player.id !== target.id) return player;
+          const hand = [...player.hand];
+          hand.splice(hand.indexOf(options.selectedCardId as string), 1);
+          return { ...player, hand };
+        })
+      };
+      discardedCardIds.push(options.selectedCardId);
+      appliedToPlayerIds.push(target.id);
       break;
     }
     case "heal": {
@@ -503,5 +604,5 @@ export function resolveCardEffect(
     }
   }
 
-  return { state, card, appliedToPlayerIds, endsCardPlay, damageEvents };
+  return { state, card, appliedToPlayerIds, endsCardPlay, damageEvents, revealedHands, discardedCardIds };
 }
