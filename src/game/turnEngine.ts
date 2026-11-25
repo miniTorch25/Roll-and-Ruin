@@ -176,6 +176,9 @@ export function summonMonster(
   if (state.monsters.some((item) => item.id === monster.id)) {
     throw new Error(`Monster ${monster.id} already exists.`);
   }
+  if (state.monsters.filter((item) => item.active).length >= 4) {
+    throw new Error("A maximum of four active monsters may be on the board.");
+  }
   if (!Number.isInteger(monster.attackInterval) || monster.attackInterval < 1) {
     throw new Error("A monster must define its own positive attack interval.");
   }
