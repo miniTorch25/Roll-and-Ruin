@@ -3,7 +3,6 @@ import { getCardDefinition, type CardDefinition, type CardEffectId } from "./cat
 import { drawCards, type CardDeckState } from "./deck";
 import { damageMonster, summonRandomMonster, type MonsterDamageEvent } from "../monsters/engine";
 import type { MonsterRank } from "../monsters/catalogue";
-import type { MonsterAttackEvent } from "../game/turnEngine";
 
 export interface CardRuntimePlayerState {
   shields: number;
