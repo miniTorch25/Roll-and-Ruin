@@ -1,5 +1,6 @@
 import { applyPlayerDeath, getActivePlayer, MAX_CARDS_PER_TURN, type DeathResult, type GameState } from "../game/turnEngine";
 import { getCardDefinition, type CardDefinition, type CardEffectId } from "./catalogue";
+import { drawCards, type CardDeckState } from "./deck";
 
 export interface CardRuntimePlayerState {
   shields: number;
@@ -23,6 +24,8 @@ export interface ResolveCardEffectOptions {
   targetPlayerId?: string;
   /** Card id selected by the player who must give or discard a card. */
   selectedCardId?: string;
+  /** Current deck state for effects that draw cards. */
+  deck?: CardDeckState;
   /** Injectable random source, including random card-loss when a player dies. */
   random?: () => number;
 }
@@ -39,6 +42,11 @@ export interface DamageEvent {
   reflection?: DamageEvent;
 }
 
+export interface CardDrawEvent {
+  playerId: string;
+  drawnCardIds: string[];
+}
+
 export interface ResolveCardEffectResult {
   state: CardEffectGameState;
   card: CardDefinition;
@@ -47,6 +55,8 @@ export interface ResolveCardEffectResult {
   damageEvents: DamageEvent[];
   revealedHands: Array<{ playerId: string; cardIds: string[] }>;
   discardedCardIds: string[];
+  drawEvents: CardDrawEvent[];
+  deck?: CardDeckState;
 }
 
 const EMPTY_PLAYER_RUNTIME = (): CardRuntimePlayerState => ({
@@ -271,6 +281,8 @@ const IMPLEMENTED_EFFECTS = new Set<CardEffectId>([
   "swap_positions",
   "trade_for_random_card",
   "force_discard_selected_card",
+  "draw_cards",
+  "draw_and_distribute_cards",
   "heal",
   "increase_max_hp",
   "gain_heart",
@@ -313,6 +325,10 @@ export function resolveCardEffect(
   const damageEvents: DamageEvent[] = [];
   const revealedHands: Array<{ playerId: string; cardIds: string[] }> = [];
   const discardedCardIds: string[] = [];
+  const drawEvents: CardDrawEvent[] = [];
+  let updatedDeck: CardDeckState | undefined = options.deck
+    ? { drawPile: [...options.deck.drawPile], discardPile: [...options.deck.discardPile] }
+    : undefined;
   let endsCardPlay = false;
   const amount = Number(card.parameters?.amount ?? 0);
 
@@ -389,6 +405,58 @@ export function resolveCardEffect(
         };
       }
       appliedToPlayerIds.push(target.id);
+      break;
+    }
+    case "draw_cards": {
+      if (!updatedDeck) throw new Error("This card effect requires the current deck state.");
+      const drawn = drawCards(active.hand, updatedDeck, Number(card.parameters?.count ?? 0));
+      updatedDeck = drawn.deck;
+      state = {
+        ...state,
+        players: state.players.map((player) => player.id === active.id
+          ? { ...player, hand: drawn.hand }
+          : player)
+      };
+      drawEvents.push({ playerId: active.id, drawnCardIds: drawn.drawnCardIds });
+      break;
+    }
+    case "draw_and_distribute_cards": {
+      if (!updatedDeck) throw new Error("This card effect requires the current deck state.");
+      const selfDraw = drawCards(
+        active.hand,
+        updatedDeck,
+        Number(card.parameters?.selfDraw ?? 0)
+      );
+      updatedDeck = selfDraw.deck;
+      state = {
+        ...state,
+        players: state.players.map((player) => player.id === active.id
+          ? { ...player, hand: selfDraw.hand }
+          : player)
+      };
+      drawEvents.push({ playerId: active.id, drawnCardIds: selfDraw.drawnCardIds });
+
+      const recipients = state.players.filter((player) =>
+        player.id !== active.id && player.status === "alive"
+      );
+      for (const recipient of recipients) {
+        const currentRecipient = state.players.find((player) => player.id === recipient.id);
+        if (!currentRecipient) continue;
+        const sharedDraw = drawCards(
+          currentRecipient.hand,
+          updatedDeck,
+          Number(card.parameters?.otherPlayersDraw ?? 0)
+        );
+        updatedDeck = sharedDraw.deck;
+        state = {
+          ...state,
+          players: state.players.map((player) => player.id === recipient.id
+            ? { ...player, hand: sharedDraw.hand }
+            : player)
+        };
+        drawEvents.push({ playerId: recipient.id, drawnCardIds: sharedDraw.drawnCardIds });
+        appliedToPlayerIds.push(recipient.id);
+      }
       break;
     }
     case "swap_positions": {
@@ -604,5 +672,5 @@ export function resolveCardEffect(
     }
   }
 
-  return { state, card, appliedToPlayerIds, endsCardPlay, damageEvents, revealedHands, discardedCardIds };
+  return { state, card, appliedToPlayerIds, endsCardPlay, damageEvents, revealedHands, discardedCardIds, drawEvents, deck: updatedDeck };
 }
