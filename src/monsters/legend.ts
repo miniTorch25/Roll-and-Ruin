@@ -198,12 +198,6 @@ export function resolveLegendOffering(
       : item)
   };
   deck.discardPile.push(...contributions.flatMap(contribution => contribution.cardIds));
-  if (monster.catalogueId === "L10" && selectedPlayerId) {
-    // The Curse card is awarded to the player who contributed the most cards.
-    state = { ...state, players: state.players.map(player => player.id === selectedPlayerId
-      ? { ...player, hand: [...player.hand, ...awardedCardIds] }
-      : player) };
-  }
   return {
     state,
     deck,
