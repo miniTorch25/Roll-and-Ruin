@@ -19,7 +19,7 @@ export function playCatalogueCard(state: GameState, cardId: string): PlayCatalog
   }
 
   return {
-    state: playCardFromHand(state, cardId, card.scoreValue),
+    state: playCardFromHand(state, cardId, card.scoreValue, card.kind === "attack"),
     card,
     playedCardId: cardId
   };
