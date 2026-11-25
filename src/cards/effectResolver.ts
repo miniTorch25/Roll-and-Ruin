@@ -512,7 +512,7 @@ export function resolveCardEffect(
         Math.max(1, Number(card.parameters?.damage ?? 5) + attack.bonus),
         active.id
       );
-      state = hit.state;
+      state = hit.state as CardEffectGameState;
       monsterDamageEvents.push(hit.event);
       break;
     }
@@ -550,7 +550,7 @@ export function resolveCardEffect(
           appliedToPlayerIds.push(splashTarget.id);
         } else {
           const splash = damageMonster(state, splashTarget.id, splashDamage, active.id);
-          state = splash.state;
+          state = splash.state as CardEffectGameState;
           monsterDamageEvents.push(splash.event);
         }
       }
@@ -564,7 +564,7 @@ export function resolveCardEffect(
       }
       const instanceId = `monster-${state.turnNumber}-${state.monsters.length + 1}-${card.id}`;
       const summoned = summonRandomMonster(state, rank as MonsterRank, instanceId, random);
-      state = summoned.state;
+      state = summoned.state as CardEffectGameState;
       monsterSummonEvents.push(summoned.attack);
       break;
     }
