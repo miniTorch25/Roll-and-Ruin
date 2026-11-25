@@ -36,18 +36,18 @@ function completeEmptyTurn(state: ReturnType<typeof readyState>) {
 describe("Roll and Ruin turn engine", () => {
   it("supports all four confirmed match formats and validates team sizes", () => {
     expect(createGameState("1v1", [
-      { id: "a", teamId: "red" }, { id: "b", teamId: "blue" }
+      { id: "a", teamId: "red", startingHand: ["1","2","3","4"] }, { id: "b", teamId: "blue", startingHand: ["1","2","3","4"] }
     ]).players).toHaveLength(2);
     expect(createGameState("1x4", setup).players).toHaveLength(4);
     expect(createGameState("2v2", [
-      { id: "a", teamId: "red" }, { id: "b", teamId: "red" },
-      { id: "c", teamId: "blue" }, { id: "d", teamId: "blue" }
+      { id: "a", teamId: "red", startingHand: ["1","2","3","4"] }, { id: "b", teamId: "red", startingHand: ["1","2","3","4"] },
+      { id: "c", teamId: "blue", startingHand: ["1","2","3","4"] }, { id: "d", teamId: "blue", startingHand: ["1","2","3","4"] }
     ]).players).toHaveLength(4);
     expect(createGameState("2x4", [
-      { id: "a", teamId: "A" }, { id: "b", teamId: "A" },
-      { id: "c", teamId: "B" }, { id: "d", teamId: "B" },
-      { id: "e", teamId: "C" }, { id: "f", teamId: "C" },
-      { id: "g", teamId: "D" }, { id: "h", teamId: "D" }
+      { id: "a", teamId: "A", startingHand: ["1","2","3","4"] }, { id: "b", teamId: "A", startingHand: ["1","2","3","4"] },
+      { id: "c", teamId: "B", startingHand: ["1","2","3","4"] }, { id: "d", teamId: "B", startingHand: ["1","2","3","4"] },
+      { id: "e", teamId: "C", startingHand: ["1","2","3","4"] }, { id: "f", teamId: "C", startingHand: ["1","2","3","4"] },
+      { id: "g", teamId: "D", startingHand: ["1","2","3","4"] }, { id: "h", teamId: "D", startingHand: ["1","2","3","4"] }
     ]).players).toHaveLength(8);
   });
 
@@ -57,9 +57,8 @@ describe("Roll and Ruin turn engine", () => {
     expect(state.players[0]).toMatchObject({
       hp: 20, maxHp: 20, hearts: 3, hand: ["a", "b", "c", "d"]
     });
-    expect(() => createGameState("1x4", setup, 3, 18)).toThrow();
-    expect(() => createGameState("1x4", setup.map(({ startingHand, ...player }) => player)
-      .map((player) => ({ ...player, startingHand: ["a", "b", "c"] })))).toThrow();
+    expect(() => createGameState("1x4", setup, 18)).toThrow();
+    expect(() => createGameState("1x4", setup.map((player) => ({ ...player, startingHand: ["a", "b", "c"] })))).toThrow();
   });
 
   it("draws two supplied cards and rolls exactly one die", () => {
