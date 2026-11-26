@@ -1,5 +1,5 @@
 import { applyPlayerDeath, getActivePlayer, imprisonPlayer, resurrectPlayer, MAX_CARDS_PER_TURN, type DeathResult, type GameState, type GameMonster, type PlayerStatusEffect, type PlayerStatusEffectType, type MonsterAttackEvent } from "../game/turnEngine";
-import { getCardDefinition, type CardDefinition, type CardEffectId } from "./catalogue";
+import { CARD_CATALOGUE, getCardDefinition, type CardDefinition, type CardEffectId } from "./catalogue";
 import { drawCards, type CardDeckState } from "./deck";
 import { resolveMonsterDefeatRewards, type MonsterRewardEvent } from "../monsters/rewards";
 import { damageMonster, summonRandomMonster, type MonsterDamageEvent } from "../monsters/engine";
@@ -48,6 +48,9 @@ export interface ResolveCardEffectOptions {
   deck?: CardDeckState;
   /** Required payment choice when playing a Curse card. */
   cursePayment?: CursePayment;
+  /** Joker-triggered curses resolve without their normal payment and may target their recipient. */
+  skipCursePayment?: boolean;
+  allowSelfTarget?: boolean;
   /** Selected values for Control Dice; one value for each die that will be rolled. */
   diceValues?: number[];
   /** Injectable random source, including random card-loss when a player dies. */
@@ -88,6 +91,7 @@ export interface ResolveCardEffectResult {
   drawEvents: CardDrawEvent[];
   deck?: CardDeckState;
   cursePayment?: CursePayment;
+  boardRerollRequested: boolean;
 }
 
 const EMPTY_PLAYER_RUNTIME = (): CardRuntimePlayerState => ({
@@ -189,9 +193,9 @@ function requireLivingPlayer(state: CardEffectGameState, playerId: string) {
   return player;
 }
 
-function requireOpponentTarget(state: CardEffectGameState, attackerId: string, targetId?: string) {
+function requireOpponentTarget(state: CardEffectGameState, attackerId: string, targetId?: string, allowSelfTarget = false) {
   if (!targetId) throw new Error("This card effect requires targetPlayerId.");
-  if (targetId === attackerId) throw new Error("An attack card must target another player.");
+  if (targetId === attackerId && !allowSelfTarget) throw new Error("An attack card must target another player.");
   return requireLivingPlayer(state, targetId);
 }
 
@@ -538,6 +542,8 @@ function applyLegendMonsterReflection(
 
 const IMPLEMENTED_EFFECTS = new Set<CardEffectId>([
   "damage_with_random_splash",
+  "joker_chaos",
+  "clear_monsters_and_reroll_tiles",
   "damage_monster_only",
   "summon_random_monster",
   "damage_single",
@@ -626,10 +632,11 @@ export function resolveCardEffect(
     ? { drawPile: [...options.deck.drawPile], discardPile: [...options.deck.discardPile] }
     : undefined;
   let endsCardPlay = false;
+  let boardRerollRequested = false;
   const amount = Number(card.parameters?.amount ?? 0);
 
 
-  if (card.kind === "curse") {
+  if (card.kind === "curse" && !options.skipCursePayment) {
     const payment = options.cursePayment;
     if (!payment) throw new Error("A Curse card requires an explicit cursePayment.");
     if (!card.curseCostOptions?.length) throw new Error("This Curse card has no configured payment options.");
@@ -689,6 +696,76 @@ export function resolveCardEffect(
   }
 
   switch (card.effectId) {
+    case "joker_chaos": {
+      const recipients = state.players.filter((player) => player.status === "alive").map((player) => player.id);
+
+      for (const recipientId of recipients) {
+        const recipient = state.players.find((player) => player.id === recipientId);
+        if (!recipient || recipient.status !== "alive") continue;
+
+        // Exclude curses that cannot currently resolve because their required world/player state is absent.
+        const eliminatedPlayers = state.players.filter((player) => player.status === "eliminated");
+        const activeMonsters = state.monsters.filter((monster) => monster.active);
+        const recipientRuntime = state.cardRuntime.players[recipientId];
+        const curseCards = CARD_CATALOGUE.filter((candidate) =>
+          candidate.kind === "curse" &&
+          (candidate.effectId !== "steal_eliminated_player_cards" || eliminatedPlayers.length > 0) &&
+          (candidate.effectId !== "mark_monster_attack_target" || activeMonsters.length > 0) &&
+          (candidate.effectId !== "control_dice_values" || !recipientRuntime.diceControlUsedThisTurn)
+        );
+        if (curseCards.length === 0) throw new Error("Joker has no currently resolvable Curse cards.");
+
+        const curseIndex = Math.min(curseCards.length - 1, Math.max(0, Math.floor(random() * curseCards.length)));
+        const curse = curseCards[curseIndex];
+        let curseTargetId = recipientId;
+        let diceValues: number[] | undefined;
+
+        if (curse.effectId === "steal_eliminated_player_cards") {
+          const targetIndex = Math.min(eliminatedPlayers.length - 1, Math.max(0, Math.floor(random() * eliminatedPlayers.length)));
+          curseTargetId = eliminatedPlayers[targetIndex].id;
+        }
+
+        // Control Dice is auto-resolved with random legal values for the recipient's current dice count.
+        if (curse.effectId === "control_dice_values") {
+          const limited = recipient.statusEffects.some((effect) => effect.type === "dice_limit" && effect.turnsRemaining > 0);
+          const expectedDice = limited ? 1 : Math.min(3, 1 + recipientRuntime.bonusDiceThisTurn);
+          diceValues = Array.from({ length: expectedDice }, () => 1 + Math.floor(random() * 6));
+        }
+
+        try {
+          const resolvedCurse = resolveCardEffect(state, curse, {
+            targetPlayerId: curseTargetId,
+            deck: updatedDeck,
+            random,
+            skipCursePayment: true,
+            allowSelfTarget: true,
+            diceValues
+          });
+          state = resolvedCurse.state;
+          updatedDeck = resolvedCurse.deck ?? updatedDeck;
+          appliedToPlayerIds.push(...resolvedCurse.appliedToPlayerIds.filter((id) => !appliedToPlayerIds.includes(id)));
+          damageEvents.push(...resolvedCurse.damageEvents);
+          monsterDamageEvents.push(...resolvedCurse.monsterDamageEvents);
+          monsterSummonEvents.push(...resolvedCurse.monsterSummonEvents);
+          summonWarnings.push(...resolvedCurse.summonWarnings);
+          revealedHands.push(...resolvedCurse.revealedHands);
+          discardedCardIds.push(...resolvedCurse.discardedCardIds);
+          drawEvents.push(...resolvedCurse.drawEvents);
+          boardRerollRequested ||= resolvedCurse.boardRerollRequested;
+        } catch {
+          // A curse that becomes invalid during the chain fizzles without cancelling the other players' curses.
+        }
+      }
+      break;
+    }
+    case "clear_monsters_and_reroll_tiles": {
+      state = {
+        ...state,
+        monsters: state.monsters.map((monster) => ({ ...monster, active: false }))
+      };
+      boardRerollRequested = true;
+      break;
+    }
     case "damage_monster_only": {
       if (!options.targetMonsterId) {
         throw new Error("Monster Hunter requires targetMonsterId.");
@@ -721,7 +798,7 @@ export function resolveCardEffect(
       break;
     }
     case "damage_with_random_splash": {
-      const target = requireOpponentTarget(state, active.id, options.targetPlayerId);
+      const target = requireOpponentTarget(state, active.id, options.targetPlayerId, card.kind === "curse" && options.allowSelfTarget === true);
       const attack = takeAttackBonus(state, active.id);
       state = attack.state;
       const primary = applyDamage(
@@ -811,7 +888,7 @@ export function resolveCardEffect(
     case "damage_and_remove_shields":
     case "damage_with_self_hp_cost":
     case "conditional_damage": {
-      const target = requireOpponentTarget(state, active.id, options.targetPlayerId);
+      const target = requireOpponentTarget(state, active.id, options.targetPlayerId, card.kind === "curse" && options.allowSelfTarget === true);
       const attack = takeAttackBonus(state, active.id);
       state = attack.state;
       let damage = Number(card.parameters?.damage ?? card.parameters?.targetDamage ?? card.parameters?.baseDamage ?? 0);
@@ -861,7 +938,7 @@ export function resolveCardEffect(
     case "reverse_movement_direction":
     case "reduce_dice_values":
     case "reveal_player_hand": {
-      const target = requireOpponentTarget(state, active.id, options.targetPlayerId);
+      const target = requireOpponentTarget(state, active.id, options.targetPlayerId, card.kind === "curse" && options.allowSelfTarget === true);
       const rawDuration = card.parameters?.duration;
       const duration = typeof rawDuration === "number"
         ? rawDuration
@@ -893,13 +970,13 @@ export function resolveCardEffect(
       break;
     }
     case "view_player_hand": {
-      const target = requireOpponentTarget(state, active.id, options.targetPlayerId);
+      const target = requireOpponentTarget(state, active.id, options.targetPlayerId, card.kind === "curse" && options.allowSelfTarget === true);
       revealedHands.push({ playerId: target.id, cardIds: [...target.hand] });
       appliedToPlayerIds.push(target.id);
       break;
     }
     case "steal_random_card": {
-      const target = requireOpponentTarget(state, active.id, options.targetPlayerId);
+      const target = requireOpponentTarget(state, active.id, options.targetPlayerId, card.kind === "curse" && options.allowSelfTarget === true);
       if (target.hand.length > 0) {
         const activeHasKill = active.hand.includes("red_instant_kill");
         const stealableIndexes = target.hand.map((cardId, index) => ({ cardId, index }))
@@ -980,7 +1057,7 @@ export function resolveCardEffect(
       break;
     }
     case "swap_positions": {
-      const target = requireOpponentTarget(state, active.id, options.targetPlayerId);
+      const target = requireOpponentTarget(state, active.id, options.targetPlayerId, card.kind === "curse" && options.allowSelfTarget === true);
       state = {
         ...state,
         players: state.players.map((player) => {
@@ -993,7 +1070,7 @@ export function resolveCardEffect(
       break;
     }
     case "trade_for_random_card": {
-      const target = requireOpponentTarget(state, active.id, options.targetPlayerId);
+      const target = requireOpponentTarget(state, active.id, options.targetPlayerId, card.kind === "curse" && options.allowSelfTarget === true);
       if (!options.selectedCardId || !active.hand.includes(options.selectedCardId)) {
         throw new Error("This trade requires selectedCardId from the active player's hand.");
       }
@@ -1029,7 +1106,7 @@ export function resolveCardEffect(
       break;
     }
     case "force_discard_selected_card": {
-      const target = requireOpponentTarget(state, active.id, options.targetPlayerId);
+      const target = requireOpponentTarget(state, active.id, options.targetPlayerId, card.kind === "curse" && options.allowSelfTarget === true);
       if (!options.selectedCardId || !target.hand.includes(options.selectedCardId)) {
         throw new Error("This discard effect requires selectedCardId from the target player's hand.");
       }
@@ -1047,7 +1124,7 @@ export function resolveCardEffect(
       break;
     }
     case "discard_random_half_hand": {
-      const target = requireOpponentTarget(state, active.id, options.targetPlayerId);
+      const target = requireOpponentTarget(state, active.id, options.targetPlayerId, card.kind === "curse" && options.allowSelfTarget === true);
       const discardCount = Math.ceil(target.hand.length * Number(card.parameters?.fraction ?? 0.5));
       const remaining = [...target.hand];
       const discarded: string[] = [];
@@ -1087,7 +1164,7 @@ export function resolveCardEffect(
       break;
     }
     case "remove_buffs_and_shields": {
-      const target = requireOpponentTarget(state, active.id, options.targetPlayerId);
+      const target = requireOpponentTarget(state, active.id, options.targetPlayerId, card.kind === "curse" && options.allowSelfTarget === true);
       state = updatePlayerRuntime(state, target.id, (current) => ({
         ...current,
         shields: 0,
@@ -1101,7 +1178,7 @@ export function resolveCardEffect(
       break;
     }
     case "mark_monster_attack_target": {
-      const target = requireOpponentTarget(state, active.id, options.targetPlayerId);
+      const target = requireOpponentTarget(state, active.id, options.targetPlayerId, card.kind === "curse" && options.allowSelfTarget === true);
       if (!state.monsters.some((monster) => monster.active)) {
         throw new Error("เหยื่อล่ requires at least one active monster on the board.");
       }
@@ -1115,7 +1192,7 @@ export function resolveCardEffect(
       break;
     }
     case "instant_kill": {
-      const target = requireOpponentTarget(state, active.id, options.targetPlayerId);
+      const target = requireOpponentTarget(state, active.id, options.targetPlayerId, card.kind === "curse" && options.allowSelfTarget === true);
       const shields = state.cardRuntime.players[target.id].shields;
       const hit = applyDamage(state, target.id, target.hp + shields, random, {
         sourcePlayerId: active.id
@@ -1126,7 +1203,7 @@ export function resolveCardEffect(
       break;
     }
     case "force_prison": {
-      const target = requireOpponentTarget(state, active.id, options.targetPlayerId);
+      const target = requireOpponentTarget(state, active.id, options.targetPlayerId, card.kind === "curse" && options.allowSelfTarget === true);
       state = imprisonPlayer(state, target.id, 3) as CardEffectGameState;
       appliedToPlayerIds.push(target.id);
       break;
@@ -1145,7 +1222,7 @@ export function resolveCardEffect(
       break;
     }
     case "drain_hp_and_heal": {
-      const target = requireOpponentTarget(state, active.id, options.targetPlayerId);
+      const target = requireOpponentTarget(state, active.id, options.targetPlayerId, card.kind === "curse" && options.allowSelfTarget === true);
       const hit = applyDamage(
         state,
         target.id,
@@ -1169,7 +1246,7 @@ export function resolveCardEffect(
       break;
     }
     case "halve_current_hp": {
-      const target = requireOpponentTarget(state, active.id, options.targetPlayerId);
+      const target = requireOpponentTarget(state, active.id, options.targetPlayerId, card.kind === "curse" && options.allowSelfTarget === true);
       const newHp = Math.floor(target.hp / 2);
       const hpLoss = target.hp - newHp;
       const loss = applyHpCost(state, target.id, hpLoss, random, "direct_hp_loss");
@@ -1194,7 +1271,7 @@ export function resolveCardEffect(
       break;
     }
     case "swap_current_hp": {
-      const target = requireOpponentTarget(state, active.id, options.targetPlayerId);
+      const target = requireOpponentTarget(state, active.id, options.targetPlayerId, card.kind === "curse" && options.allowSelfTarget === true);
       const activeHp = state.players.find((player) => player.id === active.id)?.hp ?? active.hp;
       state = {
         ...state,
@@ -1246,7 +1323,9 @@ export function resolveCardEffect(
       break;
     }
     case "control_dice_values": {
-      const runtime = state.cardRuntime.players[active.id];
+      const controllerId = options.allowSelfTarget && options.targetPlayerId ? options.targetPlayerId : active.id;
+      const controller = requireLivingPlayer(state, controllerId);
+      const runtime = state.cardRuntime.players[controllerId];
       if (runtime.diceControlUsedThisTurn) {
         throw new Error("Dice values can only be controlled once per turn.");
       }
@@ -1260,14 +1339,14 @@ export function resolveCardEffect(
       ) {
         throw new Error(`Control Dice requires 1 to ${maximumDice} integer die value(s), each from 1 to 6.`);
       }
-      const diceLimited = active.statusEffects.some((effect) =>
+      const diceLimited = controller.statusEffects.some((effect) =>
         effect.type === "dice_limit" && effect.turnsRemaining > 0
       );
       const expectedDice = diceLimited ? 1 : Math.min(3, 1 + runtime.bonusDiceThisTurn);
       if (diceValues.length !== expectedDice) {
         throw new Error(`Choose exactly ${expectedDice} value(s) for the dice rolled this turn.`);
       }
-      state = updatePlayerRuntime(state, active.id, (current) => ({
+      state = updatePlayerRuntime(state, controllerId, (current) => ({
         ...current,
         controlledDiceValues: [...diceValues],
         diceControlUsedThisTurn: true
@@ -1438,7 +1517,7 @@ export function resolveCardEffect(
     monsterRewardEvents = rewards.events;
   }
 
-  return { state, card, appliedToPlayerIds, endsCardPlay, damageEvents, monsterDamageEvents, monsterRewardEvents, monsterSummonEvents, summonWarnings, revealedHands, discardedCardIds, drawEvents, deck: updatedDeck, cursePayment: options.cursePayment };
+  return { state, card, appliedToPlayerIds, endsCardPlay, damageEvents, monsterDamageEvents, monsterRewardEvents, monsterSummonEvents, summonWarnings, revealedHands, discardedCardIds, drawEvents, deck: updatedDeck, cursePayment: options.cursePayment, boardRerollRequested };
 }
 
 

@@ -66,6 +66,19 @@ function withRuntime(
   };
 }
 
+describe("Joker chaos card", () => {
+  it("automatically assigns one random Curse to every living player, including the Joker user, without payment", () => {
+    const result = resolveCardEffect(cardPlayState(), "white_joker", { random: () => 0.12 });
+    expect(result.state.players.map((player) => player.prisonTurnsRemaining)).toEqual([3, 3, 3, 3]);
+    expect(result.boardRerollRequested).toBe(false);
+  });
+
+  it("requests a board reroll when a randomly assigned board-wipe Curse resolves", () => {
+    const result = resolveCardEffect(cardPlayState(), "white_joker", { random: () => 0.08 });
+    expect(result.boardRerollRequested).toBe(true);
+  });
+});
+
 describe("player attack card effects", () => {
   it("absorbs damage with shield before reducing HP", () => {
     const state = withRuntime(cardPlayState(), "p2", { shields: 2 });
