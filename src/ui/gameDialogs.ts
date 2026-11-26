@@ -70,6 +70,9 @@ export function selectCardsDialog(
   requiredCount?: number
 ): Promise<string[] | undefined> {
   if (!cards.length) return Promise.resolve(undefined);
+  if (requiredCount !== undefined && new Set(cards.map(card => card.id)).size < requiredCount) {
+    return Promise.reject(new Error(`ต้องมีไพ่ที่เลือกได้อย่างน้อย ${requiredCount} ใบ`));
+  }
   return new Promise(resolve => {
     const dialog = document.createElement("dialog");
     dialog.className = "game-choice-dialog";
