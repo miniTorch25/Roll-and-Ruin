@@ -268,10 +268,10 @@ export function chooseBotCards(state: GameState, random: () => number = Math.ran
   const player = state.players[state.activePlayerIndex];
   if (!player || player.status !== "alive") return [];
   if (player.statusEffects.some(effect => effect.type === "cards_silenced" && effect.turnsRemaining > 0)) return [];
-  const cardLimit = player.statusEffects
+  const maxCardsThisTurn = player.statusEffects
     .filter(effect => effect.type === "cards_limit" && effect.turnsRemaining > 0)
     .reduce((limit, effect) => Math.min(limit, effect.amount ?? 2), 3);
-  if (player.cardsPlayedThisTurn >= Math.min(3, cardLimit)) return [];
+  if (player.cardsPlayedThisTurn >= Math.min(3, maxCardsThisTurn)) return [];
   const mythRuntime = (state as GameState & { mythRuntime?: { catalogueId: string; hiddenHands: boolean } }).mythRuntime;
   if (mythRuntime?.catalogueId === "M05" && mythRuntime.hiddenHands && player.hand.length > 0) {
     const roll = random();
