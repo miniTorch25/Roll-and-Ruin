@@ -56,7 +56,7 @@ src/
 - [x] ทดสอบ Card Effect และ Monster interaction แบบ end-to-end ใน Browser (Playwright: startup, turn action, targeted Attack, Monster Summon และ Monster Hunter)
 - [x] ระบบรวมคะแนนทีมและตัดสินผู้ชนะจากคะแนนพร้อมกติกาเสมอด้วยจำนวนผู้เล่นที่รอด
 - [x] ระบบจับเวลา Time Limit / Speedrun และหน้าสรุปผลการแข่งขัน พร้อมตัดสินผู้ชนะจากคะแนนและจำนวนผู้เล่นที่รอด
-- [ ] Browser Playtest ตั้งแต่เริ่มเกมจนจบเกม
+- [x] Browser Playtest ตั้งแต่เริ่มเกมจนจบเกม (Playwright ครอบคลุม Setup, Turn Action, Timer Expiry และ Results)
 - [ ] UI/UX สำหรับมือถือและเดสก์ท็อปให้สมบูรณ์
 - [ ] ห้อง Multiplayer และการเชื่อมต่อผู้เล่นจริง
 - [ ] Backend ที่ตรวจสอบกติกาฝั่ง Server

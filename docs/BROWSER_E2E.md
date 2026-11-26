@@ -17,7 +17,7 @@ npm run test:e2e
 - Play a targeted Attack card, select an opponent, and verify the target's HP changes.
 - Summon a Rare Monster from a card, verify it appears in the monster panel, then use Monster Hunter and verify the monster's HP changes.
 
-The suite runs in GitHub Actions after TypeScript and game-logic tests and before the production build.
+The suite runs in GitHub Actions after TypeScript and game-logic tests and before the production build. The timed-match lifecycle test starts a match, completes a player turn, expires the timer, and verifies the final results screen.
 
 ## Separate remaining work
 
