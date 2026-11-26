@@ -238,7 +238,12 @@ describe("bot monster offerings", () => {
     expect(chooseBotMythOffering(insufficient, "hecate")).toEqual([]);
     const granfel = { ...hecate, monsters: [{ ...hecate.monsters[0], id: "granfel", catalogueId: "M02" }],
       mythRuntime: { ...hecate.mythRuntime, monsterId: "granfel", catalogueId: "M02" } };
-    expect(chooseBotMythOffering(granfel, "granfel")).toHaveLength(3);
+    expect(chooseBotMythOffering(granfel, "granfel", [
+      "red_forced_prison", "red_table_flip", "red_grave_robbery"
+    ])).toHaveLength(3);
+    expect(chooseBotMythOffering(granfel, "granfel", [
+      "red_forced_prison", "red_table_flip"
+    ])).toEqual([]);
   });
 
   it("uses one random hand card while Nyxia hides card identities", () => {
@@ -249,6 +254,23 @@ describe("bot monster offerings", () => {
         turnsSinceLastAttack: 0, active: true }] };
     expect(chooseBotCards(nyxia, () => 0)).toEqual(["green_herbal_potion"]);
     expect(chooseBotCards(nyxia, () => 0.99)).toEqual(["green_brave_spirit"]);
+
+    const unpayableCurse = {
+      ...nyxia,
+      players: nyxia.players.map((player, index) => index === 0
+        ? { ...player, hp: 1, hand: ["red_instant_kill", "green_herbal_potion"] }
+        : player),
+      cardRuntime: { players: { p1: { curseCooldownUses: 3, curseCooldownTurnsRemaining: 1 } } }
+    } as unknown as typeof nyxia;
+    expect(chooseBotCards(unpayableCurse, () => 0)).toEqual(["green_herbal_potion"]);
+
+    const noPlayableCards = {
+      ...unpayableCurse,
+      players: unpayableCurse.players.map((player, index) => index === 0
+        ? { ...player, hand: ["red_instant_kill"] }
+        : player)
+    };
+    expect(chooseBotCards(noPlayableCards, () => 0)).toEqual([]);
   });
 
   it("plans Kingo's five-card tribute using bots only and balances contributions", () => {
@@ -274,6 +296,24 @@ describe("bot monster offerings", () => {
       player.id === "p2" ? { ...player, isBot: false } :
       player.id === "p3" ? { ...player, isBot: false } : player
     ) }, "kingo")).toBeUndefined();
+  });
+
+  it("can select five duplicate card copies for Kingo across bot hands", () => {
+    const state = stateWithHand(["blue_common_sword"]);
+    const kingo = {
+      ...state,
+      players: state.players.map(player => ({
+        ...player,
+        isBot: true,
+        hand: ["blue_common_sword", "blue_common_sword"]
+      })),
+      monsters: [{ id: "kingo-duplicates", catalogueId: "L10", name: "Kingo", rank: "Legend" as const,
+        hp: 220, maxHp: 220, attackPattern: "random_living" as const, attackInterval: 5,
+        turnsSinceLastAttack: 0, active: true }]
+    };
+    const contributions = chooseBotKingoOffering(kingo, "kingo-duplicates");
+    expect(contributions?.flatMap(item => item.cardIds)).toEqual(Array(5).fill("blue_common_sword"));
+    expect(contributions?.every(item => item.cardIds.length <= 2)).toBe(true);
   });
 
   it("offers only colors Ouro still needs", () => {
