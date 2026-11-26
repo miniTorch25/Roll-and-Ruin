@@ -90,5 +90,5 @@ Holy Water clears the player's timed negative statuses. Reapplying the same stat
 ## Not implemented by this engine
 - Mystery, Monster, Prison, and Dice landing effects are connected by BoardScene.
 - Monster damage, HP, status effects, per-monster special behavior, and rewards.
-- Time Limit / Speedrun timers, timeout handling, and final result UI.\n- Online multiplayer, rooms, server-authoritative state, and reconnection handling.
+- Time Limit / Speedrun timers, timeout handling, and final result UI.
 - Online multiplayer, rooms, server-authoritative state, and reconnection handling.
