@@ -41,6 +41,7 @@ export interface TurnCardRuntimePlayer {
   invulnerableOwnerTurns?: number;
   attackDamageBonus?: number;
   defenseShieldBonus?: number;
+  nextAttackDamageBonus?: number;
   blockedAttackCardsThisTurn?: boolean;
   curseCooldownTurnsRemaining?: number;
   curseCooldownFresh?: boolean;
