@@ -33,7 +33,7 @@ export function chooseOptionDialog(
         <h2>${escapeHtml(title)}</h2>
         <p class="game-choice-dialog__description">${escapeHtml(description)}</p>
         <div class="game-choice-dialog__options">
-          ${options.map((option, index) => `
+          ${options.map(option => `
             <button type="button" class="game-choice-dialog__option" data-value="${escapeHtml(option.value)}">
               <strong>${escapeHtml(option.label)}</strong>
               ${option.description ? `<small>${escapeHtml(option.description)}</small>` : ""}
