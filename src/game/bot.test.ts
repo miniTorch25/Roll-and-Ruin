@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { chooseBotAction, chooseBotCards, chooseBotCardTargets, chooseBotCursePayment, chooseBotLegendOffering, chooseBotMythOffering } from "./bot";
+import { chooseBotAction, chooseBotCards, chooseBotCardTargets, chooseBotCursePayment, chooseBotDiceValues, chooseBotLegendOffering, chooseBotMythOffering, chooseBotSelectedCardId } from "./bot";
 import { createGameState } from "./turnEngine";
 import { CARD_CATALOGUE } from "../cards/catalogue";
 
@@ -118,8 +118,39 @@ describe("chooseBotCards", () => {
     expect(chooseBotCursePayment(cooldownState, "p1")).toEqual({ type: "cooldown" });
   });
 
-  it("does not select targeted, curse, or summon cards when no legal target exists", () => {
-    const state = stateWithHand(["blue_common_sword", "red_instant_kill", "red_summon_common", "yellow_sleep_spell"]);
+  it("uses summon cards only when the board and rank limits allow it", () => {
+    expect(chooseBotCards(stateWithHand(["red_summon_common"]))).toContain("red_summon_common");
+    const fullBoard = { ...stateWithHand(["red_summon_common"]), monsters: Array.from({ length: 5 }, (_, index) => ({
+      id: `m${index}`, rank: "Common" as const, hp: 5, maxHp: 5,
+      attackPattern: "random_living" as const, attackInterval: 2, turnsSinceLastAttack: 0, active: true
+    })) };
+    expect(chooseBotCards(fullBoard)).toEqual([]);
+  });
+
+  it("selects cards for manual discard and trade effects", () => {
+    const state = stateWithHand(["yellow_card_trade", "yellow_forced_discard", "green_herbal_potion"]);
+    const targetState = { ...state, players: state.players.map((player, index) => index === 1
+      ? { ...player, hand: ["blue_common_sword", "red_instant_kill"] }
+      : player) };
+    expect(chooseBotSelectedCardId(targetState, "force_discard_selected_card", "p2")).toBe("red_instant_kill");
+    expect(chooseBotSelectedCardId(targetState, "trade_for_random_card", "p2")).toBe("yellow_card_trade");
+  });
+
+  it("chooses the maximum legal dice values for Control Dice", () => {
+    const state = stateWithHand(["red_dice_control"]);
+    expect(chooseBotDiceValues(state, "p1")).toEqual([6]);
+    const withBonus = { ...state, cardRuntime: { players: { p1: {
+      shields: 0, invulnerableOwnerTurns: 0, reflectionCharges: 0, attackDamageBonus: 0,
+      defenseShieldBonus: 0, nextAttackDamageBonus: 0, blockedAttackCardsThisTurn: false,
+      negativeStatuses: [], curseCooldownTurnsRemaining: 0, curseCooldownUses: 0, curseCooldownFresh: false,
+      bonusDiceThisTurn: 2, luckyDiceUsedThisTurn: false, rerollsRemaining: 0, rerollCardUsedThisTurn: false,
+      controlledDiceValues: [], diceControlUsedThisTurn: false
+    } } } };
+    expect(chooseBotDiceValues(withBonus, "p1")).toEqual([6, 6, 6]);
+  });
+
+  it("does not select targeted cards when no legal target exists", () => {
+    const state = stateWithHand(["blue_common_sword", "red_instant_kill", "yellow_sleep_spell"]);
     const solo = { ...state, players: state.players.map((player, index) => index === 0 ? player : { ...player, status: "eliminated" as const }) };
     expect(chooseBotCards(solo)).toEqual([]);
   });
