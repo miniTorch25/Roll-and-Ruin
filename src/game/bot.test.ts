@@ -179,6 +179,10 @@ describe("bot monster offerings", () => {
       mythRuntime: { monsterId: "hecate", catalogueId: "M01", offerings: {}, hiddenHands: false }
     };
     expect(chooseBotMythOffering(hecate, "hecate")).toHaveLength(3);
+    const insufficient = { ...hecate, players: hecate.players.map((player, index) =>
+      index === 0 ? { ...player, hand: ["yellow_peek", "yellow_sleep_spell"] } : player
+    ) };
+    expect(chooseBotMythOffering(insufficient, "hecate")).toEqual([]);
     const granfel = { ...hecate, monsters: [{ ...hecate.monsters[0], id: "granfel", catalogueId: "M02" }],
       mythRuntime: { ...hecate.mythRuntime, monsterId: "granfel", catalogueId: "M02" } };
     expect(chooseBotMythOffering(granfel, "granfel")).toEqual(["yellow_peek", "yellow_sleep_spell"]);
