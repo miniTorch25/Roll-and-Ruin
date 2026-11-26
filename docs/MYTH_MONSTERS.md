@@ -48,5 +48,5 @@ Legend offering buttons are also available in the same monster panel.
 ## Remaining UI limitations
 
 - Target selection currently uses browser prompts rather than custom in-game dialogs.
-- Kingo's UI currently accepts the full five-card offering from the active player; the engine supports multi-player contributions, but the UI does not yet provide a multi-player contribution editor.
+- Kingo's in-game offering modal supports contributions from multiple living players. Bot turns can coordinate five-card contributions across living Bot players without spending cards from human-controlled players.
 - This remains a local four-player prototype, not network multiplayer.
