@@ -20,7 +20,7 @@ The monster catalogue is connected to the game-state monster records through `sr
 - A player's one-hit reflection charge can reflect the HP damage back to the attacking monster.
 - Vampy restores 2 HP after an attack, up to its maximum HP.
 
-This is the shared baseline, not a complete implementation of all 50 monsters. Special attack effects, target selection exceptions, triggered tile attacks, poison and other status effects, instant-kill rules, monster-specific removal conditions, death rewards, and BoardScene integration remain separate work.
+This is the shared baseline, not a complete implementation of all 50 monsters. Several Common, Rare, Legend, and Myth exceptions are implemented in dedicated modules and BoardScene integration, but the remaining catalogue rules still require a monster-by-monster audit and regression coverage.
 
 
 ## Implemented monster-applied player statuses
@@ -56,14 +56,14 @@ This is the shared baseline, not a complete implementation of all 50 monsters. S
 ## Additional Rare monster abilities
 
 - **Bob (R01):** a successful attack applies Slow for the target's next owner turn, reducing movement by one step.
-- **Chesty (R02):** scheduled attacks target a living player with the largest hand; ties are selected randomly. Its extra green-card defeat reward is recorded as a pending reward rule and still requires the centralized reward consumer.
+- **Chesty (R02):** scheduled attacks target a living player with the largest hand; ties are selected randomly. Its extra green-card defeat reward is included in the defeat event and consumed by the centralized reward resolver.
 - **Wizzy (R03):** after a successful attack, the target rolls one D6; on 1–2, a second 2-damage blast is applied.
 - **Stoney (R04):** limits the target to one die on their next turn.
 - **Vampy (R05):** bypasses Defense shields and heals 2 HP after attacking, up to maximum HP.
 - **Ghosty (R06):** ignores damage below 3. The current damage API is used by Attack-card monster damage paths.
 - **Scorpy (R07):** applies three-turn Poison that deals 1 direct HP at the start of the target's turns.
 - **Harpy (R08):** after attacking, discards one random card from the target if they still have cards.
-- **Minoo (R09):** its start-corner movement trigger remains unimplemented; the board movement resolver needs monster tile-position integration.
+- **Minoo (R09):** receives a random corner position when summoned; crossing that position emits a movement-trigger attack event and the scene resolves it immediately.
 - **Frosty (R10):** limits the target to two cards on their next turn.
 
 
