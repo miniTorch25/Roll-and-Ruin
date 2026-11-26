@@ -2,7 +2,7 @@ import Phaser from "phaser";
 import {
   createGameState, endPlayerTurn, finishCardActivity, finishSpecialTileCheck, finishStatusCheck,
   imprisonPlayer, moveActivePlayer, resolveMonsterAttackPhase,
-  selectPlayerAction, startPlayerTurn, type GameState, type PlayerAction
+  selectPlayerAction, startPlayerTurn, getScoreBasedWinners, getTeamScores, type GameState, type PlayerAction
 } from "../game/turnEngine";
 import { resolveCardEffect, resolveMonsterAttackEvents } from "../cards/effectResolver";
 import { playCatalogueCard } from "../cards/play";
@@ -41,12 +41,26 @@ export class BoardScene extends Phaser.Scene {
   private logText?: Phaser.GameObjects.Text;
   private actionLocked = false;
   private pendingShortcutMovementSteps?: number;
+  private matchDeadlineAt?: number;
+  private lastDisplayedTimerSecond?: number;
+  private matchEndReason?: "time_limit";
 
   constructor() { super("BoardScene"); }
 
   create(): void {
     this.drawBackdrop();
     void this.initializeGame();
+  }
+
+  update(): void {
+    if (!this.matchDeadlineAt || !this.state || this.state.phase === "game_over") return;
+    const remaining = getRemainingMatchTime(this.matchDeadlineAt, Date.now());
+    const displayedSecond = Math.ceil(remaining / 1000);
+    if (displayedSecond !== this.lastDisplayedTimerSecond) {
+      this.lastDisplayedTimerSecond = displayedSecond;
+      this.renderMatchTimer(remaining);
+    }
+    if (remaining <= 0) this.finishMatchByTimeLimit();
   }
 
   private async initializeGame(): Promise<void> {
@@ -77,6 +91,19 @@ export class BoardScene extends Phaser.Scene {
       monster: await chooseCount("Monster"),
       dice: await chooseCount("Dice")
     };
+
+    const timeLimitChoice = await chooseOptionDialog(
+      "กำหนดเวลาแข่งขัน",
+      "เลือกเล่นแบบปกติหรือเปิดโหมดจับเวลา เมื่อหมดเวลาจะตัดสินจากคะแนนรวมและจำนวนผู้เล่นที่รอด",
+      [
+        { value: "0", label: "Standard · ไม่จำกัดเวลา", description: "เล่นจนจบตามเงื่อนไขปกติ" },
+        { value: "300", label: "Speedrun · 5 นาที", description: "รอบสั้น เน้นทำคะแนนให้เร็ว" },
+        { value: "600", label: "Speedrun · 10 นาที", description: "การแข่งขันแบบจับเวลา" },
+        { value: "900", label: "15 นาที", description: "การแข่งขันแบบจับเวลา" },
+        { value: "1200", label: "20 นาที", description: "การแข่งขันแบบจับเวลา" }
+      ]
+    );
+    const matchDurationSeconds = Math.max(0, Number(timeLimitChoice ?? "0"));
     const startingSetup = PLAYER_SETUP.slice(0, humanCount).map((player) => {
       const drawn = drawCards([], this.deck, 4);
       this.deck = drawn.deck;
@@ -91,6 +118,10 @@ export class BoardScene extends Phaser.Scene {
     this.state = createGameState("1x4", startingSetup, PATH_LENGTH, botHands);
     this.board = createBoardState(specialTileCounts, this.state.players.map(player => player.position));
     this.state = this.prepareNextTurn(this.state);
+    this.matchDeadlineAt = matchDurationSeconds > 0 ? Date.now() + matchDurationSeconds * 1000 : undefined;
+    this.lastDisplayedTimerSecond = undefined;
+    this.matchEndReason = undefined;
+    this.renderMatchTimer();
     this.drawBoard();
     this.createPlayers();
     this.createLabels();
@@ -426,6 +457,57 @@ export class BoardScene extends Phaser.Scene {
     } catch (error) {
       this.updateHud(error instanceof Error ? error.message : "ดำเนินการกับมอนสเตอร์ไม่สำเร็จ");
     }
+  }
+
+  private renderMatchTimer(remainingMs?: number): void {
+    const timer = document.querySelector<HTMLElement>("#match-timer");
+    if (!timer) return;
+    if (this.matchEndReason === "time_limit") {
+      timer.textContent = "หมดเวลา";
+    } else if (this.matchDeadlineAt !== undefined) {
+      timer.textContent = formatMatchTime(remainingMs ?? getRemainingMatchTime(this.matchDeadlineAt, Date.now()));
+    } else {
+      timer.textContent = "ไม่จำกัด";
+    }
+  }
+
+  private finishMatchByTimeLimit(): void {
+    if (!this.state || this.state.phase === "game_over") return;
+    this.matchEndReason = "time_limit";
+    this.matchDeadlineAt = undefined;
+    this.state = { ...this.state, phase: "game_over" };
+    document.querySelectorAll<HTMLDialogElement>("dialog.game-choice-dialog[open]").forEach(dialog => dialog.close());
+    this.updateHud("หมดเวลา! การแข่งขันสิ้นสุดลงและตัดสินผลจากคะแนนรวม");
+  }
+
+  private renderMatchSummary(): void {
+    const summary = document.querySelector<HTMLElement>("#match-summary");
+    if (!summary) return;
+    if (this.state.phase !== "game_over") {
+      summary.hidden = true;
+      summary.innerHTML = "";
+      return;
+    }
+
+    const labels: Record<string, string> = {
+      red: "ทีมแดง",
+      blue: "ทีมน้ำเงิน",
+      green: "ทีมเขียว",
+      yellow: "ทีมเหลือง"
+    };
+    const scores = getTeamScores(this.state);
+    const winners = getScoreBasedWinners(this.state);
+    const winnerNames = winners.map(teamId => labels[teamId] ?? teamId);
+    const winnerText = winnerNames.length > 1
+      ? `เสมอ · ${winnerNames.join(" / ")}`
+      : winnerNames[0] ?? "ไม่มีผู้ชนะ";
+    const rows = Object.entries(scores).map(([teamId, score]) => {
+      const survivors = this.state.players.filter(player => player.teamId === teamId && player.status === "alive").length;
+      return `<div class="stat-row"><span>${labels[teamId] ?? teamId}</span><strong>${score} คะแนน · รอด ${survivors} คน</strong></div>`;
+    }).join("");
+
+    summary.innerHTML = `<p class="eyebrow">MATCH RESULTS</p><h3>สรุปผลการแข่งขัน</h3><p class="match-winner">${winnerText}</p><p class="empty-note">${this.matchEndReason === "time_limit" ? "หมดเวลา · ตัดสินจากคะแนนรวมและจำนวนผู้เล่นที่รอด" : "สิ้นสุดการแข่งขันตามเงื่อนไขเกม"}</p>${rows}`;
+    summary.hidden = false;
   }
 
   private renderHandPanel(playerId: string): void {
@@ -905,5 +987,7 @@ export class BoardScene extends Phaser.Scene {
     this.renderHandPanel(active.id);
     const finishCards = document.querySelector<HTMLButtonElement>("#finish-cards-button");
     if (finishCards) finishCards.disabled = this.state.phase !== "play_cards";
+    this.renderMatchTimer();
+    this.renderMatchSummary();
   }
 }
