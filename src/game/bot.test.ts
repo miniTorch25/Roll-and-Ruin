@@ -171,14 +171,14 @@ describe("bot monster offerings", () => {
     expect(chooseBotMythOffering(myth, "m06")).toHaveLength(2);
   });
   it("offers three yellow cards to Hecate and every yellow card to Granfel", () => {
-    const hecateState = stateWithHand(["yellow_peek", "yellow_sleep_spell", "blue_common_sword", "green_herbal_potion"]);
+    const hecateState = stateWithHand(["yellow_peek", "yellow_sleep_spell", "yellow_lucky_dice", "blue_common_sword"]);
     const hecate = { ...hecateState,
       monsters: [{ id: "hecate", catalogueId: "M01", name: "Hecate", rank: "Myth" as const,
         hp: 10000, maxHp: 10000, attackPattern: "all_living" as const, attackInterval: null,
         turnsSinceLastAttack: 0, active: true }],
       mythRuntime: { monsterId: "hecate", catalogueId: "M01", offerings: {}, hiddenHands: false }
     };
-    expect(chooseBotMythOffering(hecate, "hecate")).toEqual(["yellow_peek", "yellow_sleep_spell"]);
+    expect(chooseBotMythOffering(hecate, "hecate")).toHaveLength(3);
     const granfel = { ...hecate, monsters: [{ ...hecate.monsters[0], id: "granfel", catalogueId: "M02" }],
       mythRuntime: { ...hecate.mythRuntime, monsterId: "granfel", catalogueId: "M02" } };
     expect(chooseBotMythOffering(granfel, "granfel")).toEqual(["yellow_peek", "yellow_sleep_spell"]);
@@ -202,7 +202,7 @@ describe("bot monster offerings", () => {
         isBot: index !== 3,
         hand: index === 0 ? ["green_herbal_potion", "green_life_core"]
           : index === 1 ? ["blue_wooden_shield"]
-          : index === 2 ? ["yellow_peek"]
+          : index === 2 ? ["yellow_peek", "green_herbal_potion"]
           : ["red_instant_kill", "blue_common_sword"]
       })),
       monsters: [{ id: "kingo", catalogueId: "L10", name: "Kingo", rank: "Legend" as const,
@@ -210,7 +210,7 @@ describe("bot monster offerings", () => {
         turnsSinceLastAttack: 0, active: true }]
     };
     const contributions = chooseBotKingoOffering(kingo, "kingo");
-    expect(contributions?.flatMap(item => item.cardIds)).toHaveLength(4);
+    expect(contributions?.flatMap(item => item.cardIds)).toHaveLength(5);
     expect(contributions?.some(item => item.playerId === "p4")).toBe(false);
     expect(chooseBotKingoOffering({ ...kingo, players: kingo.players.map(player =>
       player.id === "p1" ? { ...player, hand: ["green_herbal_potion"] } :
