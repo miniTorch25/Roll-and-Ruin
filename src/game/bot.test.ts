@@ -133,7 +133,7 @@ describe("chooseBotCards", () => {
       ? { ...player, hand: ["blue_common_sword", "red_instant_kill"] }
       : player) };
     expect(chooseBotSelectedCardId(targetState, "force_discard_selected_card", "p2")).toBe("red_instant_kill");
-    expect(chooseBotSelectedCardId(targetState, "trade_for_random_card", "p2")).toBe("yellow_card_trade");
+    expect(chooseBotSelectedCardId(targetState, "trade_for_random_card", "p2")).toBe("blue_common_sword");
   });
 
   it("chooses the maximum legal dice values for Control Dice", () => {
