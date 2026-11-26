@@ -262,13 +262,7 @@ export class BoardScene extends Phaser.Scene {
 
       this.state = selected.state;
       const moved = moveActivePlayer(this.state);
-      this.state = moved.state;
-      if (moved.monsterAttackEvents.length > 0) {
-        const triggered = resolveMonsterAttackEvents(this.state, moved.monsterAttackEvents);
-        this.state = triggered.state;
-        message += " · มิโนทอร์โจมตีจากช่องมุม";
-      }
-      this.state = finishSpecialTileCheck(this.state);
+      message += this.resolveMovementAndSpecialTile(moved);
       this.state = finishStatusCheck(this.state);
       const endingPlayerId = this.state.players[this.state.activePlayerIndex]?.id;
       if (endingPlayerId && this.state.monsters.some(monster => monster.active && monster.rank === "Myth")) {
@@ -554,11 +548,7 @@ export class BoardScene extends Phaser.Scene {
       const finished = finishCardActivity(this.state);
       this.state = finished.state;
       const moved = moveActivePlayer(this.state);
-      this.state = moved.state;
-      if (moved.monsterAttackEvents.length > 0) {
-        this.state = resolveMonsterAttackEvents(this.state, moved.monsterAttackEvents).state;
-      }
-      this.state = finishSpecialTileCheck(this.state);
+      const tileMessage = this.resolveMovementAndSpecialTile(moved);
       this.state = finishStatusCheck(this.state);
       const endingPlayerId = this.state.players[this.state.activePlayerIndex]?.id;
       if (endingPlayerId && this.state.monsters.some(monster => monster.active && monster.rank === "Myth")) {
@@ -567,7 +557,7 @@ export class BoardScene extends Phaser.Scene {
       this.state = endPlayerTurn(this.state);
       this.updateTokenPositions();
       this.state = this.prepareNextTurn(this.state);
-      const message = `ใช้ไพ่เสร็จ · ทอยเต๋า ${finished.diceRolls.join(" + ")} · เดิน ${finished.diceRolls.reduce((sum, value) => sum + value, 0)} ช่อง`;
+      const message = `ใช้ไพ่เสร็จ · ทอยเต๋า ${finished.diceRolls.join(" + ")} · เดิน ${finished.diceRolls.reduce((sum, value) => sum + value, 0)} ช่อง${tileMessage}`;
       this.updateHud(message);
       return { ok: true, message };
     } catch (error) {
