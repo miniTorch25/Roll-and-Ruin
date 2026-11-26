@@ -6,6 +6,21 @@ async function chooseStartupOption(page: import("@playwright/test").Page, value:
   await dialog.locator(`[data-value="${value}"]`).click();
 }
 
+test("gives setup dialogs accessible names and supports keyboard selection", async ({ page }) => {
+  await page.goto("/");
+  const dialog = page.locator("dialog.game-choice-dialog");
+  await expect(dialog).toBeVisible();
+  await expect(dialog).toHaveAttribute("aria-labelledby", "game-choice-dialog-title");
+  await expect(dialog).toHaveAttribute("aria-describedby", "game-choice-dialog-description");
+  await expect(dialog.locator("#game-choice-dialog-title")).toContainText("จำนวนผู้เล่นจริง");
+  await expect(dialog.locator("#game-choice-dialog-description")).not.toBeEmpty();
+
+  const firstOption = dialog.locator("[data-value]").first();
+  await expect(firstOption).toBeFocused();
+  await page.keyboard.press("Enter");
+  await expect(dialog.locator("#game-choice-dialog-title")).toContainText("Mystery");
+});
+
 test("starts a local match and renders the playable board", async ({ page }) => {
   await page.goto("/");
 

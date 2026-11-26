@@ -27,11 +27,13 @@ export function chooseOptionDialog(
   return new Promise(resolve => {
     const dialog = document.createElement("dialog");
     dialog.className = "game-choice-dialog";
+    dialog.setAttribute("aria-labelledby", "game-choice-dialog-title");
+    dialog.setAttribute("aria-describedby", "game-choice-dialog-description");
     dialog.innerHTML = `
       <form method="dialog" class="game-choice-dialog__content">
         <p class="eyebrow">GAME ACTION</p>
-        <h2>${escapeHtml(title)}</h2>
-        <p class="game-choice-dialog__description">${escapeHtml(description)}</p>
+        <h2 id="game-choice-dialog-title">${escapeHtml(title)}</h2>
+        <p id="game-choice-dialog-description" class="game-choice-dialog__description">${escapeHtml(description)}</p>
         <div class="game-choice-dialog__options">
           ${options.map(option => `
             <button type="button" class="game-choice-dialog__option" data-value="${escapeHtml(option.value)}">
@@ -76,11 +78,13 @@ export function selectCardsDialog(
   return new Promise(resolve => {
     const dialog = document.createElement("dialog");
     dialog.className = "game-choice-dialog";
+    dialog.setAttribute("aria-labelledby", "game-choice-dialog-title");
+    dialog.setAttribute("aria-describedby", "game-choice-dialog-description");
     dialog.innerHTML = `
       <form method="dialog" class="game-choice-dialog__content">
         <p class="eyebrow">CARD SELECTION</p>
-        <h2>${escapeHtml(title)}</h2>
-        <p class="game-choice-dialog__description">${escapeHtml(description)}</p>
+        <h2 id="game-choice-dialog-title">${escapeHtml(title)}</h2>
+        <p id="game-choice-dialog-description" class="game-choice-dialog__description">${escapeHtml(description)}</p>
         <p class="game-choice-dialog__count" aria-live="polite">เลือกแล้ว 0${requiredCount === undefined ? "" : ` / ${requiredCount}`} ใบ</p>
         <div class="game-choice-dialog__cards">
           ${cards.map(card => `
@@ -133,11 +137,13 @@ export function confirmActionDialog(title: string, description: string): Promise
   return new Promise(resolve => {
     const dialog = document.createElement("dialog");
     dialog.className = "game-choice-dialog";
+    dialog.setAttribute("aria-labelledby", "game-choice-dialog-title");
+    dialog.setAttribute("aria-describedby", "game-choice-dialog-description");
     dialog.innerHTML = `
       <form method="dialog" class="game-choice-dialog__content">
         <p class="eyebrow">CONFIRM ACTION</p>
-        <h2>${escapeHtml(title)}</h2>
-        <p class="game-choice-dialog__description">${escapeHtml(description)}</p>
+        <h2 id="game-choice-dialog-title">${escapeHtml(title)}</h2>
+        <p id="game-choice-dialog-description" class="game-choice-dialog__description">${escapeHtml(description)}</p>
         <div class="game-choice-dialog__actions">
           <button type="button" class="secondary" data-cancel>ไม่ใช้กับมอนสเตอร์</button>
           <button type="submit">ยืนยัน</button>
@@ -168,12 +174,14 @@ export function textInputDialog(
   return new Promise(resolve => {
     const dialog = document.createElement("dialog");
     dialog.className = "game-choice-dialog";
+    dialog.setAttribute("aria-labelledby", "game-choice-dialog-title");
+    dialog.setAttribute("aria-describedby", "game-choice-dialog-description");
     dialog.innerHTML = `
       <form method="dialog" class="game-choice-dialog__content">
         <p class="eyebrow">GAME INPUT</p>
-        <h2>${escapeHtml(title)}</h2>
-        <p class="game-choice-dialog__description">${escapeHtml(description)}</p>
-        <input class="game-choice-dialog__input" name="value" value="${escapeHtml(initialValue)}" autocomplete="off" />
+        <h2 id="game-choice-dialog-title">${escapeHtml(title)}</h2>
+        <p id="game-choice-dialog-description" class="game-choice-dialog__description">${escapeHtml(description)}</p>
+        <input class="game-choice-dialog__input" name="value" aria-label="${escapeHtml(title)}" value="${escapeHtml(initialValue)}" autocomplete="off" />
         <div class="game-choice-dialog__actions">
           <button type="button" class="secondary" data-cancel>ยกเลิก</button>
           <button type="submit">ยืนยัน</button>
