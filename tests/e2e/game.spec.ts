@@ -35,3 +35,24 @@ test("accepts a player turn action from the browser UI", async ({ page }) => {
   await expect(page.locator("#game-message")).toContainText("ทอยเต๋า 2 ลูกได้");
   await expect(page.locator("#turn-label")).toContainText("เทิร์น");
 });
+
+test("resolves a targeted Attack card through the browser UI", async ({ page }) => {
+  await page.addInitScript(() => {
+    Math.random = () => 0;
+  });
+  await page.goto("/");
+  await chooseStartupOption(page, "1");
+  await chooseStartupOption(page, "0");
+  await chooseStartupOption(page, "0");
+  await chooseStartupOption(page, "0");
+
+  await page.locator("#use-card-button").click();
+  await page.locator('#hand-panel [data-card-id="blue_accurate_arrow"]').click();
+
+  const targetDialog = page.locator("dialog.game-choice-dialog");
+  await expect(targetDialog).toBeVisible();
+  await targetDialog.locator('[data-value="bot-1"]').click();
+
+  await expect(page.locator("#game-message")).toContainText("ใช้ไพ่ ธนูแม่นยำ สำเร็จ");
+  await expect(page.locator("#player-list .player-row").nth(1)).toContainText("HP 18");
+});
