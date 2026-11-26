@@ -3,7 +3,7 @@ import { CARD_CATALOGUE, getCardDefinition, type CardDefinition, type CardEffect
 import { drawCards, type CardDeckState } from "./deck";
 import { resolveMonsterDefeatRewards, type MonsterRewardEvent } from "../monsters/rewards";
 import { damageMonster, summonRandomMonster, type MonsterDamageEvent } from "../monsters/engine";
-import { summonMyth, type MythId, type MythRuntime } from "../monsters/myth";
+import { instantKillMyth, summonMyth, type MythId, type MythRuntime } from "../monsters/myth";
 import type { MonsterRank } from "../monsters/catalogue";
 
 export interface CardRuntimePlayerState {
@@ -1228,6 +1228,23 @@ export function resolveCardEffect(
       break;
     }
     case "instant_kill": {
+      if (options.targetMonsterId) {
+        const targetMonster = state.monsters.find(monster =>
+          monster.id === options.targetMonsterId && monster.active && monster.rank === "Myth"
+        );
+        if (!targetMonster) throw new Error("Instant Kill requires an active Myth Monster target.");
+        state = instantKillMyth(state, targetMonster.id).state as CardEffectGameState;
+        monsterDamageEvents.push({
+          monsterId: targetMonster.id,
+          sourcePlayerId: active.id,
+          attemptedDamage: targetMonster.hp ?? 0,
+          hpBefore: targetMonster.hp ?? null,
+          hpAfter: 0,
+          hpDamage: targetMonster.hp ?? 0,
+          defeated: true
+        });
+        break;
+      }
       const target = requireOpponentTarget(state, active.id, options.targetPlayerId, card.kind === "curse" && options.allowSelfTarget === true);
       const shields = state.cardRuntime.players[target.id].shields;
       const hit = applyDamage(state, target.id, target.hp + shields, random, {

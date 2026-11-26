@@ -477,6 +477,32 @@ describe("Curse payment and cooldown", () => {
   });
 });
 
+describe("Myth Monster Instant Kill", () => {
+  it("removes Anubix with Instant Kill and resolves its standard monster reward", () => {
+    const drawPile = ["yellow_peek", "red_forced_prison", "red_table_flip"];
+    const summoned = summonMyth(cardPlayState(), "M04", "anubix-instant-kill", {
+      drawPile: [...drawPile],
+      discardPile: []
+    }, () => 0);
+    const result = resolveCardEffect(summoned.state, "red_instant_kill", {
+      targetMonsterId: "anubix-instant-kill",
+      cursePayment: { type: "discard", cardIds: ["green_herbal_potion", "green_life_core"] },
+      deck: summoned.deck,
+      random: () => 0
+    });
+
+    expect(result.state.monsters.find(monster => monster.id === "anubix-instant-kill")?.active).toBe(false);
+    expect(result.monsterDamageEvents).toMatchObject([
+      { monsterId: "anubix-instant-kill", sourcePlayerId: "p1", defeated: true }
+    ]);
+    expect(result.monsterRewardEvents).toMatchObject([
+      { monsterId: "anubix-instant-kill", playerId: "p1", cardIds: drawPile }
+    ]);
+    expect(result.state.players[0].hand).toEqual(["green_extra_heart", "blue_wooden_shield", "yellow_peek", "red_forced_prison", "red_table_flip"]);
+    expect(result.deck?.drawPile).toEqual([]);
+  });
+});
+
 describe("player-targeted Curse effects", () => {
   it("instantly kills a target after their shields are consumed, unless invulnerable", () => {
     const shielded = withRuntime(cardPlayState(), "p2", { shields: 3 });
