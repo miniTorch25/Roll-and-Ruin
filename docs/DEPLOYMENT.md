@@ -1,17 +1,17 @@
 # Website Deployment
 
-The repository is configured to publish the production website with GitHub Pages from the `main` branch through GitHub Actions. A one-time manual Pages enablement is required before the first deployment.
+The repository publishes the production website with GitHub Pages from the `main` branch through GitHub Actions.
 
 ## One-time setup required before the first deployment
 
-The repository's `GITHUB_TOKEN` can build and deploy a configured Pages site, but it cannot create the initial Pages site through the Pages API. A repository owner must enable it once:
+A repository owner must enable GitHub Pages once in the repository settings. The built-in `GITHUB_TOKEN` used by the deployment workflow can publish an already-configured Pages site, but it cannot enable Pages for the first time through `actions/configure-pages`.
 
-1. Open the repository on GitHub.
+1. Open the repository: https://github.com/miniTorch25/Roll-and-Ruin
 2. Go to **Settings → Pages**.
 3. Under **Build and deployment**, set **Source** to **GitHub Actions**.
 4. Save the setting.
 
-After this is enabled, the workflow can deploy using the repository's built-in token. No personal access token or secret is required.
+No personal access token or repository secret is required. The workflow uses the built-in token for subsequent deployments.
 
 ## Public URL
 
@@ -21,16 +21,16 @@ The URL becomes available after the first successful deployment.
 
 ## Deployment flow
 
-1. A push to `main` that changes the game, Vite configuration, package metadata, or deployment workflow starts the deployment workflow.
-2. The workflow installs dependencies and runs TypeScript, game logic, and Playwright browser tests.
+1. A push to `main` or a manual run from the Actions tab starts the deployment workflow.
+2. The workflow installs dependencies and runs TypeScript checks, game logic tests, and Playwright browser end-to-end tests.
 3. Vite builds the static site into `dist/`.
-4. GitHub Pages publishes the build artifact.
+4. GitHub Actions uploads the build artifact and deploys it to GitHub Pages.
 5. The deployment job exposes the published URL in its environment summary.
 
 The Vite base path is relative (`./`) so generated assets resolve correctly from the repository subpath.
 
 ## Manual deployment
 
-The workflow can also be started from the repository's Actions tab using **Deploy Website** → **Run workflow**.
+After the one-time Pages setup, the workflow can be started from the repository's Actions tab using **Deploy Website → Run workflow**.
 
 No multiplayer server is required for this static deployment. The current browser build remains a local match with bot-filled seats; online multiplayer is intentionally deferred.
