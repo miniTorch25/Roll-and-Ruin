@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { chooseBotAction, chooseBotCards, chooseBotCardTargets } from "./bot";
+import { chooseBotAction, chooseBotCards, chooseBotCardTargets, chooseBotCursePayment } from "./bot";
 import { createGameState } from "./turnEngine";
 
 function stateWithHand(hand: string[], overrides: Partial<{ hp: number; maxHp: number; hearts: number; statuses: Array<{ type: "poison" | "bonus_dice"; turnsRemaining: number }> }> = {}) {
@@ -78,6 +78,43 @@ describe("chooseBotCards", () => {
     };
     expect(chooseBotCards(withMonster)).toContain("blue_monster_hunter");
     expect(chooseBotCardTargets(withMonster, "blue_monster_hunter").targetMonsterId).toBe("m1");
+  });
+
+  it("uses an affordable Curse and selects a vulnerable opponent", () => {
+    const state = stateWithHand(["red_instant_kill"]);
+    const changed = {
+      ...state,
+      players: state.players.map((player, index) => index === 1
+        ? { ...player, hp: 4, hearts: 1 }
+        : player)
+    };
+    expect(chooseBotCards(changed)).toContain("red_instant_kill");
+    expect(chooseBotCardTargets(changed, "red_instant_kill").targetPlayerId).toBe("p2");
+  });
+
+  it("chooses HP, discard, or cooldown Curse payment according to available resources", () => {
+    const healthy = stateWithHand(["red_instant_kill"], { hp: 18 });
+    expect(chooseBotCursePayment(healthy, "p1")).toEqual({ type: "hp", amount: 5 });
+
+    const lowHp = stateWithHand(["red_instant_kill"], { hp: 4 });
+    const withDiscardCards = {
+      ...lowHp,
+      players: lowHp.players.map((player, index) => index === 0
+        ? { ...player, hand: ["green_herbal_potion", "blue_wooden_shield"] }
+        : player)
+    };
+    expect(chooseBotCursePayment(withDiscardCards, "p1")).toEqual({
+      type: "discard",
+      cardIds: ["green_herbal_potion", "blue_wooden_shield"]
+    });
+
+    const cooldownState = {
+      ...lowHp,
+      players: lowHp.players.map((player, index) => index === 0
+        ? { ...player, hand: [] }
+        : player)
+    };
+    expect(chooseBotCursePayment(cooldownState, "p1")).toEqual({ type: "cooldown" });
   });
 
   it("does not select targeted, curse, or summon cards when no legal target exists", () => {
