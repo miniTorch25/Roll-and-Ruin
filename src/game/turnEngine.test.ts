@@ -6,6 +6,7 @@ import {
   finishCardActivity,
   finishSpecialTileCheck,
   finishStatusCheck,
+  getScoreBasedWinners,
   getTeamScores,
   imprisonPlayer,
   moveActivePlayer,
@@ -284,6 +285,38 @@ describe("Roll and Ruin turn engine", () => {
         : player)
     };
     expect(applyPlayerDeath(smallHand, "p1").result.discardedCards).toHaveLength(0);
+  });
+
+  it("resolves score winners and applies the surviving-player tiebreaker", () => {
+    const state = {
+      ...readyState(),
+      players: readyState().players.map((player, index) => ({
+        ...player,
+        score: index < 2 ? 10 : 4,
+        status: index === 1 ? "eliminated" as const : "alive" as const
+      }))
+    };
+    expect(getScoreBasedWinners(state)).toEqual(["green"]);
+
+    const tied = {
+      ...state,
+      players: state.players.map(player => ({
+        ...player,
+        score: player.teamId === "red" || player.teamId === "blue" ? 8 : 0,
+        status: player.teamId === "red" ? "alive" as const
+          : player.teamId === "blue" ? "eliminated" as const
+          : "eliminated" as const
+      }))
+    };
+    expect(getScoreBasedWinners(tied)).toEqual(["red"]);
+
+    const unresolvedTie = {
+      ...tied,
+      players: tied.players.map(player => player.teamId === "blue"
+        ? { ...player, status: "alive" as const }
+        : player)
+    };
+    expect(getScoreBasedWinners(unresolvedTie)).toEqual(["red", "blue"]);
   });
 
   it("keeps eliminated players' points in the team total and allows negative scores", () => {
