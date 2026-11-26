@@ -168,10 +168,16 @@ export class BoardScene extends Phaser.Scene {
 
   private resolveMovementAndSpecialTile(moved: ReturnType<typeof moveActivePlayer>): string {
     this.state = moved.state;
+    const previousRegenerationCount = this.board.regenerationCount;
+    let message = "";
+    if (moved.monsterAttackEvents.length > 0) {
+      this.state = resolveMonsterAttackEvents(this.state, moved.monsterAttackEvents).state;
+      message += " · มิโนทอร์โจมตีจากช่องมุม";
+    }
+
     const occupied = this.state.players
       .filter(player => player.status === "alive")
       .map(player => player.position);
-    const previousRegenerationCount = this.board.regenerationCount;
     const boardResult = moveAndRegenerateBoard(
       this.board,
       moved.from,
@@ -182,15 +188,9 @@ export class BoardScene extends Phaser.Scene {
     );
     this.board = boardResult.board;
 
-    let message = "";
-    if (moved.monsterAttackEvents.length > 0) {
-      this.state = resolveMonsterAttackEvents(this.state, moved.monsterAttackEvents).state;
-      message += " · มิโนทอร์โจมตีจากช่องมุม";
-    }
-
     const landedTile = boardResult.movement.landedTile;
     const active = this.state.players[this.state.activePlayerIndex];
-    if (landedTile && active?.status === "alive") {
+    if (landedTile && active?.status === "alive" && active.position === moved.to) {
       if (landedTile === "mystery") {
         const drawn = drawCards(active.hand, this.deck, 1);
         this.deck = drawn.deck;
