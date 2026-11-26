@@ -91,7 +91,7 @@ src/
 ### 4. เว็บไซต์และการเผยแพร่ — กำลังดำเนินการ
 - [x] ตั้งค่า GitHub Pages Deployment Workflow
 - [x] ตั้งค่าให้ Workflow ทำงานเมื่อมีการอัปเดต `main`
-- [x] เพิ่มขั้นตอนให้ Workflow เปิดใช้งาน Pages ในการ Deploy ครั้งแรก
+- [x] ตั้งค่า Workflow ให้ Deploy ด้วย GitHub Actions หลังเปิด Pages ใน Repository Settings
 - [ ] ตรวจสอบการเปิดใช้งาน GitHub Pages ครั้งแรกจาก Repository Settings และยืนยันว่า Deploy สำเร็จ
 - [ ] ทดสอบเว็บไซต์ที่เผยแพร่จริงบน Browser ทั้งมือถือและ Desktop
 - [ ] ตรวจสอบการโหลด Asset, การ Refresh หน้า และการทำงานจาก URL ของ GitHub Pages
