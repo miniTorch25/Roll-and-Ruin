@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { chooseBotAction, chooseBotCards, chooseBotCardTargets, chooseBotCursePayment, chooseBotDiceValues, chooseBotLegendOffering, chooseBotMythOffering, chooseBotSelectedCardId } from "./bot";
+import { chooseBotAction, chooseBotCards, chooseBotCardTargets, chooseBotCursePayment, chooseBotDiceValues, chooseBotKingoOffering, chooseBotLegendOffering, chooseBotMythOffering, chooseBotSelectedCardId } from "./bot";
 import { createGameState } from "./turnEngine";
 import { CARD_CATALOGUE } from "../cards/catalogue";
 
@@ -170,6 +170,59 @@ describe("bot monster offerings", () => {
       mythRuntime: { monsterId: "m06", catalogueId: "M06", offerings: { p2: ["blue_common_sword", "green_herbal_potion", "yellow_peek", "blue_wooden_shield", "green_life_core", "blue_iron_shield", "yellow_card_rain", "green_extra_heart"] } } };
     expect(chooseBotMythOffering(myth, "m06")).toHaveLength(2);
   });
+  it("offers three yellow cards to Hecate and every yellow card to Granfel", () => {
+    const hecateState = stateWithHand(["yellow_peek", "yellow_sleep_spell", "yellow_lucky_dice", "blue_common_sword"]);
+    const hecate = { ...hecateState,
+      monsters: [{ id: "hecate", catalogueId: "M01", name: "Hecate", rank: "Myth" as const,
+        hp: 10000, maxHp: 10000, attackPattern: "all_living" as const, attackInterval: null,
+        turnsSinceLastAttack: 0, active: true }],
+      mythRuntime: { monsterId: "hecate", catalogueId: "M01", offerings: {}, hiddenHands: false }
+    };
+    expect(chooseBotMythOffering(hecate, "hecate")).toHaveLength(3);
+    const insufficient = { ...hecate, players: hecate.players.map((player, index) =>
+      index === 0 ? { ...player, hand: ["yellow_peek", "yellow_sleep_spell"] } : player
+    ) };
+    expect(chooseBotMythOffering(insufficient, "hecate")).toEqual([]);
+    const granfel = { ...hecate, monsters: [{ ...hecate.monsters[0], id: "granfel", catalogueId: "M02" }],
+      mythRuntime: { ...hecate.mythRuntime, monsterId: "granfel", catalogueId: "M02" } };
+    expect(chooseBotMythOffering(granfel, "granfel")).toHaveLength(3);
+  });
+
+  it("uses one random hand card while Nyxia hides card identities", () => {
+    const state = stateWithHand(["green_herbal_potion", "yellow_peek", "blue_common_sword", "green_brave_spirit"]);
+    const nyxia = { ...state, mythRuntime: { monsterId: "nyxia", catalogueId: "M05", hiddenHands: true },
+      monsters: [{ id: "nyxia", catalogueId: "M05", name: "Nyxia", rank: "Myth" as const,
+        hp: null, maxHp: null, attackPattern: "all_living" as const, attackInterval: null,
+        turnsSinceLastAttack: 0, active: true }] };
+    expect(chooseBotCards(nyxia, () => 0)).toEqual(["green_herbal_potion"]);
+    expect(chooseBotCards(nyxia, () => 0.99)).toEqual(["green_brave_spirit"]);
+  });
+
+  it("plans Kingo's five-card tribute using bots only and balances contributions", () => {
+    const state = stateWithHand(["green_herbal_potion", "green_life_core"]);
+    const kingo = { ...state,
+      players: state.players.map((player, index) => ({
+        ...player,
+        isBot: index !== 3,
+        hand: index === 0 ? ["green_herbal_potion", "green_life_core"]
+          : index === 1 ? ["blue_wooden_shield"]
+          : index === 2 ? ["yellow_peek", "red_summon_common"]
+          : ["red_instant_kill", "blue_common_sword"]
+      })),
+      monsters: [{ id: "kingo", catalogueId: "L10", name: "Kingo", rank: "Legend" as const,
+        hp: 220, maxHp: 220, attackPattern: "random_living" as const, attackInterval: 5,
+        turnsSinceLastAttack: 0, active: true }]
+    };
+    const contributions = chooseBotKingoOffering(kingo, "kingo");
+    expect(contributions?.flatMap(item => item.cardIds)).toHaveLength(5);
+    expect(contributions?.some(item => item.playerId === "p4")).toBe(false);
+    expect(chooseBotKingoOffering({ ...kingo, players: kingo.players.map(player =>
+      player.id === "p1" ? { ...player, hand: ["green_herbal_potion"] } :
+      player.id === "p2" ? { ...player, isBot: false } :
+      player.id === "p3" ? { ...player, isBot: false } : player
+    ) }, "kingo")).toBeUndefined();
+  });
+
   it("offers only colors Ouro still needs", () => {
     const state = stateWithHand(["yellow_peek", "blue_common_sword", "green_herbal_potion", "red_instant_kill"]);
     const myth = { ...state, monsters: [{ id: "m08", catalogueId: "M08", name: "Ouro", rank: "Myth" as const, hp: null, maxHp: null, attackPattern: "all_living" as const, attackInterval: 1, turnsSinceLastAttack: 0, active: true }],

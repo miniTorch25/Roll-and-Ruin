@@ -18,7 +18,7 @@ import { CARD_CATALOGUE } from "../cards/catalogue";
 import { selectKingoOfferingModal } from "../ui/kingoOfferingModal";
 import { chooseOptionDialog, confirmActionDialog, selectCardsDialog, textInputDialog } from "../ui/gameDialogs";
 import { formatPlayerStatuses } from "../ui/statusEffects";
-import { chooseBotAction, chooseBotCardTargets, chooseBotCards, chooseBotCursePayment, chooseBotDiceValues, chooseBotLegendOffering, chooseBotMythOffering, chooseBotSelectedCardId } from "../game/bot";
+import { chooseBotAction, chooseBotCardTargets, chooseBotCards, chooseBotCursePayment, chooseBotDiceValues, chooseBotKingoOffering, chooseBotLegendOffering, chooseBotMythOffering, chooseBotSelectedCardId } from "../game/bot";
 
 const PATH_LENGTH = 32;
 const PLAYER_SETUP = [
@@ -621,12 +621,17 @@ export class BoardScene extends Phaser.Scene {
     for (const monster of monsters) {
       const active = this.state.players.find(player => player.id === playerId && player.status === "alive");
       if (!active) break;
-      if (monster.catalogueId === "M06" || monster.catalogueId === "M08") {
+      if (monster.catalogueId === "M01" || monster.catalogueId === "M02" ||
+          monster.catalogueId === "M06" || monster.catalogueId === "M08") {
         const cards = chooseBotMythOffering(this.state, monster.id);
         if (cards.length) {
-          const result = offerMythCards(this.state, [{ playerId, cardIds: cards }]);
+          const result = monster.catalogueId === "M01"
+            ? offerHecateCards(this.state, playerId, cards, this.deck)
+            : monster.catalogueId === "M02"
+              ? offerGranfelTrade(this.state, playerId, this.deck)
+              : offerMythCards(this.state, [{ playerId, cardIds: cards }]);
           this.state = result.state;
-          this.deck = { ...this.deck, discardPile: [...this.deck.discardPile, ...cards] };
+          this.deck = result.deck ?? this.deck;
           messages.push(`${monster.name ?? monster.catalogueId} offering: ${cards.length} card(s)`);
           continue;
         }
@@ -644,6 +649,16 @@ export class BoardScene extends Phaser.Scene {
         }
       }
       if (monster.rank === "Legend") {
+        if (monster.catalogueId === "L10") {
+          const contributions = chooseBotKingoOffering(this.state, monster.id);
+          if (contributions) {
+            const result = resolveLegendOffering(this.state, monster.id, contributions, this.deck);
+            this.state = result.state;
+            this.deck = result.deck;
+            messages.push(`Kingo cooperative offering: ${result.event.consumedCardIds.length} card(s) from ${result.event.contributorIds.length} bot(s)`);
+          }
+          continue;
+        }
         const offering = chooseBotLegendOffering(this.state, monster.id, this.deck.drawPile);
         if (!offering) continue;
         const result = resolveLegendOffering(this.state, monster.id, [{ playerId, cardIds: offering.cardIds }], this.deck,
@@ -663,7 +678,7 @@ export class BoardScene extends Phaser.Scene {
       const playerBeforeOffers = this.state.players[this.state.activePlayerIndex];
       const monsterSummary = this.runBotMonsterActions(playerBeforeOffers.id);
       const active = this.state.players[this.state.activePlayerIndex];
-      const plannedCards = chooseBotCards(this.state);
+      const plannedCards = chooseBotCards(this.state, Math.random);
       const action: PlayerAction = plannedCards.length ? "use_cards" : chooseBotAction(active);
       let diceRolls: number[];
       let cardSummary = monsterSummary ? `${monsterSummary} · ` : "";
