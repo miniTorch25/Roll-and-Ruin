@@ -1,5 +1,5 @@
 import { CARD_CATALOGUE, type CardDefinition } from "../cards/catalogue";
-import { type CardDeckState } from "../cards/deck";
+import { canReceiveInstantKill, type CardDeckState } from "../cards/deck";
 import type { GameState } from "../game/turnEngine";
 
 export interface LegendContribution {
@@ -114,6 +114,9 @@ export function resolveLegendOffering(
       }
       const selected = card(options.selectedDeckCardId);
       if (!selected) throw new Error("The selected Gini reward is not in the card catalogue.");
+      if (selected.effectId === "instant_kill" && !canReceiveInstantKill(first.hand.filter(cardId => !contributions[0].cardIds.includes(cardId)))) {
+        throw new Error("A player who already holds Instant Kill cannot receive another copy.");
+      }
       deck.drawPile.splice(deck.drawPile.indexOf(options.selectedDeckCardId), 1);
       awardedCardIds.push(options.selectedDeckCardId);
       removed = true;
@@ -133,7 +136,9 @@ export function resolveLegendOffering(
       requireCount(1);
       const remaining = monster.exchangesRemaining ?? 3;
       if (remaining <= 0) throw new Error("Lepri has no exchanges remaining.");
-      const matching = takeRandomMatching(deck.drawPile, () => true, 2, random);
+      const remainingHand = first.hand.filter(cardId => !contributions[0].cardIds.includes(cardId));
+      const matching = takeRandomMatching(deck.drawPile,
+        definition => definition.effectId !== "instant_kill" || canReceiveInstantKill(remainingHand), 2, random);
       awardedCardIds.push(...matching);
       exchangeNumber = 4 - remaining;
       const nextRemaining = remaining - 1;
@@ -170,7 +175,10 @@ export function resolveLegendOffering(
       const highest = Math.max(...contributions.map(contribution => contribution.cardIds.length));
       const candidates = contributions.filter(contribution => contribution.cardIds.length === highest);
       selectedPlayerId = candidates[Math.min(candidates.length - 1, Math.max(0, Math.floor(random() * candidates.length)))].playerId;
-      const curse = takeRandomMatching(deck.drawPile, definition => definition.color === "red", 1, random);
+      const recipient = players.get(selectedPlayerId);
+      const recipientHand = recipient?.hand ?? [];
+      const curse = takeRandomMatching(deck.drawPile,
+        definition => definition.kind === "curse" && (definition.effectId !== "instant_kill" || canReceiveInstantKill(recipientHand)), 1, random);
       awardedCardIds.push(...curse);
       removed = true;
       break;

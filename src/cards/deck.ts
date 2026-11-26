@@ -10,11 +10,16 @@ import { CARD_CATALOGUE } from "./catalogue";
 export const MAX_INSTANT_KILL_CARDS_PER_HAND = 1;
 export const MAX_CURSE_CARDS_PER_HAND = 4;
 
-/** Whether a card may enter a hand through a random draw. Theft and monster exchanges deliberately bypass this rule. */
+/** Instant Kill is limited regardless of how the card is acquired. */
+export function canReceiveInstantKill(hand: readonly string[]): boolean {
+  return !hand.includes("red_instant_kill");
+}
+
+/** Whether a card may enter a hand through a random draw. Theft and monster exchanges deliberately bypass the Curse limit. */
 export function canReceiveCardFromRandomDraw(hand: readonly string[], cardId: string): boolean {
   const definition = CARD_CATALOGUE.find((card) => card.id === cardId);
   if (!definition) return true;
-  if (definition.effectId === "instant_kill" && hand.includes("red_instant_kill")) return false;
+  if (definition.effectId === "instant_kill" && !canReceiveInstantKill(hand)) return false;
   if (definition.kind === "curse" && hand.filter((id) => CARD_CATALOGUE.find((card) => card.id === id)?.kind === "curse").length >= MAX_CURSE_CARDS_PER_HAND) return false;
   return true;
 }
