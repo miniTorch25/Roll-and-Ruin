@@ -189,13 +189,13 @@ describe("bot monster offerings", () => {
   });
 
   it("uses one random hand card while Nyxia hides card identities", () => {
-    const state = stateWithHand(["green_herbal_potion", "yellow_peek", "blue_common_sword"]);
+    const state = stateWithHand(["green_herbal_potion", "yellow_peek", "blue_common_sword", "green_brave_spirit"]);
     const nyxia = { ...state, mythRuntime: { monsterId: "nyxia", catalogueId: "M05", hiddenHands: true },
       monsters: [{ id: "nyxia", catalogueId: "M05", name: "Nyxia", rank: "Myth" as const,
         hp: null, maxHp: null, attackPattern: "all_living" as const, attackInterval: null,
         turnsSinceLastAttack: 0, active: true }] };
     expect(chooseBotCards(nyxia, () => 0)).toEqual(["green_herbal_potion"]);
-    expect(chooseBotCards(nyxia, () => 0.99)).toEqual(["blue_common_sword"]);
+    expect(chooseBotCards(nyxia, () => 0.99)).toEqual(["green_brave_spirit"]);
   });
 
   it("plans Kingo's five-card tribute using bots only and balances contributions", () => {
