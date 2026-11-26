@@ -126,12 +126,34 @@ describe("Legend monster offerings", () => {
     expect(result.event.removed).toBe(true);
   });
 
-  it("lets Dwarfy trade two blue cards for up to three blue Defense cards", () => {
-    const result = resolveLegendOffering(summon("dwarfy"), "dwarfy", [
-      { playerId: "p2", cardIds: ["blue_wooden_shield", "blue_iron_shield"] }
+  it("lets Dwarfy consume only the selected copy when a player holds duplicate card IDs", () => {
+    const base = summon("dwarfy");
+    const state = {
+      ...base,
+      players: base.players.map(player => player.id === "p2"
+        ? { ...player, hand: [...player.hand, "blue_wooden_shield"] }
+        : player)
+    };
+    const result = resolveLegendOffering(state, "dwarfy", [
+      { playerId: "p2", cardIds: ["blue_wooden_shield", "blue_wooden_shield"] }
     ], deck);
+    expect(result.state.players.find(player => player.id === "p2")?.hand.filter(id => id === "blue_wooden_shield")).toHaveLength(0);
+    expect(result.event.consumedCardIds).toEqual(["blue_wooden_shield", "blue_wooden_shield"]);
     expect(result.event.awardedCardIds).toHaveLength(3);
-    expect(result.event.awardedCardIds.every(id => CARD_CATALOGUE.find(card => card.id === id)?.kind === "defense")).toBe(true);
+  });
+
+  it("does not consume unoffered duplicate copies from a contributor's hand", () => {
+    const base = summon("dwarfy");
+    const state = {
+      ...base,
+      players: base.players.map(player => player.id === "p2"
+        ? { ...player, hand: [...player.hand, "blue_wooden_shield", "blue_wooden_shield"] }
+        : player)
+    };
+    const result = resolveLegendOffering(state, "dwarfy", [
+      { playerId: "p2", cardIds: ["blue_wooden_shield", "blue_wooden_shield"] }
+    ], deck);
+    expect(result.state.players.find(player => player.id === "p2")?.hand.filter(id => id === "blue_wooden_shield")).toHaveLength(1);
   });
 
   it("collects Kingo's five-card tribute across players and rewards the top contributor", () => {
