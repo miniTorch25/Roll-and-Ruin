@@ -1,5 +1,7 @@
 import { summonMonster, type GameMonster, type GameState, type MonsterAttackEvent } from "../game/turnEngine";
-import { getRandomMonsterByRank, type MonsterRank } from "./catalogue";
+import type { CardDeckState } from "../cards/deck";
+import { summonMyth, type MythId } from "./myth";
+import { getRandomMonsterByRank, MONSTER_CATALOGUE, type MonsterRank } from "./catalogue";
 
 export interface MonsterDamageEvent {
   monsterId: string;
@@ -26,6 +28,57 @@ export interface CatalogueSummonResult {
   state: GameState;
   monster: GameMonster;
   attack: MonsterAttackEvent;
+}
+
+export interface FullCatalogueSummonResult {
+  state: GameState;
+  monster: GameMonster;
+  attack?: MonsterAttackEvent;
+  deck?: CardDeckState;
+  messages?: string[];
+}
+
+/** Selects uniformly from all 50 entries and routes Myth summons through their full rules engine. */
+export function summonRandomMonsterFromCatalogue(
+  state: GameState,
+  instanceId: string,
+  deck: CardDeckState,
+  random: () => number = Math.random
+): FullCatalogueSummonResult {
+  if (!instanceId.trim()) throw new Error("A unique monster instance ID is required.");
+  const index = Math.min(MONSTER_CATALOGUE.length - 1, Math.max(0, Math.floor(random() * MONSTER_CATALOGUE.length)));
+  const definition = MONSTER_CATALOGUE[index];
+
+  if (definition.rank === "Myth") {
+    const myth = summonMyth(state, definition.id as MythId, instanceId, deck, random);
+    const monster = myth.state.monsters.find(item => item.id === instanceId);
+    if (!monster) throw new Error("The summoned Myth monster was not added to the game state.");
+    return { state: myth.state, monster, attack: myth.attack, deck: myth.deck, messages: myth.messages };
+  }
+
+  const triggerPosition = definition.id === "R09"
+    ? [0, 8, 16, 24][Math.min(3, Math.max(0, Math.floor(random() * 4)))]
+    : undefined;
+  const monster: Omit<GameMonster, "turnsSinceLastAttack" | "active"> = {
+    id: instanceId,
+    catalogueId: definition.id,
+    ...(triggerPosition === undefined ? {} : { triggerPosition }),
+    name: definition.name,
+    rank: definition.rank,
+    hp: definition.hp,
+    maxHp: definition.hp,
+    attackDamage: definition.attackDamage,
+    attackPattern: definition.attackPattern,
+    attackInterval: definition.attackInterval,
+    targetCount: definition.targetCount,
+    rules: [...definition.rules],
+    reward: definition.reward,
+    info: definition.info
+  };
+  const summoned = summonMonster(state, monster);
+  const created = summoned.state.monsters.find(item => item.id === instanceId);
+  if (!created) throw new Error("The summoned monster was not added to the game state.");
+  return { state: summoned.state, monster: created, attack: summoned.attack, deck };
 }
 
 /** Adds a catalogue monster to the board and returns its mandatory first-summon attack event. */

@@ -13,6 +13,9 @@ The Phaser BoardScene now uses the approved card catalogue, turn engine, monster
 
 ## Monster interactions
 - Scheduled monster attacks are resolved before the next player's turn.
+- The board special-tile layout is configured at match start; Mystery draws one eligible card, Monster summons uniformly from the 50-entry catalogue (including the full Myth summon rules), and Prison skips the affected player's next three turns.
+- Passing a space does not trigger its ordinary landing effect; only the final landing tile is checked. Completing a lap regenerates the special-tile layout while keeping occupied player spaces clear.
+- Dice tiles grant one extra D6 on the player's next movement roll. The bonus applies to Roll, Draw, and Use Cards; an active one-die limit takes precedence.
 - First-summon attacks are resolved immediately after a summon card.
 - Active monsters and their combat data are shown in the side panel.
 - Myth actions include Hecate's three-card offering, Granfel's yellow-card exchange, Ragnar/Ouro offerings, and Lucy's bargain.
@@ -37,4 +40,4 @@ The Phaser BoardScene now uses the approved card catalogue, turn engine, monster
 - Player, monster, card, and dice-value selection now use in-game dialogs; the Kingo contribution flow is a separate shared-screen dialog.
 - The Kingo dialog is a local shared-screen contribution flow; it does not provide private simultaneous input or network multiplayer.
 - Myth and Legend interaction controls are functional but still need visual polish and richer feedback.
-- Special-tile UI and authoritative multiplayer sessions remain separate work.
+- Exact tile counts remain a match-start choice because the rules only specify a maximum of four per type; online multiplayer remains separate work.

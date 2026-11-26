@@ -118,7 +118,7 @@ export function regenerateSpecialTiles(
 }
 
 /** Returns every space entered after leaving from, including each crossed start-space/lap. */
-export function getMovementPath(from: number, steps: number): {
+export function getMovementPath(from: number, steps: number, direction: 1 | -1 = 1): {
   positions: number[];
   completedLapPositions: number[];
 } {
@@ -129,16 +129,17 @@ export function getMovementPath(from: number, steps: number): {
   const positions: number[] = [];
   const completedLapPositions: number[] = [];
   for (let step = 1; step <= steps; step++) {
-    const position = (from + step) % BOARD_SIZE;
+    const position = ((from + step * direction) % BOARD_SIZE + BOARD_SIZE) % BOARD_SIZE;
     positions.push(position);
-    if (position === 0) completedLapPositions.push(position);
+    if (direction === 1 && position === 0) completedLapPositions.push(position);
+    if (direction === -1 && position === 0) completedLapPositions.push(position);
   }
   return { positions, completedLapPositions };
 }
 
 /** Only the final space is checked for ordinary special-tile landing effects. */
-export function resolveBoardMovement(board: BoardState, from: number, steps: number): BoardMovement {
-  const path = getMovementPath(from, steps);
+export function resolveBoardMovement(board: BoardState, from: number, steps: number, direction: 1 | -1 = 1): BoardMovement {
+  const path = getMovementPath(from, steps, direction);
   const to = path.positions.at(-1) ?? from;
   const landed = steps > 0 ? board.tiles[to]?.special : undefined;
   return {
@@ -157,9 +158,10 @@ export function moveAndRegenerateBoard(
   from: number,
   steps: number,
   occupiedPositionsAfterMove: number[],
-  random: () => number = Math.random
+  random: () => number = Math.random,
+  direction: 1 | -1 = 1
 ): { board: BoardState; movement: BoardMovement } {
-  const movement = resolveBoardMovement(board, from, steps);
+  const movement = resolveBoardMovement(board, from, steps, direction);
   let nextBoard = board;
   for (let lap = 0; lap < movement.completedLaps; lap++) {
     nextBoard = regenerateSpecialTiles(nextBoard, occupiedPositionsAfterMove, random);

@@ -1,7 +1,7 @@
 import Phaser from "phaser";
 import {
   createGameState, endPlayerTurn, finishCardActivity, finishSpecialTileCheck, finishStatusCheck,
-  moveActivePlayer, resolveMonsterAttackPhase,
+  imprisonPlayer, moveActivePlayer, resolveMonsterAttackPhase,
   selectPlayerAction, startPlayerTurn, type GameState, type PlayerAction
 } from "../game/turnEngine";
 import { resolveCardEffect, resolveMonsterAttackEvents } from "../cards/effectResolver";
@@ -12,6 +12,8 @@ import {
 } from "../monsters/myth";
 import { resolveLegendOffering } from "../monsters/legend";
 import { createCardDeck, drawCards } from "../cards/deck";
+import { createBoardState, moveAndRegenerateBoard, type BoardState, type SpecialTileCounts, type SpecialTileType } from "../game/board";
+import { summonRandomMonsterFromCatalogue } from "../monsters/engine";
 import { CARD_CATALOGUE } from "../cards/catalogue";
 import { selectKingoOfferingModal } from "../ui/kingoOfferingModal";
 import { chooseOptionDialog, confirmActionDialog, selectCardsDialog, textInputDialog } from "../ui/gameDialogs";
@@ -27,6 +29,10 @@ const COLORS = [0xe0a85b, 0x75b8d1, 0x9bc47b, 0xc18bd1];
 
 export class BoardScene extends Phaser.Scene {
   private state!: GameState;
+  private board!: BoardState;
+  private boardLayer?: Phaser.GameObjects.Container;
+  private ruinsLayer?: Phaser.GameObjects.Graphics;
+  private monsterInstanceCounter = 0;
   private tileCenters: { x: number; y: number }[] = [];
   private tokens: Phaser.GameObjects.Container[] = [];
   private deck = createCardDeck(CARD_CATALOGUE.map((card) => card.id));
@@ -36,14 +42,36 @@ export class BoardScene extends Phaser.Scene {
   constructor() { super("BoardScene"); }
 
   create(): void {
+    this.drawBackdrop();
+    void this.initializeGame();
+  }
+
+  private async initializeGame(): Promise<void> {
+    const chooseCount = async (label: string): Promise<number> => {
+      const selected = await chooseOptionDialog(
+        "กำหนดจำนวนช่อง " + label,
+        "กติกากำหนดจำนวนสูงสุด 4 ช่อง แต่ยังไม่กำหนดจำนวนตายตัว คุณสามารถเลือก 0–4 ได้",
+        Array.from({ length: 5 }, (_, count) => ({
+          value: String(count),
+          label: count + " ช่อง",
+          description: count === 0 ? "ไม่วางช่องชนิดนี้" : "สุ่มวาง " + count + " ช่องบนกระดาน"
+        }))
+      );
+      return Number(selected ?? "0");
+    };
+    const specialTileCounts: SpecialTileCounts = {
+      mystery: await chooseCount("Mystery"),
+      monster: await chooseCount("Monster"),
+      dice: await chooseCount("Dice")
+    };
     const startingSetup = PLAYER_SETUP.map((player) => {
       const drawn = drawCards([], this.deck, 4);
       this.deck = drawn.deck;
       return { ...player, startingHand: drawn.hand };
     });
     this.state = createGameState("1x4", startingSetup, PATH_LENGTH);
+    this.board = createBoardState(specialTileCounts, this.state.players.map(player => player.position));
     this.state = this.prepareNextTurn(this.state);
-    this.drawBackdrop();
     this.drawBoard();
     this.createPlayers();
     this.createLabels();
@@ -73,24 +101,46 @@ export class BoardScene extends Phaser.Scene {
   }
 
   private drawBoard(): void {
+    this.boardLayer?.destroy(true);
+    const boardLayer = this.add.container(0, 0).setDepth(1);
+    this.boardLayer = boardLayer;
     this.tileCenters = this.createPath();
-    this.tileCenters.forEach((p, i) => {
-      const color = i === 0 ? 0x3b806b : i % 8 === 0 ? 0x596b83 : 0x46566d;
-      this.add.polygon(p.x, p.y, [0,-14,28,0,0,14,-28,0], color)
-        .setStrokeStyle(2, 0x9ba9bd, 0.8).setDepth(p.y);
-      if (i % 4 === 0) {
-        this.add.text(p.x, p.y - 6, String(i + 1), {
-          fontFamily: "monospace", fontSize: "11px", color: "#dce5f2"
-        }).setOrigin(0.5).setDepth(p.y + 1);
+    const tileStyle: Record<SpecialTileType, { color: number; label: string; text: string }> = {
+      prison: { color: 0x8d4f59, label: "P", text: "#ffe0e2" },
+      mystery: { color: 0x715a9b, label: "?", text: "#f0e5ff" },
+      monster: { color: 0xa95f3d, label: "!", text: "#ffe4d4" },
+      dice: { color: 0x426f9b, label: "D", text: "#e1f2ff" }
+    };
+    this.tileCenters.forEach((point, index) => {
+      const special = this.board.tiles[index].special;
+      const color = special
+        ? tileStyle[special].color
+        : index === 0 ? 0x3b806b : index % 8 === 0 ? 0x596b83 : 0x46566d;
+      const polygon = this.add.polygon(point.x, point.y, [0,-14,28,0,0,14,-28,0], color)
+        .setStrokeStyle(special ? 3 : 2, special ? 0xf0d4a5 : 0x9ba9bd, 0.9)
+        .setDepth(point.y);
+      boardLayer.add(polygon);
+      if (special || index % 4 === 0) {
+        const label = special ? tileStyle[special].label : String(index + 1);
+        const textColor = special ? tileStyle[special].text : "#dce5f2";
+        const text = this.add.text(point.x, point.y - 6, label, {
+          fontFamily: "monospace",
+          fontSize: special ? "13px" : "11px",
+          fontStyle: "bold",
+          color: textColor
+        }).setOrigin(0.5).setDepth(point.y + 1);
+        boardLayer.add(text);
       }
     });
-    const ruins = this.add.graphics().setDepth(10);
-    ruins.fillStyle(0x111722, 0.75);
-    [[400,210],[500,210],[400,340],[500,340]].forEach(([x,y]) => {
-      ruins.fillRect(x,y,22,32); ruins.fillRect(x+27,y+10,16,22);
-    });
+    if (!this.ruinsLayer) {
+      this.ruinsLayer = this.add.graphics().setDepth(10);
+      this.ruinsLayer.fillStyle(0x111722, 0.75);
+      [[400,210],[500,210],[400,340],[500,340]].forEach(([x,y]) => {
+        this.ruinsLayer!.fillRect(x,y,22,32);
+        this.ruinsLayer!.fillRect(x+27,y+10,16,22);
+      });
+    }
   }
-
   private createPlayers(): void {
     this.state.players.forEach((player, index) => {
       const p = this.tileCenters[player.position];
@@ -115,6 +165,92 @@ export class BoardScene extends Phaser.Scene {
     this.logText = this.add.text(450, 520, "YOUR EXPEDITION BEGINS", {
       fontFamily: "monospace", fontSize: "14px", color: "#d5deec"
     }).setOrigin(0.5);
+  }
+
+  private resolveMovementAndSpecialTile(moved: ReturnType<typeof moveActivePlayer>): string {
+    this.state = moved.state;
+    const previousRegenerationCount = this.board.regenerationCount;
+    let message = "";
+    if (moved.monsterAttackEvents.length > 0) {
+      this.state = resolveMonsterAttackEvents(this.state, moved.monsterAttackEvents).state;
+      message += " · มิโนทอร์โจมตีจากช่องมุม";
+    }
+
+    const occupied = this.state.players
+      .filter(player => player.status === "alive")
+      .map(player => player.position);
+    const boardResult = moveAndRegenerateBoard(
+      this.board,
+      moved.from,
+      moved.steps,
+      occupied,
+      Math.random,
+      this.state.movementDirection
+    );
+    this.board = boardResult.board;
+
+    const landedTile = boardResult.movement.landedTile;
+    const active = this.state.players[this.state.activePlayerIndex];
+    if (landedTile && active?.status === "alive" && active.position === moved.to) {
+      if (landedTile === "mystery") {
+        const drawn = drawCards(active.hand, this.deck, 1);
+        this.deck = drawn.deck;
+        this.state = {
+          ...this.state,
+          players: this.state.players.map(player =>
+            player.id === active.id ? { ...player, hand: drawn.hand } : player
+          )
+        };
+        message += drawn.drawnCardIds.length
+          ? " · Mystery: จั่วไพ่ 1 ใบ"
+          : " · Mystery: ไม่มีไพ่ที่สามารถจั่วได้";
+      } else if (landedTile === "monster") {
+        try {
+          const summoned = summonRandomMonsterFromCatalogue(
+            this.state,
+            "tile-monster-" + (++this.monsterInstanceCounter),
+            this.deck
+          );
+          this.state = summoned.state;
+          if (summoned.deck) this.deck = summoned.deck;
+          if (summoned.attack) {
+            this.state = resolveMonsterAttackEvents(this.state, [summoned.attack]).state;
+          }
+          message += " · Monster: อัญเชิญ " + summoned.monster.name + " (" + summoned.monster.rank + ")";
+          if (summoned.messages?.length) message += " · " + summoned.messages.join(" · ");
+          if (summoned.attack) message += " · โจมตีทันที";
+        } catch (error) {
+          message += " · Monster: " + (error instanceof Error ? error.message : "อัญเชิญมอนสเตอร์ไม่สำเร็จ");
+        }
+      } else if (landedTile === "prison") {
+        this.state = imprisonPlayer(this.state, active.id, 3);
+        message += " · Prison: ถูกจำคุกและจะพลาด 3 เทิร์นถัดไป";
+      } else if (landedTile === "dice") {
+        this.state = {
+          ...this.state,
+          players: this.state.players.map(player => {
+            if (player.id !== active.id) return player;
+            const existing = player.statusEffects.find(effect => effect.type === "bonus_dice");
+            const retained = player.statusEffects.filter(effect => effect.type !== "bonus_dice");
+            return {
+              ...player,
+              statusEffects: [
+                ...retained,
+                { type: "bonus_dice" as const, turnsRemaining: 2, amount: (existing?.amount ?? 0) + 1 }
+              ]
+            };
+          })
+        };
+        message += " · Dice: ได้รับลูกเต๋าเพิ่ม 1 ลูกในเทิร์นถัดไป";
+      }
+    }
+
+    this.state = finishSpecialTileCheck(this.state);
+    if (this.board.regenerationCount !== previousRegenerationCount) {
+      this.drawBoard();
+      message += " · ครบรอบกระดาน: สุ่มตำแหน่งช่องพิเศษใหม่";
+    }
+    return message;
   }
 
   chooseAction(action: PlayerAction): { ok: boolean; message: string } {
@@ -149,13 +285,7 @@ export class BoardScene extends Phaser.Scene {
 
       this.state = selected.state;
       const moved = moveActivePlayer(this.state);
-      this.state = moved.state;
-      if (moved.monsterAttackEvents.length > 0) {
-        const triggered = resolveMonsterAttackEvents(this.state, moved.monsterAttackEvents);
-        this.state = triggered.state;
-        message += " · มิโนทอร์โจมตีจากช่องมุม";
-      }
-      this.state = finishSpecialTileCheck(this.state);
+      message += this.resolveMovementAndSpecialTile(moved);
       this.state = finishStatusCheck(this.state);
       const endingPlayerId = this.state.players[this.state.activePlayerIndex]?.id;
       if (endingPlayerId && this.state.monsters.some(monster => monster.active && monster.rank === "Myth")) {
@@ -441,11 +571,7 @@ export class BoardScene extends Phaser.Scene {
       const finished = finishCardActivity(this.state);
       this.state = finished.state;
       const moved = moveActivePlayer(this.state);
-      this.state = moved.state;
-      if (moved.monsterAttackEvents.length > 0) {
-        this.state = resolveMonsterAttackEvents(this.state, moved.monsterAttackEvents).state;
-      }
-      this.state = finishSpecialTileCheck(this.state);
+      const tileMessage = this.resolveMovementAndSpecialTile(moved);
       this.state = finishStatusCheck(this.state);
       const endingPlayerId = this.state.players[this.state.activePlayerIndex]?.id;
       if (endingPlayerId && this.state.monsters.some(monster => monster.active && monster.rank === "Myth")) {
@@ -454,7 +580,7 @@ export class BoardScene extends Phaser.Scene {
       this.state = endPlayerTurn(this.state);
       this.updateTokenPositions();
       this.state = this.prepareNextTurn(this.state);
-      const message = `ใช้ไพ่เสร็จ · ทอยเต๋า ${finished.diceRolls.join(" + ")} · เดิน ${finished.diceRolls.reduce((sum, value) => sum + value, 0)} ช่อง`;
+      const message = `ใช้ไพ่เสร็จ · ทอยเต๋า ${finished.diceRolls.join(" + ")} · เดิน ${finished.diceRolls.reduce((sum, value) => sum + value, 0)} ช่อง${tileMessage}`;
       this.updateHud(message);
       return { ok: true, message };
     } catch (error) {
@@ -510,6 +636,11 @@ export class BoardScene extends Phaser.Scene {
     const players = document.querySelector<HTMLElement>("#player-list");
     const monsterPanel = document.querySelector<HTMLElement>("#monster-panel");
     const phase = document.querySelector<HTMLElement>("#phase-label");
+    const tileCounts = document.querySelector<HTMLElement>("#tile-counts");
+    if (tileCounts && this.board) {
+      const counts = this.board.specialTileCounts;
+      tileCounts.textContent = "Prison 2 · Mystery " + counts.mystery + " · Monster " + counts.monster + " · Dice " + counts.dice;
+    }
 
     if (position) position.textContent = `ช่อง ${active.position + 1} / ${this.state.boardLength}`;
     if (score) score.textContent = String(active.score);

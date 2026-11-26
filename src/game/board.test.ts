@@ -81,4 +81,24 @@ describe("Roll and Ruin board rules", () => {
     const movement = resolveBoardMovement(board, prison!.position, 0);
     expect(movement.landedTile).toBeUndefined();
   });
+
+  it("tracks reverse movement and does not count moving backward from start as a lap", () => {
+    expect(getMovementPath(2, 3, -1)).toEqual({
+      positions: [1, 0, 31],
+      completedLapPositions: [0]
+    });
+    expect(getMovementPath(0, 1, -1)).toEqual({
+      positions: [31],
+      completedLapPositions: []
+    });
+  });
+
+  it("resolves the tile landed on while regenerating after a reverse full lap", () => {
+    const initial = createBoardState({ mystery: 1, monster: 1, dice: 1 }, [0, 31], () => 0);
+    const result = moveAndRegenerateBoard(initial, 2, 2, [0, 0], () => 0.5, -1);
+    expect(result.movement.to).toBe(0);
+    expect(result.movement.landedTile).toBeUndefined();
+    expect(result.movement.completedLaps).toBe(1);
+    expect(result.board.regenerationCount).toBe(1);
+  });
 });
