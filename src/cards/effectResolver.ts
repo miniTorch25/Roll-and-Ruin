@@ -3,7 +3,7 @@ import { getCardDefinition, type CardDefinition, type CardEffectId } from "./cat
 import { drawCards, type CardDeckState } from "./deck";
 import { resolveMonsterDefeatRewards, type MonsterRewardEvent } from "../monsters/rewards";
 import { damageMonster, summonRandomMonster, type MonsterDamageEvent } from "../monsters/engine";
-import { summonMyth, type MythId } from "../monsters/myth";
+import { summonMyth, type MythId, type MythRuntime } from "../monsters/myth";
 import type { MonsterRank } from "../monsters/catalogue";
 
 export interface CardRuntimePlayerState {
@@ -30,7 +30,7 @@ export interface CardRuntimeState {
   players: Record<string, CardRuntimePlayerState>;
 }
 
-export type CardEffectGameState = GameState & { cardRuntime: CardRuntimeState };
+export type CardEffectGameState = GameState & { cardRuntime: CardRuntimeState; mythRuntime?: MythRuntime };
 
 export type CursePayment =
   | { type: "hp"; amount: number }
