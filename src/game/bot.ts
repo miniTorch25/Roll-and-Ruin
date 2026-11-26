@@ -12,16 +12,25 @@ export type BotCursePayment =
   | { type: "cooldown" };
 
 /** Select a legal Curse cost after the Curse card has been removed from the bot's hand. */
-export function chooseBotCursePayment(state: GameState, playerId: string): BotCursePayment | undefined {
+export function chooseBotCursePayment(
+  state: GameState,
+  playerId: string,
+  excludedCardId?: string
+): BotCursePayment | undefined {
   const player = state.players.find(candidate => candidate.id === playerId);
   const runtime = state.cardRuntime?.players[playerId];
   if (!player) return undefined;
+  const availableCards = player.hand.filter(cardId => cardId !== excludedCardId);
   if (player.hp > 10) return { type: "hp", amount: 5 };
-  if (player.hand.length >= 2) return { type: "discard", cardIds: [player.hand[0], player.hand[1]] };
-  if (player.hp >= 5) return { type: "hp", amount: 5 };
-  if ((runtime?.curseCooldownUses ?? 0) < 3 && (runtime?.curseCooldownTurnsRemaining ?? 0) === 0) {
+  if (availableCards.length >= 2) {
+    return { type: "discard", cardIds: [availableCards[0], availableCards[1]] };
+  }
+  if ((player.hp < 5 || availableCards.length < 2) &&
+      (runtime?.curseCooldownUses ?? 0) < 3 &&
+      (runtime?.curseCooldownTurnsRemaining ?? 0) === 0) {
     return { type: "cooldown" };
   }
+  if (player.hp >= 5) return { type: "hp", amount: 5 };
   return undefined;
 }
 
@@ -197,7 +206,7 @@ export function chooseBotCards(state: GameState): string[] {
       case "remove_buffs_and_shields":
       case "steal_eliminated_player_cards":
       case "mark_monster_attack_target": {
-        if (!chooseBotCursePayment(state, player.id)) break;
+        if (!chooseBotCursePayment(state, player.id, id)) break;
         if (card.effectId === "steal_eliminated_player_cards" &&
             !state.players.some(candidate => candidate.status === "eliminated" && candidate.hand.length > 0)) break;
         if (card.effectId === "mark_monster_attack_target" && !activeMonsters.length) break;
