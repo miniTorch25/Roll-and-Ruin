@@ -32,3 +32,8 @@ A 390 × 844 mobile viewport test verifies that the board and all primary action
 ## Tablet and desktop layout test
 
 A responsive layout test checks 768 × 1024 tablet and 1280 × 900 desktop viewports. It verifies there is no horizontal page overflow, the Phaser canvas stays inside the game panel, and the sidebar switches between stacked and two-column layouts at the intended breakpoint.
+
+
+## Dialog accessibility smoke test
+
+The setup flow verifies that native game dialogs expose their heading and description through `aria-labelledby` and `aria-describedby`. The first option receives keyboard focus, and Enter activates it so setup can be completed without a pointer.
