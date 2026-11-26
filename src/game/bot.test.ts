@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { chooseBotAction, chooseBotCards } from "./bot";
+import { chooseBotAction, chooseBotCards, chooseBotCardTargets } from "./bot";
 import { createGameState } from "./turnEngine";
 
 function stateWithHand(hand: string[], overrides: Partial<{ hp: number; maxHp: number; hearts: number; statuses: Array<{ type: "poison" | "bonus_dice"; turnsRemaining: number }> }> = {}) {
@@ -58,9 +58,31 @@ describe("chooseBotCards", () => {
     }))).toContain("green_holy_water");
   });
 
-  it("does not select targeted, curse, or summon cards", () => {
-    expect(chooseBotCards(stateWithHand([
-      "blue_common_sword", "red_instant_kill", "red_summon_common", "yellow_sleep_spell"
-    ]))).toEqual([]);
+  it("selects a targeted attack and chooses a vulnerable opponent", () => {
+    const state = stateWithHand(["blue_common_sword"]);
+    const changed = {
+      ...state,
+      players: state.players.map((player, index) => index === 1
+        ? { ...player, hp: 5, hearts: 1 }
+        : player)
+    };
+    expect(chooseBotCards(changed)).toContain("blue_common_sword");
+    expect(chooseBotCardTargets(changed, "blue_common_sword").targetPlayerId).toBe("p2");
+  });
+
+  it("selects Monster Hunter only when a finite-HP monster is active", () => {
+    const state = stateWithHand(["blue_monster_hunter"]);
+    const withMonster = {
+      ...state,
+      monsters: [{ id: "m1", rank: "Common" as const, hp: 4, maxHp: 4, attackPattern: "random_living" as const, attackInterval: 2, turnsSinceLastAttack: 0, active: true }]
+    };
+    expect(chooseBotCards(withMonster)).toContain("blue_monster_hunter");
+    expect(chooseBotCardTargets(withMonster, "blue_monster_hunter").targetMonsterId).toBe("m1");
+  });
+
+  it("does not select targeted, curse, or summon cards when no legal target exists", () => {
+    const state = stateWithHand(["blue_common_sword", "red_instant_kill", "red_summon_common", "yellow_sleep_spell"]);
+    const solo = { ...state, players: state.players.map((player, index) => index === 0 ? player : { ...player, status: "eliminated" as const }) };
+    expect(chooseBotCards(solo)).toEqual([]);
   });
 });
