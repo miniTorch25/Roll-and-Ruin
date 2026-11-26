@@ -948,13 +948,34 @@ describe("monster card effects", () => {
     expect(result.state.mythRuntime).toMatchObject({ catalogueId: "M02" });
   });
 
+  it("emits first-summon attacks for every Myth whose rules require one", () => {
+    const cases = [
+      { random: 0.15, id: "M02", damage: 1 },
+      { random: 0.55, id: "M06", damage: 15 },
+      { random: 0.75, id: "M08", damage: 3 },
+      { random: 0.85, id: "M09", damage: 5 }
+    ];
+    for (const item of cases) {
+      const result = resolveCardEffect(cardPlayState(), "red_summon_myth", {
+        deck: { drawPile: [], discardPile: [] },
+        random: () => item.random
+      });
+      expect(result.state.monsters[0]).toMatchObject({ catalogueId: item.id, attackDamage: item.damage });
+      expect(result.monsterSummonEvents[0]).toMatchObject({
+        monsterId: result.state.monsters[0].id,
+        targetPlayerIds: ["p1", "p2", "p3", "p4"],
+        reason: "first_summon"
+      });
+    }
+  });
+
   it("runs Pandy's summon draw effect through the shared deck consumer", () => {
     const pile = Array.from({ length: 12 }, () => "blue_common_sword");
     const result = resolveCardEffect(cardPlayState(), "red_summon_myth", {
       deck: { drawPile: pile, discardPile: [] },
       random: () => 0.65
     });
-    expect(result.state.mythRuntime).toBeUndefined();
+    expect(result.state.monsters[0].active).toBe(false);
     expect(result.state.players.every(player => player.hand.length === 7)).toBe(true);
     expect(result.deck?.drawPile).toHaveLength(0);
   });
