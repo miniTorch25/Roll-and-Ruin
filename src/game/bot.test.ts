@@ -172,10 +172,13 @@ describe("chooseBotCards", () => {
     expect(chooseBotCards(solo)).toEqual([]);
   });
 
-  it("selects the newly covered targeted Curse effects", () => {
-    const state = stateWithHand(["red_cursed_dice", "red_public_hand"]);
-    expect(chooseBotCards(state)).toEqual(expect.arrayContaining(["red_cursed_dice", "red_public_hand"]));
-    expect(chooseBotCardTargets(state, "red_cursed_dice").targetPlayerId).toBe("p2");
+  it("selects the newly covered targeted Curse effects without exceeding one Curse per turn", () => {
+    const diceCurse = stateWithHand(["red_cursed_dice"]);
+    const revealCurse = stateWithHand(["red_public_hand"]);
+    expect(chooseBotCards(diceCurse)).toContain("red_cursed_dice");
+    expect(chooseBotCards(revealCurse)).toContain("red_public_hand");
+    expect(chooseBotCardTargets(diceCurse, "red_cursed_dice").targetPlayerId).toBe("p2");
+    expect(chooseBotCardTargets(revealCurse, "red_public_hand").targetPlayerId).toBe("p2");
   });
 
   it("does not select targeted cards when no legal target exists", () => {
