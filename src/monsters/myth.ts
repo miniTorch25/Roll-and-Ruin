@@ -243,7 +243,7 @@ export function offerMythCards(input: GameState, contributions: Array<{ playerId
       throw new Error("Ouro requires exactly one card of each color: blue, yellow, green, and red.");
     }
     const colors = new Set(allColors);
-    complete = ["blue", "yellow", "green", "red"].every(color => colors.has(color));
+    complete = (["blue", "yellow", "green", "red"] as const).every(color => colors.has(color));
   }
   const offerings = { ...runtime.offerings };
   for (const item of contributions) offerings[item.playerId] = [...(offerings[item.playerId] ?? []), ...item.cardIds];
