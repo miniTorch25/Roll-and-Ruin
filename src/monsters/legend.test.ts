@@ -47,6 +47,35 @@ describe("Legend monster offerings", () => {
     expect(result.state.players[0].hand).toContain(chosen);
   });
 
+  it("does not let Gini give a second Instant Kill to a player who already holds one", () => {
+    const state = summon("gini");
+    const withKill = {
+      ...state,
+      players: state.players.map(player => player.id === "p1"
+        ? { ...player, hand: [...player.hand, "red_instant_kill"] }
+        : player)
+    };
+    expect(() => resolveLegendOffering(withKill, "gini", [
+      { playerId: "p1", cardIds: setup[0].startingHand.slice(0, 3) }
+    ], deck, { selectedDeckCardId: "red_instant_kill" })).toThrow(/already holds Instant Kill/);
+  });
+
+  it("lets Lepri exchange for Curse cards above the four-card limit but skips a duplicate Instant Kill", () => {
+    const state = summon("lepri");
+    const withKillAndCurses = {
+      ...state,
+      players: state.players.map(player => player.id === "p1"
+        ? { ...player, hand: [...player.hand, "red_instant_kill", "red_weaken", "red_life_drain", "red_hand_robbery", "red_silence"] }
+        : player)
+    };
+    const result = resolveLegendOffering(withKillAndCurses, "lepri", [
+      { playerId: "p1", cardIds: ["green_herbal_potion"] }
+    ], { drawPile: ["red_instant_kill", "red_despair", "red_cursed_dice", "yellow_peek"], discardPile: [] }, { random: () => 0 });
+    expect(result.event.awardedCardIds).toEqual(["red_despair", "red_cursed_dice"]);
+    expect(result.state.players[0].hand.filter(id => id === "red_instant_kill")).toHaveLength(1);
+    expect(result.state.players[0].hand.filter(id => CARD_CATALOGUE.find(card => card.id === id)?.kind === "curse")).toHaveLength(7);
+  });
+
   it("heals every living player by ten for Unico's green-card offering", () => {
     const state = summon("unico");
     const wounded = { ...state, players: state.players.map(player => ({ ...player, hp: 10 })) };
