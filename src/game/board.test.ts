@@ -47,6 +47,23 @@ describe("Roll and Ruin board rules", () => {
     expect(next.tiles[8].special).toBeUndefined();
   });
 
+  it("finds the nearest special tile ahead and wraps around the board", () => {
+    const generated = createBoardState({ mystery: 0, monster: 0, dice: 0 }, [], () => 0);
+    const tiles: BoardTile[] = generated.tiles.map(tile => ({ position: tile.position }));
+    tiles[2] = { position: 2, special: "mystery" };
+    tiles[30] = { position: 30, special: "prison" };
+    const board = { ...generated, tiles };
+    expect(getNextSpecialTileMovement(board, 0)).toEqual({ position: 2, steps: 2, tile: "mystery" });
+    expect(getNextSpecialTileMovement(board, 1, -1)).toEqual({ position: 30, steps: 3, tile: "prison" });
+    expect(getNextSpecialTileMovement(board, 30)).toEqual({ position: 2, steps: 4, tile: "mystery" });
+  });
+
+  it("returns no shortcut when the board has no special tiles", () => {
+    const generated = createBoardState({ mystery: 0, monster: 0, dice: 0 }, [], () => 0);
+    const board = { ...generated, tiles: generated.tiles.map(tile => ({ position: tile.position })) };
+    expect(getNextSpecialTileMovement(board, 12)).toBeUndefined();
+  });
+
   it("tracks every passed space and each completed lap", () => {
     const path = getMovementPath(30, 4);
     expect(path.positions).toEqual([31, 0, 1, 2]);
