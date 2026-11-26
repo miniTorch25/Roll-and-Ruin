@@ -99,6 +99,15 @@ export function chooseBotMythOffering(state: GameState, monsterId: string): stri
   if (!monster || !player || player.status !== "alive") return [];
   const runtime = (state as GameState & { mythRuntime?: { monsterId: string; catalogueId: string; offerings: Record<string, string[]> } }).mythRuntime;
   if (!runtime || runtime.monsterId !== monsterId) return [];
+  if (runtime.catalogueId === "M01") {
+    return selectOfferingCards(player.hand,
+      id => CARD_CATALOGUE.find(card => card.id === id)?.color === "yellow", 3);
+  }
+  if (runtime.catalogueId === "M02") {
+    const yellowCount = player.hand.filter(id => CARD_CATALOGUE.find(card => card.id === id)?.color === "yellow").length;
+    return selectOfferingCards(player.hand,
+      id => CARD_CATALOGUE.find(card => card.id === id)?.color === "yellow", yellowCount);
+  }
   if (runtime.catalogueId === "M06") {
     const offered = Object.values(runtime.offerings).reduce((sum, cards) => sum + cards.length, 0);
     return selectOfferingCards(player.hand, () => true, Math.max(0, 10 - offered));
@@ -115,6 +124,41 @@ export function chooseBotMythOffering(state: GameState, monsterId: string): stri
     return selected;
   }
   return [];
+}
+
+
+/**
+ * Plan Kingo's shared tribute using bot-controlled players only. Human hands are
+ * never treated as resources the AI may spend. Contributions are balanced to
+ * reduce the chance that one bot becomes the sole highest contributor.
+ */
+export function chooseBotKingoOffering(
+  state: GameState,
+  monsterId: string
+): Array<{ playerId: string; cardIds: string[] }> | undefined {
+  const monster = state.monsters.find(candidate =>
+    candidate.id === monsterId && candidate.active && candidate.catalogueId === "L10"
+  );
+  if (!monster) return undefined;
+  const bots = state.players.filter(player => player.status === "alive" && player.isBot);
+  const selected = new Set<string>();
+  const contributions = new Map<string, string[]>();
+  while (selected.size < 5) {
+    const candidates = bots.map(player => {
+      const available = player.hand
+        .filter(id => !selected.has(id) && CARD_CATALOGUE.some(card => card.id === id))
+        .sort((a, b) => offeringCardValue(a) - offeringCardValue(b));
+      return { player, available, count: contributions.get(player.id)?.length ?? 0 };
+    }).filter(entry => entry.available.length > 0)
+      .sort((a, b) => a.count - b.count ||
+        offeringCardValue(a.available[0]) - offeringCardValue(b.available[0]));
+    const next = candidates[0];
+    if (!next) return undefined;
+    const cardId = next.available[0];
+    selected.add(cardId);
+    contributions.set(next.player.id, [...(contributions.get(next.player.id) ?? []), cardId]);
+  }
+  return [...contributions].map(([playerId, cardIds]) => ({ playerId, cardIds }));
 }
 
 export function chooseBotAction(player: Pick<GamePlayer, "hand">): Exclude<PlayerAction, "use_cards"> {
@@ -219,9 +263,15 @@ export function chooseBotCardTargets(state: GameState, cardId: string): BotCardT
 }
 
 /** Choose useful self-support or targeted attack/prank cards, never manual-choice curses. */
-export function chooseBotCards(state: GameState): string[] {
+export function chooseBotCards(state: GameState, random: () => number = Math.random): string[] {
   const player = state.players[state.activePlayerIndex];
   if (!player || player.status !== "alive") return [];
+  const mythRuntime = (state as GameState & { mythRuntime?: { catalogueId: string; hiddenHands: boolean } }).mythRuntime;
+  if (mythRuntime?.catalogueId === "M05" && mythRuntime.hiddenHands && player.hand.length > 0) {
+    const roll = random();
+    const index = Math.min(player.hand.length - 1, Math.max(0, Math.floor(roll * player.hand.length)));
+    return [player.hand[index]];
+  }
   if (player.statusEffects.some(effect => effect.type === "cards_silenced" && effect.turnsRemaining > 0)) return [];
 
   const runtime = state.cardRuntime?.players[player.id];
