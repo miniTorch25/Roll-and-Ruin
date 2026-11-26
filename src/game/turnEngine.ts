@@ -642,6 +642,7 @@ export function moveActivePlayer(state: GameState): {
   from: number;
   to: number;
   completedLaps: number;
+  steps: number;
   monsterAttackEvents: MonsterAttackEvent[];
 } {
   if (state.phase !== "move") {
@@ -687,6 +688,7 @@ export function moveActivePlayer(state: GameState): {
     from,
     to,
     completedLaps,
+    steps,
     monsterAttackEvents
   };
 }
