@@ -20,6 +20,17 @@ describe("card deck primitives", () => {
     expect(result.deck.discardPile).toEqual(["used"]);
   });
 
+  it("does not draw a second Instant Kill or a fifth Curse card, leaving blocked cards in the pile", () => {
+    const hand = ["red_instant_kill", "red_weaken", "red_life_drain", "red_hand_robbery", "red_silence"];
+    const result = drawCards(hand, {
+      drawPile: ["red_instant_kill", "red_despair", "yellow_peek"],
+      discardPile: []
+    }, 2);
+    expect(result.drawnCardIds).toEqual(["yellow_peek"]);
+    expect(result.hand).toEqual([...hand, "yellow_peek"]);
+    expect(result.deck.drawPile).toEqual(["red_instant_kill", "red_despair"]);
+  });
+
   it("creates a deck with an empty discard pile", () => {
     expect(createCardDeck(["x", "y"], () => 0).discardPile).toEqual([]);
   });

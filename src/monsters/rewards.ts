@@ -1,5 +1,5 @@
 import { CARD_CATALOGUE, type CardColor } from "../cards/catalogue";
-import type { CardDeckState } from "../cards/deck";
+import { canReceiveCardFromRandomDraw, type CardDeckState } from "../cards/deck";
 import type { GameState } from "../game/turnEngine";
 import type { MonsterDamageEvent } from "./engine";
 
@@ -37,12 +37,13 @@ function parseSpecificReward(reward: string): RewardRequest[] {
 function chooseCard(
   drawPile: string[],
   request: RewardRequest,
+  hand: readonly string[],
   random: () => number
 ): string | undefined {
   const allowed = request.allowedColors ?? (request.color ? [request.color] : []);
   const candidates = drawPile
     .map((id, index) => ({ id, index, definition: CARD_CATALOGUE.find((card) => card.id === id) }))
-    .filter((entry) => entry.definition && allowed.includes(entry.definition.color));
+    .filter((entry) => entry.definition && allowed.includes(entry.definition.color) && canReceiveCardFromRandomDraw(hand, entry.id));
   if (candidates.length === 0) return undefined;
   const index = Math.min(candidates.length - 1, Math.max(0, Math.floor(random() * candidates.length)));
   const selected = candidates[index];
@@ -86,7 +87,7 @@ export function resolveMonsterDefeatRewards(
     const awarded: string[] = [];
     for (const request of requests) {
       for (let count = 0; count < request.count; count++) {
-        const cardId = chooseCard(drawPile, request, random);
+        const cardId = chooseCard(drawPile, request, [...player.hand, ...awarded], random);
         if (!cardId) break;
         awarded.push(cardId);
       }

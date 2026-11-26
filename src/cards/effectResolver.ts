@@ -81,6 +81,7 @@ export interface ResolveCardEffectResult {
   monsterDamageEvents: MonsterDamageEvent[];
   monsterRewardEvents: MonsterRewardEvent[];
   monsterSummonEvents: MonsterAttackEvent[];
+  summonWarnings: Array<{ rank: MonsterRank; reason: "board_full" | "rank_limit" }>;
   revealedHands: Array<{ playerId: string; cardIds: string[] }>;
   discardedCardIds: string[];
   drawEvents: CardDrawEvent[];
@@ -599,6 +600,7 @@ export function resolveCardEffect(
   const damageEvents: DamageEvent[] = [];
   const monsterDamageEvents: MonsterDamageEvent[] = [];
   const monsterSummonEvents: MonsterAttackEvent[] = [];
+  const summonWarnings: Array<{ rank: MonsterRank; reason: "board_full" | "rank_limit" }> = [];
   const revealedHands: Array<{ playerId: string; cardIds: string[] }> = [];
   const discardedCardIds: string[] = [];
   const drawEvents: CardDrawEvent[] = [];
@@ -760,8 +762,19 @@ export function resolveCardEffect(
       if (typeof rank !== "string" || !validRanks.includes(rank as MonsterRank)) {
         throw new Error("Summon card has an invalid monster rank in its catalogue parameters.");
       }
+      const summonRank = rank as MonsterRank;
+      const activeMonsters = state.monsters.filter((monster) => monster.active);
+      const rankLimit: Record<MonsterRank, number> = { Common: 5, Rare: 5, Epic: 4, Legend: 3, Myth: 1 };
+      if (activeMonsters.length >= 5) {
+        summonWarnings.push({ rank: summonRank, reason: "board_full" });
+        break;
+      }
+      if (activeMonsters.filter((monster) => monster.rank === summonRank).length >= rankLimit[summonRank]) {
+        summonWarnings.push({ rank: summonRank, reason: "rank_limit" });
+        break;
+      }
       const instanceId = `monster-${state.turnNumber}-${state.monsters.length + 1}-${card.id}`;
-      const summoned = summonRandomMonster(state, rank as MonsterRank, instanceId, random);
+      const summoned = summonRandomMonster(state, summonRank, instanceId, random);
       state = summoned.state as CardEffectGameState;
       monsterSummonEvents.push(summoned.attack);
       break;
@@ -861,7 +874,15 @@ export function resolveCardEffect(
     case "steal_random_card": {
       const target = requireOpponentTarget(state, active.id, options.targetPlayerId);
       if (target.hand.length > 0) {
-        const index = Math.min(target.hand.length - 1, Math.max(0, Math.floor(random() * target.hand.length)));
+        const activeHasKill = active.hand.includes("red_instant_kill");
+        const stealableIndexes = target.hand.map((cardId, index) => ({ cardId, index }))
+          .filter(({ cardId }) => !(activeHasKill && cardId === "red_instant_kill"));
+        if (stealableIndexes.length === 0) {
+          appliedToPlayerIds.push(target.id);
+          break;
+        }
+        const selected = stealableIndexes[Math.min(stealableIndexes.length - 1, Math.max(0, Math.floor(random() * stealableIndexes.length)))];
+        const index = selected.index;
         const [stolenCardId] = target.hand.slice(index, index + 1);
         state = {
           ...state,
@@ -952,8 +973,12 @@ export function resolveCardEffect(
       if (target.hand.length === 0) {
         throw new Error("The selected player has no card to trade.");
       }
-      const randomIndex = Math.min(target.hand.length - 1, Math.max(0, Math.floor(random() * target.hand.length)));
-      const receivedCardId = target.hand[randomIndex];
+      const eligibleIndexes = target.hand.map((cardId, index) => ({ cardId, index }))
+        .filter(({ cardId }) => !(active.hand.includes("red_instant_kill") && cardId === "red_instant_kill"));
+      if (eligibleIndexes.length === 0) throw new Error("No eligible card is available to trade without exceeding the Instant Kill hand limit.");
+      const selected = eligibleIndexes[Math.min(eligibleIndexes.length - 1, Math.max(0, Math.floor(random() * eligibleIndexes.length)))];
+      const randomIndex = selected.index;
+      const receivedCardId = selected.cardId;
       state = {
         ...state,
         players: state.players.map((player) => {
@@ -1015,11 +1040,18 @@ export function resolveCardEffect(
     }
     case "steal_eliminated_player_cards": {
       const target = requireEliminatedTarget(state, active.id, options.targetPlayerId);
-      const stolenCards = [...target.hand];
+      const activeHasKill = active.hand.includes("red_instant_kill");
+      let transferredKill = activeHasKill;
+      const stolenCards = target.hand.filter((cardId) => {
+        if (cardId !== "red_instant_kill") return true;
+        if (transferredKill) return false;
+        transferredKill = true;
+        return true;
+      });
       state = {
         ...state,
         players: state.players.map((player) => {
-          if (player.id === target.id) return { ...player, hand: [] };
+          if (player.id === target.id) return { ...player, hand: player.hand.filter((cardId) => !stolenCards.includes(cardId)) };
           if (player.id === active.id) return { ...player, hand: [...player.hand, ...stolenCards] };
           return player;
         })
@@ -1379,7 +1411,7 @@ export function resolveCardEffect(
     monsterRewardEvents = rewards.events;
   }
 
-  return { state, card, appliedToPlayerIds, endsCardPlay, damageEvents, monsterDamageEvents, monsterRewardEvents, monsterSummonEvents, revealedHands, discardedCardIds, drawEvents, deck: updatedDeck, cursePayment: options.cursePayment };
+  return { state, card, appliedToPlayerIds, endsCardPlay, damageEvents, monsterDamageEvents, monsterRewardEvents, monsterSummonEvents, summonWarnings, revealedHands, discardedCardIds, drawEvents, deck: updatedDeck, cursePayment: options.cursePayment };
 }
 
 

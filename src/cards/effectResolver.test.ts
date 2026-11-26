@@ -977,6 +977,42 @@ describe("monster card effects", () => {
     expect(result.state.players[0].hp).toBe(19);
   });
 
+  it("does not summon when the five-monster board limit is reached and returns a warning", () => {
+    let state = cardPlayState();
+    for (let index = 1; index <= 5; index++) {
+      state = {
+        ...state,
+        monsters: [...state.monsters, {
+          id: `board-${index}`, rank: "Common", attackPattern: "random_living",
+          attackInterval: 2, turnsSinceLastAttack: 0, active: true
+        }]
+      };
+    }
+    const result = resolveCardEffect(state, "red_summon_rare", { random: () => 0 });
+    expect(result.monsterSummonEvents).toEqual([]);
+    expect(result.summonWarnings).toEqual([{ rank: "Rare", reason: "board_full" }]);
+    expect(result.state.monsters.filter((monster) => monster.active)).toHaveLength(5);
+  });
+
+  it("avoids stealing an Instant Kill card when both players already hold one", () => {
+    const initial = cardPlayState();
+    const state = {
+      ...initial,
+      players: initial.players.map((player) => player.id === "p1"
+        ? { ...player, hand: [...player.hand, "red_instant_kill"] }
+        : player.id === "p2"
+          ? { ...player, hand: ["red_instant_kill", "yellow_peek"] }
+          : player)
+    };
+    const result = resolveCardEffect(state, "yellow_pickpocket", {
+      targetPlayerId: "p2",
+      random: () => 0
+    });
+    expect(result.state.players[0].hand).toContain("yellow_peek");
+    expect(result.state.players[0].hand.filter((id) => id === "red_instant_kill")).toHaveLength(1);
+    expect(result.state.players[1].hand).toEqual(["red_instant_kill"]);
+  });
+
   it("summons the catalogue rank selected by each Summon card and exposes the first attack event", () => {
     const result = resolveCardEffect(cardPlayState(), "red_summon_rare", { random: () => 0 });
     expect(result.state.monsters[0]).toMatchObject({

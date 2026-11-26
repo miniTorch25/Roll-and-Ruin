@@ -1,4 +1,5 @@
 import { rollD6 } from "./dice";
+import { canReceiveCardFromRandomDraw } from "../cards/deck";
 
 export type GameMode = "1v1" | "1x4" | "2v2" | "2x4";
 export type GamePhase =
@@ -58,6 +59,14 @@ export const STARTING_HP = 20;
 export const STARTING_HEARTS = 3;
 export const STARTING_HAND_SIZE = 4;
 export const MAX_CARDS_PER_TURN = 3;
+export const MAX_ACTIVE_MONSTERS = 5;
+export const MAX_ACTIVE_MONSTERS_BY_RANK: Record<NonNullable<GameMonster["rank"]>, number> = {
+  Common: 5,
+  Rare: 5,
+  Epic: 4,
+  Legend: 3,
+  Myth: 1
+};
 
 export interface GamePlayer {
   id: string;
@@ -269,8 +278,17 @@ export function summonMonster(
   if (state.monsters.some((item) => item.id === monster.id)) {
     throw new Error(`Monster ${monster.id} already exists.`);
   }
-  if (state.monsters.filter((item) => item.active).length >= 4) {
-    throw new Error("A maximum of four active monsters may be on the board.");
+  const activeMonsters = state.monsters.filter((item) => item.active);
+  if (activeMonsters.length >= MAX_ACTIVE_MONSTERS) {
+    throw new Error(`A maximum of ${MAX_ACTIVE_MONSTERS} active monsters may be on the board.`);
+  }
+  const rank = monster.rank;
+  if (rank) {
+    const rankLimit = MAX_ACTIVE_MONSTERS_BY_RANK[rank];
+    const rankCount = activeMonsters.filter((item) => item.rank === rank).length;
+    if (rankCount >= rankLimit) {
+      throw new Error(`The ${rank} monster limit (${rankLimit}) has been reached.`);
+    }
   }
   if (monster.attackInterval !== null && (!Number.isInteger(monster.attackInterval) || monster.attackInterval < 1)) {
     throw new Error("A scheduled monster attack interval must be a positive integer.");
@@ -455,8 +473,15 @@ export function selectPlayerAction(
     Math.max(minimumDieValue, rollD6(random) - diceReduction)
   );
   const drawnCardIds = action === "draw_two_roll_one" ? (options.drawnCardIds ?? []) : [];
+  let projectedHand = [...active.hand];
+  for (const cardId of drawnCardIds) {
+    if (!canReceiveCardFromRandomDraw(projectedHand, cardId)) {
+      throw new Error(`Card ${cardId} cannot be received because the hand limit for that card type has been reached.`);
+    }
+    projectedHand.push(cardId);
+  }
   const players = state.players.map((player) =>
-    player.id === active.id ? { ...player, hand: [...player.hand, ...drawnCardIds] } : player
+    player.id === active.id ? { ...player, hand: projectedHand } : player
   );
 
   return {

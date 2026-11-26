@@ -5,6 +5,20 @@ export interface CardDeckState {
   discardPile: string[];
 }
 
+import { CARD_CATALOGUE } from "./catalogue";
+
+export const MAX_INSTANT_KILL_CARDS_PER_HAND = 1;
+export const MAX_CURSE_CARDS_PER_HAND = 4;
+
+/** Whether a card may enter a hand through a random draw. Theft and monster exchanges deliberately bypass this rule. */
+export function canReceiveCardFromRandomDraw(hand: readonly string[], cardId: string): boolean {
+  const definition = CARD_CATALOGUE.find((card) => card.id === cardId);
+  if (!definition) return true;
+  if (definition.effectId === "instant_kill" && hand.includes("red_instant_kill")) return false;
+  if (definition.kind === "curse" && hand.filter((id) => CARD_CATALOGUE.find((card) => card.id === id)?.kind === "curse").length >= MAX_CURSE_CARDS_PER_HAND) return false;
+  return true;
+}
+
 export interface DrawResult {
   hand: string[];
   deck: CardDeckState;
@@ -46,11 +60,11 @@ export function drawCards(
   const drawnCardIds: string[] = [];
 
   while (drawnCardIds.length < amount && nextDrawPile.length > 0) {
-    const cardId = nextDrawPile.shift();
-    if (cardId !== undefined) {
-      nextHand.push(cardId);
-      drawnCardIds.push(cardId);
-    }
+    const eligibleIndex = nextDrawPile.findIndex((cardId) => canReceiveCardFromRandomDraw(nextHand, cardId));
+    if (eligibleIndex < 0) break;
+    const [cardId] = nextDrawPile.splice(eligibleIndex, 1);
+    nextHand.push(cardId);
+    drawnCardIds.push(cardId);
   }
 
   return {
