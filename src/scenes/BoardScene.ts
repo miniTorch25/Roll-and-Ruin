@@ -18,6 +18,7 @@ import { CARD_CATALOGUE } from "../cards/catalogue";
 import { selectKingoOfferingModal } from "../ui/kingoOfferingModal";
 import { chooseOptionDialog, confirmActionDialog, selectCardsDialog, textInputDialog } from "../ui/gameDialogs";
 import { formatPlayerStatuses } from "../ui/statusEffects";
+import { chooseBotAction } from "../game/bot";
 
 const PATH_LENGTH = 32;
 const PLAYER_SETUP = [
@@ -60,23 +61,41 @@ export class BoardScene extends Phaser.Scene {
       );
       return Number(selected ?? "0");
     };
+    const humanCountChoice = await chooseOptionDialog(
+      "จำนวนผู้เล่นจริง",
+      "เลือกจำนวนผู้เล่นที่ควบคุมเอง ผู้เล่นที่เหลือจะเป็น Bot อัตโนมัติ (รวม 4 คน)",
+      Array.from({ length: 4 }, (_, index) => ({
+        value: String(index + 1),
+        label: `${index + 1} คน`,
+        description: `${index + 1} ผู้เล่นจริง · ${3 - index} Bot`
+      }))
+    );
+    const humanCount = Math.max(1, Math.min(4, Number(humanCountChoice ?? "1")));
     const specialTileCounts: SpecialTileCounts = {
       mystery: await chooseCount("Mystery"),
       monster: await chooseCount("Monster"),
       dice: await chooseCount("Dice")
     };
-    const startingSetup = PLAYER_SETUP.map((player) => {
+    const startingSetup = PLAYER_SETUP.slice(0, humanCount).map((player) => {
       const drawn = drawCards([], this.deck, 4);
       this.deck = drawn.deck;
       return { ...player, startingHand: drawn.hand };
     });
-    this.state = createGameState("1x4", startingSetup, PATH_LENGTH);
+    const botStartingHands = PLAYER_SETUP.length - humanCount;
+    const botHands = Array.from({ length: botStartingHands }, () => {
+      const drawn = drawCards([], this.deck, 4);
+      this.deck = drawn.deck;
+      return drawn.hand;
+    });
+    this.state = createGameState("1x4", startingSetup, PATH_LENGTH, botHands);
     this.board = createBoardState(specialTileCounts, this.state.players.map(player => player.position));
     this.state = this.prepareNextTurn(this.state);
     this.drawBoard();
     this.createPlayers();
     this.createLabels();
-    this.updateHud("เริ่มเกม · ผู้เล่นทุกคนมี HP 20 หัวใจ 3 และไพ่เริ่มต้น 4 ใบ");
+    const botSummary = this.runBotTurns();
+    this.updateTokenPositions();
+    this.updateHud(`เริ่มเกม · ผู้เล่นจริง ${humanCount} คน · Bot ${4 - humanCount} คน · ทุกคนมี HP 20 หัวใจ 3 และไพ่เริ่มต้น 4 ใบ${botSummary ? ` · ${botSummary}` : ""}`);
   }
 
   private drawBackdrop(): void {
@@ -255,7 +274,7 @@ export class BoardScene extends Phaser.Scene {
   }
 
   chooseAction(action: PlayerAction): { ok: boolean; message: string } {
-    if (this.actionLocked || this.state.phase !== "choose_action") {
+    if (this.actionLocked || this.state.phase !== "choose_action" || this.state.players[this.state.activePlayerIndex]?.isBot) {
       return { ok: false, message: "กรุณารอให้เทิร์นปัจจุบันดำเนินการเสร็จ" };
     }
     if (action === "use_cards") {
@@ -293,10 +312,10 @@ export class BoardScene extends Phaser.Scene {
         this.state = advanceMythTurn(this.state, endingPlayerId).state;
       }
       this.state = endPlayerTurn(this.state);
-
-      this.updateTokenPositions();
       this.state = this.prepareNextTurn(this.state);
-      this.updateHud(message);
+      const botSummary = this.runBotTurns();
+      this.updateTokenPositions();
+      this.updateHud(`${message}${botSummary ? ` · ${botSummary}` : ""}`);
       this.actionLocked = false;
       return { ok: true, message };
     } catch (error) {
@@ -579,9 +598,10 @@ export class BoardScene extends Phaser.Scene {
         this.state = advanceMythTurn(this.state, endingPlayerId).state;
       }
       this.state = endPlayerTurn(this.state);
-      this.updateTokenPositions();
       this.state = this.prepareNextTurn(this.state);
-      const message = `ใช้ไพ่เสร็จ · ทอยเต๋า ${finished.diceRolls.join(" + ")} · เดิน ${finished.diceRolls.reduce((sum, value) => sum + value, 0)} ช่อง${tileMessage}`;
+      const botSummary = this.runBotTurns();
+      this.updateTokenPositions();
+      const message = `ใช้ไพ่เสร็จ · ทอยเต๋า ${finished.diceRolls.join(" + ")} · เดิน ${finished.diceRolls.reduce((sum, value) => sum + value, 0)} ช่อง${tileMessage}${botSummary ? ` · ${botSummary}` : ""}`;
       this.updateHud(message);
       return { ok: true, message };
     } catch (error) {
@@ -589,6 +609,35 @@ export class BoardScene extends Phaser.Scene {
       this.updateHud(message);
       return { ok: false, message };
     }
+  }
+
+  private runBotTurns(): string {
+    const summaries: string[] = [];
+    let processed = 0;
+    while (this.state.phase === "choose_action" && this.state.players[this.state.activePlayerIndex]?.isBot && processed < 8) {
+      const active = this.state.players[this.state.activePlayerIndex];
+      const action = chooseBotAction(active);
+      let selected;
+      if (action === "draw_two_roll_one") {
+        const drawn = drawCards(active.hand, this.deck, 2);
+        this.deck = drawn.deck;
+        selected = selectPlayerAction(this.state, action, { drawnCardIds: drawn.drawnCardIds });
+      } else {
+        selected = selectPlayerAction(this.state, action);
+      }
+      this.state = selected.state;
+      const moved = moveActivePlayer(this.state);
+      const tileMessage = this.resolveMovementAndSpecialTile(moved);
+      this.state = finishStatusCheck(this.state);
+      const endingPlayerId = this.state.players[this.state.activePlayerIndex]?.id;
+      if (endingPlayerId && this.state.monsters.some(monster => monster.active && monster.rank === "Myth")) {
+        this.state = advanceMythTurn(this.state, endingPlayerId).state;
+      }
+      summaries.push(`${active.id} ${action === "draw_two_roll_one" ? "จั่วไพ่" : "ทอยเต๋า"} (${selected.diceRolls.join("+")})${tileMessage}`);
+      this.state = this.prepareNextTurn(endPlayerTurn(this.state));
+      processed++;
+    }
+    return summaries.join(" / ");
   }
 
   private prepareNextTurn(state: GameState): GameState {
@@ -647,7 +696,7 @@ export class BoardScene extends Phaser.Scene {
     if (position) position.textContent = `ช่อง ${active.position + 1} / ${this.state.boardLength}`;
     if (score) score.textContent = String(active.score);
     if (hand) hand.textContent = String(active.hand.length);
-    if (turn) turn.textContent = `เทิร์น ${this.state.turnNumber} · ผู้เล่น ${this.state.activePlayerIndex + 1}`;
+    if (turn) turn.textContent = `เทิร์น ${this.state.turnNumber} · ${active.isBot ? "BOT" : "ผู้เล่น"} ${this.state.activePlayerIndex + 1}`;
     if (hearts) hearts.textContent = "♥ ".repeat(active.hearts).trim() || "หมด";
     if (hp) hp.textContent = `${active.hp} / ${active.maxHp}`;
     if (dice && message.includes("เต๋า")) dice.textContent = message.match(/ได้ (.*)$/)?.[1] ?? "—";
@@ -662,7 +711,7 @@ export class BoardScene extends Phaser.Scene {
       players.innerHTML = this.state.players.map((player, index) => {
         const statuses = formatPlayerStatuses(player.statusEffects, player.prisonTurnsRemaining);
         return `<div class="player-row ${index === this.state.activePlayerIndex ? "active" : ""}">
-          <span><i style="background:#${COLORS[index].toString(16)}"></i> ผู้เล่น ${index + 1}</span>
+          <span><i style="background:#${COLORS[index].toString(16)}"></i> ${player.isBot ? "BOT" : "ผู้เล่น"} ${index + 1}</span>
           <strong>♥ ${player.hearts} · HP ${player.hp} · ช่อง ${player.position + 1}</strong>
           ${statuses.length ? `<small class="player-status">${statuses.join(" · ")}</small>` : ""}
         </div>`;
@@ -697,9 +746,10 @@ export class BoardScene extends Phaser.Scene {
     const draw = document.querySelector<HTMLButtonElement>("#draw-button");
     const roll = document.querySelector<HTMLButtonElement>("#roll-button");
     const use = document.querySelector<HTMLButtonElement>("#use-card-button");
-    if (draw) draw.disabled = this.state.phase !== "choose_action";
-    if (roll) roll.disabled = this.state.phase !== "choose_action";
-    if (use) use.disabled = this.state.phase !== "choose_action";
+    const humanCanAct = this.state.phase === "choose_action" && !active.isBot;
+    if (draw) draw.disabled = !humanCanAct;
+    if (roll) roll.disabled = !humanCanAct;
+    if (use) use.disabled = !humanCanAct;
     this.renderHandPanel(active.id);
     const finishCards = document.querySelector<HTMLButtonElement>("#finish-cards-button");
     if (finishCards) finishCards.disabled = this.state.phase !== "play_cards";

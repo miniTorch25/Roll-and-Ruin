@@ -41,3 +41,11 @@ The Phaser BoardScene now uses the approved card catalogue, turn engine, monster
 - The Kingo dialog is a local shared-screen contribution flow; it does not provide private simultaneous input or network multiplayer.
 - Myth and Legend interaction controls are functional but still need visual polish and richer feedback.
 - Exact tile counts remain a match-start choice because the rules only specify a maximum of four per type; online multiplayer remains separate work.
+
+
+## Local Bot opponents
+- At match setup, choose one to four human-controlled seats; remaining seats in the 1x4 match are filled by bots with normal starting hands.
+- Bot turns run automatically after the human turn and resolve the same movement, special-tile, monster-attack, status-check, and turn-end pipeline as human turns.
+- Baseline policy: draw two and roll one when holding fewer than three cards; otherwise roll two dice to prioritize movement.
+- Bot seats are labelled BOT in the turn header and player list; human action controls are disabled while a bot is active.
+- Current bot limitation: bots do not yet select or play cards, make monster offerings, or make strategic target choices. This is a local single-device opponent prototype, not online multiplayer.
