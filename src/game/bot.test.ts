@@ -160,7 +160,7 @@ describe("chooseBotCards", () => {
     const teamState = { ...state, players: state.players.map((player, index) => index < 2 ? { ...player, teamId: "shared-team" } : player) };
     expect(chooseBotCards(teamState)).toEqual(expect.arrayContaining(["blue_wooden_shield", "blue_double_wall"]));
     expect(chooseBotCardTargets(teamState, "blue_double_wall").targetPlayerId).toBe("p2");
-    const capped = { ...teamState, cardRuntime: { players: { p1: { shields: 3 }, p2: { shields: 3 } } } };
+    const capped = { ...teamState, cardRuntime: { players: { p1: { shields: 3 }, p2: { shields: 3 } } } as never };
     expect(chooseBotCards(capped)).toEqual([]);
   });
 
