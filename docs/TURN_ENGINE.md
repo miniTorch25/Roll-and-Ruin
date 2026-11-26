@@ -53,6 +53,7 @@ Statuses are stored on each player with an owner-turn duration and are decrement
 - **Binding:** allows actions/cards but sets movement to zero for the configured turns.
 - **Reverse Walk:** reverses movement direction for the next turn.
 - **Cursed Die Faces:** reduces each die result by 2, with a minimum face value of 1, for the configured turns.
+- **Dice Tile Bonus:** adds one D6 to the next movement roll; a one-die limit takes precedence and the total roll remains capped at three dice.
 - **Weakness:** reduces attack-card damage by 2 for the configured turns.
 - **Public Hand:** records a reveal-hand status for the configured turns; the caller/UI reads this status to keep the target hand visible.
 
@@ -63,7 +64,8 @@ Holy Water clears the player's timed negative statuses. Reapplying the same stat
 - Reverse movement counts a completed lap only when movement crosses the start boundary; moving backward from position 0 to position 31 does not award a lap by itself.
 - Each completed full lap awards 2 points.
 - Binding prevents movement without preventing the player's action or dice roll.
-- Special-tile entry/pass-through effects are handled by the board/tile system, not invented here.
+- Only the landing tile triggers an ordinary special-tile effect; passed tiles do not. Completing a lap regenerates the special-tile layout while avoiding occupied spaces.
+- Reverse movement uses the same landing check and lap-regeneration behavior.
 
 ## Turn-scoped card runtime
 - Invulnerability decreases at the end of the protected player's turn.
@@ -86,7 +88,7 @@ Holy Water clears the player's timed negative statuses. Reapplying the same stat
 - An eliminated player can also be revived manually by another player's Resurrection card. Revival restores 1 heart, full HP, and position 0.
 
 ## Not implemented by this engine
-- Dice-tile bonus execution; Mystery, Monster, and Prison landing effects are connected by BoardScene.
+- Mystery, Monster, Prison, and Dice landing effects are connected by BoardScene.
 - Monster damage, HP, status effects, per-monster special behavior, and rewards.
 - Automated bot decision-making, mode timers, and match victory/tie resolution.
 - Online multiplayer, rooms, server-authoritative state, and reconnection handling.
