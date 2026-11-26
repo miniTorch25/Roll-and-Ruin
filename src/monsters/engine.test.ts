@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { createGameState, resolveMonsterAttackPhase, type GameState } from "../game/turnEngine";
-import { clearActiveMonsters, damageMonster, summonRandomMonster } from "./engine";
+import { clearActiveMonsters, damageMonster, summonRandomMonster, summonRandomMonsterFromCatalogue } from "./engine";
 
 function gameState(): GameState {
   return createGameState("1x4", [
@@ -30,6 +30,26 @@ describe("catalogue monster runtime", () => {
       targetPlayerIds: ["p1", "p2", "p3", "p4"],
       reason: "first_summon"
     });
+  });
+
+  it("summons uniformly from the full 50-monster catalogue for a Monster tile", () => {
+    const first = summonRandomMonsterFromCatalogue(gameState(), "tile-monster-1", () => 0);
+    expect(first.monster).toMatchObject({
+      id: "tile-monster-1",
+      catalogueId: "C01",
+      name: "Gob",
+      rank: "Common",
+      active: true
+    });
+    expect(first.attack).toMatchObject({
+      monsterId: "tile-monster-1",
+      targetPlayerIds: ["p1", "p2", "p3", "p4"],
+      reason: "first_summon"
+    });
+
+    const last = summonRandomMonsterFromCatalogue(gameState(), "tile-monster-2", () => 0.999999);
+    expect(last.monster.catalogueId).toBe("M10");
+    expect(last.monster.rank).toBe("Myth");
   });
 
   it("keeps monsters with no scheduled interval out of later scheduled attacks", () => {
