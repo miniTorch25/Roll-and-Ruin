@@ -100,8 +100,9 @@ export function chooseBotMythOffering(state: GameState, monsterId: string): stri
   const runtime = (state as GameState & { mythRuntime?: { monsterId: string; catalogueId: string; offerings: Record<string, string[]> } }).mythRuntime;
   if (!runtime || runtime.monsterId !== monsterId) return [];
   if (runtime.catalogueId === "M01") {
-    return selectOfferingCards(player.hand,
+    const cards = selectOfferingCards(player.hand,
       id => CARD_CATALOGUE.find(card => card.id === id)?.color === "yellow", 3);
+    return cards.length === 3 ? cards : [];
   }
   if (runtime.catalogueId === "M02") {
     const yellowCount = player.hand.filter(id => CARD_CATALOGUE.find(card => card.id === id)?.color === "yellow").length;
