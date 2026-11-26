@@ -99,6 +99,8 @@ Call `resolveCardEffect(state, cardDefinitionOrId, options)` after `playCatalogu
 
 Pass the attack events returned by the turn engine or summon cards to `resolveMonsterAttackEvents`. It applies catalogue attack damage, shield bypass when explicitly specified by the monster rules, player invulnerability, one-hit player reflection back to the attacking monster, and Vampy's +2 HP attack recovery.
 
-## Not yet implemented
+## Remaining integration work
 
-Monster-specific traits beyond the generic attack rules (poison, special targeting, triggered tile attacks, instant-kill effects, and condition-based removal), monster death rewards, board-tile relocation/regeneration, and BoardScene card/monster interaction remain separate work.
+- Continue the monster-by-monster audit for any catalogue rules not yet covered by the dedicated Monster modules; see `docs/MONSTER_COMBAT.md`.
+- Browser end-to-end tests for card, board, and monster interactions.
+- Online multiplayer and server-authoritative resolution.
