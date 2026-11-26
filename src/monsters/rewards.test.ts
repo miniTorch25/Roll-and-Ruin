@@ -55,7 +55,7 @@ describe("centralized monster defeat rewards", () => {
       createGameState("1x4", setup),
       id,
       deck,
-      () => catalogueIndex / 50
+      () => (catalogueIndex + 0.1) / 50
     );
     expect(summoned.monster.catalogueId).toBe(id);
 
