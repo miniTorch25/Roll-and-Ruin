@@ -287,6 +287,24 @@ describe("Roll and Ruin turn engine", () => {
     expect(applyPlayerDeath(smallHand, "p1").result.discardedCards).toHaveLength(0);
   });
 
+  it("ends Unlimited matches when only one team has living players", () => {
+    const lastTeam = readyState();
+    const onlyRedAlive = {
+      ...lastTeam,
+      phase: "turn_start" as const,
+      players: lastTeam.players.map(player => player.teamId === "red"
+        ? player
+        : { ...player, status: "eliminated" as const })
+    };
+    expect(startPlayerTurn(onlyRedAlive).phase).toBe("game_over");
+
+    const endingTurn = {
+      ...onlyRedAlive,
+      phase: "turn_end" as const
+    };
+    expect(endPlayerTurn(endingTurn).phase).toBe("game_over");
+  });
+
   it("resolves score winners and applies the surviving-player tiebreaker", () => {
     const state = {
       ...readyState(),
