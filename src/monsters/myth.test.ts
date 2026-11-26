@@ -66,6 +66,15 @@ describe("Myth Monsters M01-M10", () => {
     expect(result.state.monsters.find(monster => monster.id === "ragnar")?.active).toBe(false);
   });
 
+
+  it("Ragnar cannot be defeated by ordinary damage, even if a hit would exhaust its HP", () => {
+    const summoned = summonMyth(game(), "M06", "ragnar-immortal", deck(), () => 0);
+    const hit = damageMonster(summoned.state, "ragnar-immortal", 99999, "p1");
+    expect(hit.event.defeated).toBe(false);
+    expect(hit.event.hpAfter).toBe(1);
+    expect(hit.state.monsters.find(monster => monster.id === "ragnar-immortal")?.active).toBe(true);
+  });
+
   it("Ouro requires exactly one card of each color", () => {
     const summoned = summonMyth(game(), "M08", "ouro", deck(), () => 0);
     const result = offerMythCards(summoned.state, [{ playerId: "p1", cardIds: [

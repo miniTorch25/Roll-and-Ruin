@@ -82,7 +82,7 @@ function removeMyth(state: MythGameState): MythGameState {
 
 function leaveGranfel(state: MythGameState, random: () => number): MythGameState {
   const removed = removeMyth(state);
-  const recipients = [...removed.players].filter(player => player.status === "alive");
+  const recipients = [...removed.players];
   const awarded = new Set<string>();
   while (awarded.size < 2 && awarded.size < recipients.length) {
     const remaining = recipients.filter(player => !awarded.has(player.id));
@@ -190,7 +190,7 @@ export function summonMyth(
     messages.push("Pandy distributes three cards to every living player and disappears.");
   } else if (catalogueId === "M10") {
     state = { ...state, players: state.players.map(player => {
-      if (player.status !== "alive" || player.hand.length === 0) return player;
+      if (player.hand.length === 0) return player;
       const hand = [...player.hand];
       const discardCount = Math.ceil(hand.length / 2);
       for (let i = 0; i < discardCount; i++) hand.splice(randomIndex(hand.length, random), 1);
