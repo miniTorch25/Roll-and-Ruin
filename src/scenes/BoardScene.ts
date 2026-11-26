@@ -12,7 +12,7 @@ import {
 } from "../monsters/myth";
 import { resolveLegendOffering } from "../monsters/legend";
 import { createCardDeck, drawCards } from "../cards/deck";
-import { createBoardState, moveAndRegenerateBoard, regenerateSpecialTiles, type BoardState, type SpecialTileCounts, type SpecialTileType } from "../game/board";
+import { createBoardState, getNextSpecialTileMovement, moveAndRegenerateBoard, regenerateSpecialTiles, type BoardState, type SpecialTileCounts, type SpecialTileType } from "../game/board";
 import { summonRandomMonsterFromCatalogue } from "../monsters/engine";
 import { CARD_CATALOGUE } from "../cards/catalogue";
 import { selectKingoOfferingModal } from "../ui/kingoOfferingModal";
@@ -40,6 +40,7 @@ export class BoardScene extends Phaser.Scene {
   private deck = createCardDeck(CARD_CATALOGUE.map((card) => card.id));
   private logText?: Phaser.GameObjects.Text;
   private actionLocked = false;
+  private pendingShortcutMovementSteps?: number;
 
   constructor() { super("BoardScene"); }
 
@@ -468,6 +469,7 @@ export class BoardScene extends Phaser.Scene {
     if (this.state.phase !== "play_cards" || !cardId) return;
     const before = this.state;
     const deckBefore = this.deck;
+    const pendingShortcutBefore = this.pendingShortcutMovementSteps;
     const active = before.players[before.activePlayerIndex];
     const card = CARD_CATALOGUE.find(item => item.id === cardId);
     if (!active || !card) return;
@@ -550,6 +552,12 @@ export class BoardScene extends Phaser.Scene {
         if (!raw) return;
         diceValues = raw.split(",").map(value => Number(value.trim()));
       }
+      const shortcutMovement = card.effectId === "move_to_next_special_tile"
+        ? getNextSpecialTileMovement(this.board, active.position, before.movementDirection)
+        : undefined;
+      if (card.effectId === "move_to_next_special_tile" && !shortcutMovement) {
+        throw new Error("ไม่พบช่องพิเศษถัดไปบนกระดาน");
+      }
       let cursePayment;
       if (card.kind === "curse") {
         const paymentHand = [...active.hand];
@@ -562,6 +570,7 @@ export class BoardScene extends Phaser.Scene {
       const resolved = resolveCardEffect(played.state, played.card, {
         targetPlayerId, targetMonsterId, selectedCardId, diceValues,
         deck: this.deck, cursePayment,
+        specialTileTargetPosition: shortcutMovement?.position,
         random: Math.random
       });
       this.state = resolved.state;
@@ -574,6 +583,9 @@ export class BoardScene extends Phaser.Scene {
         this.state = resolveMonsterAttackEvents(this.state, resolved.monsterSummonEvents).state;
       }
       this.deck = { ...this.deck, discardPile: [...this.deck.discardPile, ...resolved.discardedCardIds, cardId] };
+      if (resolved.movementTargetPosition !== undefined && shortcutMovement) {
+        this.pendingShortcutMovementSteps = shortcutMovement.steps;
+      }
       if (cardId === "green_lucky_clover" && this.state.monsters.some(monster => monster.active && monster.catalogueId === "M05")) {
         this.state = notifyLuckCardUsed(this.state).state;
       }
@@ -585,6 +597,7 @@ export class BoardScene extends Phaser.Scene {
     } catch (error) {
       this.state = before;
       this.deck = deckBefore;
+      this.pendingShortcutMovementSteps = pendingShortcutBefore;
       this.updateHud(error instanceof Error ? error.message : "ใช้ไพ่ไม่สำเร็จ");
     }
   }
@@ -592,7 +605,9 @@ export class BoardScene extends Phaser.Scene {
   finishCardPlay(): { ok: boolean; message: string } {
     if (this.state.phase !== "play_cards") return { ok: false, message: "ยังไม่อยู่ในช่วงใช้ไพ่" };
     try {
-      const finished = finishCardActivity(this.state);
+      const shortcutSteps = this.pendingShortcutMovementSteps;
+      const finished = finishCardActivity(this.state, Math.random, shortcutSteps);
+      this.pendingShortcutMovementSteps = undefined;
       this.state = finished.state;
       const moved = moveActivePlayer(this.state);
       const tileMessage = this.resolveMovementAndSpecialTile(moved);
@@ -605,7 +620,10 @@ export class BoardScene extends Phaser.Scene {
       this.state = this.prepareNextTurn(this.state);
       const botSummary = this.runBotTurns();
       this.updateTokenPositions();
-      const message = `ใช้ไพ่เสร็จ · ทอยเต๋า ${finished.diceRolls.join(" + ")} · เดิน ${finished.diceRolls.reduce((sum, value) => sum + value, 0)} ช่อง${tileMessage}${botSummary ? ` · ${botSummary}` : ""}`;
+      const movementSummary = shortcutSteps === undefined
+        ? `ทอยเต๋า ${finished.diceRolls.join(" + ")} · เดิน ${finished.diceRolls.reduce((sum, value) => sum + value, 0)} ช่อง`
+        : `ทางลัด · เดิน ${shortcutSteps} ช่องโดยไม่ทอยเต๋า`;
+      const message = `ใช้ไพ่เสร็จ · ${movementSummary}${tileMessage}${botSummary ? ` · ${botSummary}` : ""}`;
       this.updateHud(message);
       return { ok: true, message };
     } catch (error) {
