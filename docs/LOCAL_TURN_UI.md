@@ -13,7 +13,7 @@ The Phaser BoardScene now uses the approved card catalogue, turn engine, monster
 
 ## Monster interactions
 - Scheduled monster attacks are resolved before the next player's turn.
-- The board's special-tile layout is configured at match start; Mystery draws one eligible card, Monster summons uniformly from the 50-entry catalogue; Myth results run their full Myth summon rules, and Prison skips the affected player's next three turns.
+- The board special-tile layout is configured at match start; Mystery draws one eligible card, Monster summons uniformly from the 50-entry catalogue (including the full Myth summon rules), and Prison skips the affected player's next three turns.
 - Passing a space does not trigger its ordinary landing effect; only the final landing tile is checked. Completing a lap regenerates the special-tile layout while keeping occupied player spaces clear.
 - Dice tiles grant one extra D6 on the player's next movement roll. The bonus applies to Roll, Draw, and Use Cards; an active one-die limit takes precedence.
 - First-summon attacks are resolved immediately after a summon card.
