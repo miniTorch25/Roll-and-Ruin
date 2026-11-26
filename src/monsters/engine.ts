@@ -62,6 +62,8 @@ export function summonRandomMonsterFromCatalogue(
   const monster: Omit<GameMonster, "turnsSinceLastAttack" | "active"> = {
     id: instanceId,
     catalogueId: definition.id,
+    ...(definition.id === "L05" ? { exchangesRemaining: 3 } : {}),
+    ...(definition.id === "L06" ? { revivalsRemaining: 1 } : {}),
     ...(triggerPosition === undefined ? {} : { triggerPosition }),
     name: definition.name,
     rank: definition.rank,

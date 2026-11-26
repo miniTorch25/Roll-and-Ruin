@@ -53,6 +53,27 @@ describe("catalogue monster runtime", () => {
     expect((last.state as GameState & { mythRuntime?: { catalogueId: string } }).mythRuntime?.catalogueId).toBe("M10");
   });
 
+  it("initializes Fenny's one revival when summoned from a Monster tile", () => {
+    const result = summonRandomMonsterFromCatalogue(
+      gameState(),
+      "tile-fenny",
+      { drawPile: [], discardPile: [] },
+      () => 35 / 50
+    );
+
+    expect(result.monster.catalogueId).toBe("L06");
+    expect(result.monster.revivalsRemaining).toBe(1);
+
+    const firstHit = damageMonster(result.state, "tile-fenny", 200, "p1");
+    expect(firstHit.event.revived).toBe(true);
+    expect(firstHit.event.defeated).toBe(false);
+    expect(firstHit.state.monsters[0]).toMatchObject({ hp: 200, active: true, revivalsRemaining: 0 });
+
+    const secondHit = damageMonster(firstHit.state, "tile-fenny", 200, "p1");
+    expect(secondHit.event.defeated).toBe(true);
+    expect(secondHit.state.monsters[0].active).toBe(false);
+  });
+
   it("keeps monsters with no scheduled interval out of later scheduled attacks", () => {
     const summoned = summonRandomMonster(gameState(), "Myth", "myth-1", () => 0.1);
     expect(summoned.monster.attackInterval).toBeNull();
