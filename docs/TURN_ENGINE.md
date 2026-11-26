@@ -86,7 +86,7 @@ Holy Water clears the player's timed negative statuses. Reapplying the same stat
 - An eliminated player can also be revived manually by another player's Resurrection card. Revival restores 1 heart, full HP, and position 0.
 
 ## Not implemented by this engine
-- Special-tile event execution and board regeneration integration.
+- Dice-tile bonus execution; Mystery, Monster, and Prison landing effects are connected by BoardScene.
 - Monster damage, HP, status effects, per-monster special behavior, and rewards.
 - Automated bot decision-making, mode timers, and match victory/tie resolution.
 - Online multiplayer, rooms, server-authoritative state, and reconnection handling.
