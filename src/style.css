@@ -105,3 +105,7 @@ ul{margin:0;padding-left:18px;color:#b8c4d5;font-size:11px;line-height:1.9}foote
 .status-effect-chip{display:inline-flex;align-items:center;padding:5px 8px;border:1px solid #806548;border-radius:6px;background:#3a3028;color:#f2c77f;font-size:10px;line-height:1.45}
 .player-row{flex-wrap:wrap;align-items:center}
 .player-status{flex:0 0 100%;padding-left:15px;color:#d5b47f;font-size:9px;line-height:1.5}
+
+
+/* Bot seat indicator */
+.player-row .bot-tag{display:inline-block;margin-left:5px;padding:2px 5px;border:1px solid #53647b;border-radius:4px;color:#aebbd0;font:600 8px monospace;letter-spacing:.08em}
