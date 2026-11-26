@@ -607,8 +607,8 @@ export function isCardEffectImplemented(effectId: CardEffectId): boolean {
 }
 
 /**
- * Resolves supported player-vs-player attacks and deterministic player-state effects.
- * Monster, deck-manipulation, movement/dice, and curse-cost effects remain explicit TODOs.
+ * Resolves catalogue card effects. Effects that need board context receive their
+ * validated target from the scene and return a structured movement request.
  */
 export function resolveCardEffect(
   inputState: GameState,
