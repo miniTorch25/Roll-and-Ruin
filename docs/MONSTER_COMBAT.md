@@ -20,7 +20,7 @@ The monster catalogue is connected to the game-state monster records through `sr
 - A player's one-hit reflection charge can reflect the HP damage back to the attacking monster.
 - Vampy restores 2 HP after an attack, up to its maximum HP.
 
-This is the shared baseline, not a complete implementation of all 50 monsters. Several Common, Rare, Legend, and Myth exceptions are implemented in dedicated modules and BoardScene integration, but the remaining catalogue rules still require a monster-by-monster audit and regression coverage.
+This is the shared baseline for all catalogue monsters. Monster-specific exceptions are implemented in dedicated modules and BoardScene integration; the monster-by-monster rules audit and regression coverage are complete.
 
 
 ## Implemented monster-applied player statuses
@@ -105,3 +105,23 @@ This is the shared baseline, not a complete implementation of all 50 monsters. S
 - **Unico (L04) and Mirro (L07):** reflect 100% of HP damage dealt to them.
 - Reflected damage is rounded down to a whole HP. Mirro's reflected damage bypasses Defense shields; the other Legend reflections can be absorbed by shields.
 - Reflection is applied to Monster Hunter hits and monster splash hits from Grenade.
+
+
+## Monster-by-monster audit status
+
+The rules audit for all 50 catalogue entries is complete. The implementation and regression coverage are organized by rank and behavior:
+
+- **Common (C01–C10):** target selection, attack intervals, pack behavior, healing, card theft/return, defeat hazards, reward suppression, damage reduction, and movement-trigger attacks.
+- **Rare (R01–R10):** player statuses, extra attack rolls, shield piercing, self-healing, damage thresholds, poison, card discard, and targeting by hand size.
+- **Epic (E01–E10):** scheduled attacks, multi-target counts, and each catalogue-specific reward category/count.
+- **Legend (L01–L10):** offerings, exchanges, reflection percentages, Phoenix revival, and reward/leave conditions.
+- **Myth (M01–M10):** summon effects, shared HP, timed effects, group offerings, player bargains, Instant Kill removal, and reward resolution.
+
+Regression coverage is maintained in:
+- `src/game/turnEngine.test.ts` and `src/monsters/engine.test.ts` for shared summon, targeting, interval, and board-limit behavior.
+- `src/monsters/specialEffects.test.ts` for Common and Rare exceptions.
+- `src/monsters/rewards.test.ts` for default, bonus, suppressed, and all ten Epic rewards.
+- `src/monsters/legend.test.ts` for Legend offerings, reflection, and revival.
+- `src/monsters/myth.test.ts` and `src/cards/effectResolver.test.ts` for Myth effects, Anubix summon effects, and Instant Kill integration.
+
+Browser end-to-end playtesting remains a separate roadmap item; completion of this rules audit does not claim full browser E2E coverage.
