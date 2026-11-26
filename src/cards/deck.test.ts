@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { createCardDeck, discardCard, drawCards, shuffleCardIds, takeCardFromHand } from "./deck";
+import { CARD_CATALOGUE } from "./catalogue";
 
 describe("card deck primitives", () => {
   it("shuffles deterministically when a random source is supplied", () => {
@@ -29,6 +30,13 @@ describe("card deck primitives", () => {
     expect(result.drawnCardIds).toEqual(["yellow_peek"]);
     expect(result.hand).toEqual([...hand, "yellow_peek"]);
     expect(result.deck.drawPile).toEqual(["red_instant_kill", "red_despair"]);
+  });
+
+  it("includes exactly one Joker in the catalogue and therefore in a newly created game deck", () => {
+    const jokerCards = CARD_CATALOGUE.filter((card) => card.id === "white_joker");
+    const deck = createCardDeck(CARD_CATALOGUE.map((card) => card.id), () => 0);
+    expect(jokerCards).toHaveLength(1);
+    expect(deck.drawPile.filter((cardId) => cardId === "white_joker")).toHaveLength(1);
   });
 
   it("keeps the single Joker out of circulation after it is drawn and used", () => {
