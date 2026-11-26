@@ -154,6 +154,40 @@ function targetScore(state: GameState, player: GamePlayer, effectId: CardEffectI
   return vulnerability - protectedTarget;
 }
 
+/** Pick a legal card for effects that require a specific card from a player's hand. */
+export function chooseBotSelectedCardId(state: GameState, effectId: CardEffectId, targetPlayerId?: string): string | undefined {
+  const active = state.players[state.activePlayerIndex];
+  const target = effectId === "force_discard_selected_card"
+    ? state.players.find(player => player.id === targetPlayerId)
+    : active;
+  if (!active || !target || target.hand.length === 0) return undefined;
+  const value = (id: string): number => {
+    const card = CARD_CATALOGUE.find(candidate => candidate.id === id);
+    if (!card) return 0;
+    if (card.effectId === "instant_kill") return 100;
+    if (card.effectId === "resurrection") return 90;
+    if (card.kind === "support") return 70;
+    if (card.kind === "curse") return 65;
+    if (card.kind === "defense") return 55;
+    return 35;
+  };
+  if (effectId === "force_discard_selected_card") {
+    return [...target.hand].sort((a, b) => value(b) - value(a))[0];
+  }
+  return [...active.hand].sort((a, b) => value(a) - value(b))[0];
+}
+
+/** Use maximum legal values when the bot controls its dice for the current turn. */
+export function chooseBotDiceValues(state: GameState, playerId: string): number[] {
+  const player = state.players.find(candidate => candidate.id === playerId);
+  if (!player) return [];
+  const runtime = state.cardRuntime?.players[playerId];
+  if (runtime?.diceControlUsedThisTurn) return [];
+  const limited = player.statusEffects.some(effect => effect.type === "dice_limit" && effect.turnsRemaining > 0);
+  const count = limited ? 1 : Math.min(3, 1 + (runtime?.bonusDiceThisTurn ?? 0));
+  return Array.from({ length: count }, () => 6);
+}
+
 export function chooseBotCardTargets(state: GameState, cardId: string): BotCardTargets {
   const card = CARD_CATALOGUE.find(candidate => candidate.id === cardId);
   const active = state.players[state.activePlayerIndex];
@@ -206,11 +240,20 @@ export function chooseBotCards(state: GameState): string[] {
 
   for (const id of player.hand) {
     const card = CARD_CATALOGUE.find(candidate => candidate.id === id);
-    if (!card || card.kind === "summon" || card.kind === "joker") continue;
+    if (!card || card.kind === "joker") continue;
     if (card.kind === "attack" && runtime?.blockedAttackCardsThisTurn) continue;
 
     let priority = 0;
     const amount = Number(card.parameters?.amount ?? 0);
+    if (card.effectId === "summon_random_monster" && card.kind === "summon") {
+      const rank = String(card.parameters?.rank ?? "");
+      const rankLimit: Record<string, number> = { Common: 5, Rare: 5, Epic: 4, Legend: 3, Myth: 1 };
+      const rankCount = activeMonsters.filter(monster => monster.rank === rank).length;
+      const mythAlreadyActive = activeMonsters.some(monster => monster.rank === "Myth");
+      if (activeMonsters.length < 5 && (rankLimit[rank] ?? 0) > rankCount && !(rank === "Myth" && mythAlreadyActive)) {
+        priority = rank === "Common" ? 46 : rank === "Rare" ? 44 : rank === "Epic" ? 42 : rank === "Legend" ? 36 : 28;
+      }
+    }
     switch (card.effectId) {
       case "heal":
         if (player.maxHp - player.hp >= Math.min(4, amount)) priority = 75 + Math.min(amount, player.maxHp - player.hp);
@@ -243,6 +286,9 @@ export function chooseBotCards(state: GameState): string[] {
       case "team_heal":
         if (player.maxHp - player.hp >= 3) priority = 72;
         break;
+      case "control_dice_values":
+        if (!(runtime?.diceControlUsedThisTurn ?? false) && chooseBotCursePayment(state, player.id, id)) priority = 50;
+        break;
       case "damage_single":
       case "damage_single_pierce_shield":
       case "damage_and_remove_shields":
@@ -252,13 +298,17 @@ export function chooseBotCards(state: GameState): string[] {
       case "view_player_hand":
       case "steal_random_card":
       case "skip_next_turn":
-      case "limit_next_turn_dice": {
+      case "limit_next_turn_dice":
+      case "force_discard_selected_card":
+      case "trade_for_random_card": {
         const target = chooseBotCardTargets(state, id);
         const opponent = state.players.find(candidate => candidate.id === target.targetPlayerId);
         const healthyEnough = card.effectId !== "damage_with_self_hp_cost" ||
           player.hp > Number(card.parameters?.selfHpCost ?? 2) + 1;
         if (opponent && healthyEnough) {
           priority = card.effectId === "steal_random_card" ? (opponent.hand.length ? 67 : 0)
+            : card.effectId === "force_discard_selected_card" ? (opponent.hand.length ? 61 : 0)
+            : card.effectId === "trade_for_random_card" ? (opponent.hand.length ? 45 : 0)
             : card.effectId === "skip_next_turn" ? 58
             : card.effectId === "damage_and_remove_shields" && getPlayerShields(state, opponent.id) > 0 ? 62
             : card.kind === "attack" ? 48 : 42;
@@ -283,7 +333,8 @@ export function chooseBotCards(state: GameState): string[] {
       case "remove_other_players_shields":
       case "remove_buffs_and_shields":
       case "steal_eliminated_player_cards":
-      case "mark_monster_attack_target": {
+      case "mark_monster_attack_target":
+      case "control_dice_values": {
         if (!chooseBotCursePayment(state, player.id, id)) break;
         if (card.effectId === "steal_eliminated_player_cards" &&
             !state.players.some(candidate => candidate.status === "eliminated" && candidate.hand.length > 0)) break;
