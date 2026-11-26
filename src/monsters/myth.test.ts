@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { createGameState } from "../game/turnEngine";
+import { applyPlayerDeath, createGameState } from "../game/turnEngine";
+import { resolveCardEffect } from "../cards/effectResolver";
 import {
   acceptLucyOffer,
   advanceMythTurn,
@@ -86,6 +87,37 @@ describe("Myth Monsters M01-M10", () => {
     expect(result.state.players[0].hand).toContain("green_immortal_blessing");
     expect(result.state.players[0].hand).toContain("green_reflection_mirror");
     expect(() => acceptLucyOffer(result.state, "p1", result.deck!, () => 0)).toThrow(/once/);
+  });
+
+
+  it("Hecate shares damage from ordinary card effects with all living players", () => {
+    const summoned = summonMyth(game(), "M01", "hecate-link", deck(), () => 0);
+    const result = resolveCardEffect(summoned.state, "blue_common_sword", { targetPlayerId: "bot-1", random: () => 0 });
+    expect(result.state.players.filter(player => player.status === "alive").every(player => player.hp === 17)).toBe(true);
+  });
+
+  it("Chronos makes a player discard one random card after using three cards", () => {
+    const summoned = summonMyth(game(), "M03", "chronos-discard", deck(), () => 0);
+    const state = { ...summoned.state, players: summoned.state.players.map(player => player.id === "p1" ? { ...player, cardsPlayedThisTurn: 3 } : player) };
+    const result = advanceMythTurn(state, "p1", () => 0);
+    expect(result.state.players[0].hand).toHaveLength(3);
+  });
+
+  it("Granfel grants Resurrection to two random players when its idle timer expires", () => {
+    let state = game();
+    state = { ...state, players: state.players.map(player => player.id === "p1" ? { ...player, hand: ["blue_common_sword"] } : player) };
+    state = summonMyth(state, "M02", "granfel-idle", deck(), () => 0).state;
+    state = advanceMythTurn(state, "p1", () => 0).state;
+    state = advanceMythTurn(state, "bot-1", () => 0).state;
+    const result = advanceMythTurn(state, "bot-2", () => 0);
+    expect(result.removed).toBe(true);
+    expect(result.state.players.filter(player => player.hand.includes("yellow_resurrection"))).toHaveLength(2);
+  });
+
+  it("Void is removed by the shared player-death pipeline", () => {
+    const summoned = summonMyth(game(), "M10", "void-death", deck(), () => 0);
+    const death = applyPlayerDeath(summoned.state, "p1", () => 0);
+    expect(death.state.monsters.find(monster => monster.id === "void-death")?.active).toBe(false);
   });
 
   it("all timed Myth effects expire at their configured turn count", () => {

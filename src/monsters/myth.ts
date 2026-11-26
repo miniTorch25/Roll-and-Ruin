@@ -67,6 +67,24 @@ function removeMyth(state: MythGameState): MythGameState {
   };
 }
 
+function leaveGranfel(state: MythGameState, random: () => number): MythGameState {
+  const removed = removeMyth(state);
+  const recipients = [...removed.players].filter(player => player.status === "alive");
+  const awarded = new Set<string>();
+  while (awarded.size < 2 && awarded.size < recipients.length) {
+    const remaining = recipients.filter(player => !awarded.has(player.id));
+    const selected = remaining[randomIndex(remaining.length, random)];
+    if (!selected) break;
+    awarded.add(selected.id);
+  }
+  return {
+    ...removed,
+    players: removed.players.map(player => awarded.has(player.id)
+      ? { ...player, hand: [...player.hand, "yellow_resurrection"] }
+      : player)
+  };
+}
+
 function drawMatching(deck: CardDeckState, hand: readonly string[], predicate: (id: string) => boolean, count: number, random: () => number): { deck: CardDeckState; cards: string[] } {
   const pile = [...deck.drawPile];
   const cards: string[] = [];
@@ -103,7 +121,7 @@ export function summonMyth(
     rank: "Myth" as const,
     ...data,
     rules: [],
-    reward: null,
+    reward: catalogueId === "M01" ? "ไพ่คำสาป 2 ใบ" : null,
     info: null
   };
   const summoned = summonMonster(input, monster);
@@ -213,7 +231,7 @@ export function offerGranfelTrade(input: GameState, playerId: string, deck: Card
     mythRuntime: { ...runtime, granfelReceived: runtime.granfelReceived + trade.cards.length, granfelIdleTurns: 0 }
   };
   const removed = next.mythRuntime!.granfelReceived >= runtime.granfelTarget;
-  if (removed) next = removeMyth(next);
+  if (removed) next = leaveGranfel(next, random);
   return { state: next, deck: trade.deck, messages: [`Granfel exchanged ${offered.length} yellow card(s) for ${trade.cards.length} curse card(s).`], removed };
 }
 
@@ -295,21 +313,34 @@ export function instantKillMyth(input: GameState, monsterId: string): MythAction
 }
 
 /** Call once per completed player turn to advance global Myth timers and idle conditions. */
-export function advanceMythTurn(input: GameState, playerId: string): MythActionResult {
+export function advanceMythTurn(input: GameState, playerId: string, random: () => number = Math.random): MythActionResult {
   const state = input as MythGameState;
   const runtime = activeRuntime(state);
   let nextRuntime = { ...runtime };
+  let workingState: MythGameState = state;
+  if (runtime.catalogueId === "M03") {
+    const player = state.players.find(item => item.id === playerId && item.status === "alive");
+    if (player && player.cardsPlayedThisTurn >= 3 && player.hand.length > 0) {
+      const discardedIndex = randomIndex(player.hand.length, random);
+      workingState = {
+        ...workingState,
+        players: workingState.players.map(item => item.id === playerId
+          ? { ...item, hand: item.hand.filter((_, index) => index !== discardedIndex) }
+          : item)
+      };
+    }
+  }
   if (runtime.catalogueId === "M02") {
     nextRuntime.granfelIdleTurns = runtime.granfelIdleTurns + 1;
     if (nextRuntime.granfelIdleTurns >= 3) {
-      const removed = removeMyth({ ...state, mythRuntime: nextRuntime });
-      return { state: removed, messages: ["Granfel leaves after three turns without a trade."], removed: true };
+      const removed = leaveGranfel({ ...workingState, mythRuntime: nextRuntime }, random);
+      return { state: removed, messages: ["Granfel leaves after three turns without a trade and grants Resurrection to two random players."], removed: true };
     }
   }
   if (runtime.catalogueId === "M01" || runtime.catalogueId === "M03" || runtime.catalogueId === "M05" || runtime.catalogueId === "M06" || runtime.catalogueId === "M09" || runtime.catalogueId === "M10") {
     nextRuntime.turnsRemaining = Math.max(0, runtime.turnsRemaining - 1);
   }
-  let next: MythGameState = { ...state, mythRuntime: nextRuntime };
+  let next: MythGameState = { ...workingState, mythRuntime: nextRuntime };
   if (nextRuntime.turnsRemaining === 0 && runtime.turnsRemaining > 0) next = removeMyth(next);
   if (runtime.catalogueId === "M05" && !next.monsters.some(monster => monster.active && monster.catalogueId === "M05")) {
     next = { ...next, mythRuntime: { ...next.mythRuntime!, hiddenHands: false } };
