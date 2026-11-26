@@ -26,7 +26,7 @@ This module implements the Myth-specific state and player interaction rules from
 | M04 Anubix | Random resurrection and one-heart penalty to the lowest-HP player; Instant Kill removal |
 | M05 Nyxia | Hidden hand, random card selection, four-turn expiry, Luck removal |
 | M06 Ragnar | 15 damage, all-living attack every two turns, shield piercing, cannot be defeated by damage, ten-card group offering, eight-turn expiry |
-| M07 Pandy | Three-card distribution to every living player and immediate removal |
+| M07 Pandy | Three-card distribution to every player and immediate removal |
 | M08 Ouro | Three damage to all living players every turn, infinite-HP behavior, four-color offering |
 | M09 Lucy | First-summon attack, three-turn expiry, one-time heart-for-two-buffs bargain per player |
 | M10 Void | Half-hand discard on summon, five-turn expiry, automatic removal in the player-death pipeline |

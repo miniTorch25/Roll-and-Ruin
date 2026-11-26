@@ -5,7 +5,8 @@ import {
   resurrectPlayer,
   summonMonster,
   type GameState,
-  type GameMonster
+  type GameMonster,
+  type MonsterAttackEvent
 } from "../game/turnEngine";
 
 export type MythId = "M01" | "M02" | "M03" | "M04" | "M05" | "M06" | "M07" | "M08" | "M09" | "M10";
@@ -30,6 +31,7 @@ export interface MythActionResult {
   deck?: CardDeckState;
   messages: string[];
   removed: boolean;
+  attack?: MonsterAttackEvent;
 }
 
 const MYTH_RULES: Record<MythId, readonly string[]> = {
@@ -138,6 +140,13 @@ export function summonMyth(
     info: null
   };
   const summoned = summonMonster(input, monster);
+  const attack: MonsterAttackEvent | undefined = ["M02", "M06", "M08", "M09"].includes(catalogueId)
+    ? {
+        monsterId,
+        targetPlayerIds: summoned.state.players.filter(player => player.status === "alive").map(player => player.id),
+        reason: "first_summon"
+      }
+    : undefined;
   let state: MythGameState = {
     ...summoned.state,
     mythRuntime: {
@@ -206,7 +215,7 @@ export function summonMyth(
   } else if (catalogueId === "M09") {
     messages.push("Lucy attacks once on summon and offers Immortality plus Reflect for one heart.");
   }
-  return { state, deck: nextDeck, messages, removed: !state.monsters.some(item => item.id === monsterId && item.active) };
+  return { state, deck: nextDeck, messages, removed: !state.monsters.some(item => item.id === monsterId && item.active), ...(attack ? { attack } : {}) };
 }
 
 /** Hecate accepts exactly three yellow cards and rewards four random Curse cards. */

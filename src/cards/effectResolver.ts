@@ -3,6 +3,7 @@ import { getCardDefinition, type CardDefinition, type CardEffectId } from "./cat
 import { drawCards, type CardDeckState } from "./deck";
 import { resolveMonsterDefeatRewards, type MonsterRewardEvent } from "../monsters/rewards";
 import { damageMonster, summonRandomMonster, type MonsterDamageEvent } from "../monsters/engine";
+import { summonMyth, type MythId, type MythRuntime } from "../monsters/myth";
 import type { MonsterRank } from "../monsters/catalogue";
 
 export interface CardRuntimePlayerState {
@@ -29,7 +30,7 @@ export interface CardRuntimeState {
   players: Record<string, CardRuntimePlayerState>;
 }
 
-export type CardEffectGameState = GameState & { cardRuntime: CardRuntimeState };
+export type CardEffectGameState = GameState & { cardRuntime: CardRuntimeState; mythRuntime?: MythRuntime };
 
 export type CursePayment =
   | { type: "hp"; amount: number }
@@ -791,9 +792,18 @@ export function resolveCardEffect(
         break;
       }
       const instanceId = `monster-${state.turnNumber}-${state.monsters.length + 1}-${card.id}`;
-      const summoned = summonRandomMonster(state, summonRank, instanceId, random);
-      state = summoned.state as CardEffectGameState;
-      monsterSummonEvents.push(summoned.attack);
+      if (summonRank === "Myth") {
+        const mythIndex = Math.min(9, Math.max(0, Math.floor(random() * 10)));
+        const mythId = `M${String(mythIndex + 1).padStart(2, "0")}` as MythId;
+        const summoned = summonMyth(state, mythId, instanceId, updatedDeck ?? { drawPile: [], discardPile: [] }, random);
+        state = summoned.state as CardEffectGameState;
+        updatedDeck = summoned.deck ?? updatedDeck;
+        if (summoned.attack) monsterSummonEvents.push(summoned.attack);
+      } else {
+        const summoned = summonRandomMonster(state, summonRank, instanceId, random);
+        state = summoned.state as CardEffectGameState;
+        monsterSummonEvents.push(summoned.attack);
+      }
       break;
     }
     case "damage_single":
