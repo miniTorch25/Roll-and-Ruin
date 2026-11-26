@@ -1,8 +1,14 @@
 # Roll and Ruin
 
-**สถานะ:** Early Development
+**สถานะ:** Early Development — Browser deployment
 
-Roll and Ruin เป็นเกมกระดานออนไลน์แนวผจญภัย ใช้ภาพ 2D Isometric Pixel Art ผสมระบบทอยลูกเต๋า ไพ่ มอนสเตอร์ และการเล่นแบบ Multiplayer
+Roll and Ruin เป็นเกมกระดานผจญภัยแนว Isometric 2D Pixel Art ผสมระบบทอยลูกเต๋า ไพ่ และมอนสเตอร์ ปัจจุบันเล่นผ่าน Browser แบบ Local Match โดยเลือกผู้เล่นจริงในเครื่อง 1–4 คน และให้ Bot เติมที่นั่งที่เหลือ (ยังไม่เปิด Multiplayer ออนไลน์)
+
+## เว็บไซต์
+
+เมื่อ GitHub Pages deployment สำเร็จ สามารถเล่นเกมผ่าน Browser ได้ที่:
+
+https://minitorch25.github.io/Roll-and-Ruin/
 
 ## เป้าหมายแพลตฟอร์ม
 - เว็บไซต์ที่เล่นผ่าน Browser
@@ -12,7 +18,7 @@ Roll and Ruin เป็นเกมกระดานออนไลน์แน
 - **Phaser 3** — แสดงผลเกม 2D และจัดการ Scene
 - **TypeScript** — แยกระบบเกมและตรวจสอบข้อผิดพลาด
 - **Vite** — พัฒนาและ Build เว็บไซต์
-- **GitHub Actions** — ตรวจสอบและ Build อัตโนมัติ
+- **GitHub Actions** — ตรวจสอบ ทดสอบ Build และ Deploy อัตโนมัติ
 - **Capacitor** — แผนสำหรับแพ็กเกมเป็น Android APK ในระยะถัดไป
 
 ## เริ่มต้นใช้งาน
@@ -26,6 +32,8 @@ npm run dev
 ตรวจสอบ TypeScript และ Build:
 ```bash
 npm run typecheck
+npm test
+npm run test:e2e
 npm run build
 ```
 
@@ -40,8 +48,8 @@ src/
 
 ## หลักการพัฒนา
 1. แยก Game Logic ออกจาก Game Presentation
-2. ให้ฝั่ง Server เป็นผู้ตัดสินผลการเล่นเมื่อเพิ่ม Multiplayer
-3. การสุ่มเต๋า ไพ่ และการคำนวณผลสำคัญต้องตรวจสอบบน Server
+2. การเล่นปัจจุบันทำงานใน Browser และใช้ Bot เติมที่นั่ง
+3. Multiplayer และการตรวจสอบกติกาฝั่ง Server ถูกเลื่อนออกไปก่อน
 4. รองรับหน้าจอมือถือเป็นเป้าหมายตั้งแต่ต้น
 5. ใช้ภาพ Placeholder ระหว่างพัฒนาระบบ ก่อนแทนที่ด้วย Pixel Art จริง
 
@@ -53,14 +61,16 @@ src/
 - [x] Card Effect Resolver ครบ 56/56 Effect IDs พร้อม Board-aware Magic Shortcut ที่เดินไปช่องพิเศษโดยไม่ทอยเต๋า
 - [x] Monster Catalogue 50 ตัว, ขีดจำกัดการอัญเชิญ, การโจมตีพื้นฐาน, รางวัล และความสามารถเฉพาะหลายตัว
 - [x] ตรวจสอบและเชื่อม Monster Rules ครบทั้ง 50 ตัว พร้อม Regression Tests สำหรับความสามารถเฉพาะและรางวัล
-- [x] ทดสอบ Card Effect และ Monster interaction แบบ end-to-end ใน Browser (Playwright: startup, turn action, targeted Attack, Monster Summon และ Monster Hunter)
+- [x] ทดสอบ Card Effect และ Monster interaction แบบ end-to-end ใน Browser
 - [x] ระบบรวมคะแนนทีมและตัดสินผู้ชนะจากคะแนนพร้อมกติกาเสมอด้วยจำนวนผู้เล่นที่รอด
-- [x] ระบบจับเวลา Time Limit / Speedrun และหน้าสรุปผลการแข่งขัน พร้อมตัดสินผู้ชนะจากคะแนนและจำนวนผู้เล่นที่รอด
-- [x] Browser Playtest ตั้งแต่เริ่มเกมจนจบเกม (Playwright ครอบคลุม Setup, Turn Action, Timer Expiry และ Results)
-- [x] UI/UX สำหรับมือถือและเดสก์ท็อป: Responsive layouts, touch targets, keyboard navigation, dialog accessibility, screen-reader status, compact landscape และ reduced-motion support
-- [ ] ห้อง Multiplayer และการเชื่อมต่อผู้เล่นจริง
-- [ ] Backend ที่ตรวจสอบกติกาฝั่ง Server
-- [ ] Deploy เว็บไซต์
+- [x] ระบบจับเวลา Time Limit / Speedrun และหน้าสรุปผลการแข่งขัน
+- [x] Browser Playtest ตั้งแต่เริ่มเกมจนจบเกม
+- [x] UI/UX สำหรับมือถือและเดสก์ท็อป: Responsive layouts, touch targets, keyboard navigation, dialog accessibility และ reduced-motion support
+- [ ] ห้อง Multiplayer และการเชื่อมต่อผู้เล่นจริง — พักไว้ ใช้ Bot แทนชั่วคราว
+- [ ] Backend ที่ตรวจสอบกติกาฝั่ง Server — พักไว้
+- [ ] Deploy เว็บไซต์ผ่าน GitHub Pages
 - [ ] แพ็กและทดสอบ Android APK ด้วย Capacitor
 
 รายละเอียดกติกาฉบับเต็มจะถูกนำมาเชื่อมกับระบบตามเอกสารออกแบบหลัก โดยไม่เปลี่ยนกติกาที่กำหนดไว้แล้ว
+
+รายละเอียด Deploy: [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)
