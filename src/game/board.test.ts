@@ -4,6 +4,7 @@ import {
   createBoardState,
   type BoardTile,
   getMovementPath,
+  getNextSpecialTileMovement,
   moveAndRegenerateBoard,
   regenerateSpecialTiles,
   resolveBoardMovement
