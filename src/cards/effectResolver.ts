@@ -973,8 +973,12 @@ export function resolveCardEffect(
       if (target.hand.length === 0) {
         throw new Error("The selected player has no card to trade.");
       }
-      const randomIndex = Math.min(target.hand.length - 1, Math.max(0, Math.floor(random() * target.hand.length)));
-      const receivedCardId = target.hand[randomIndex];
+      const eligibleIndexes = target.hand.map((cardId, index) => ({ cardId, index }))
+        .filter(({ cardId }) => !(active.hand.includes("red_instant_kill") && cardId === "red_instant_kill"));
+      if (eligibleIndexes.length === 0) throw new Error("No eligible card is available to trade without exceeding the Instant Kill hand limit.");
+      const selected = eligibleIndexes[Math.min(eligibleIndexes.length - 1, Math.max(0, Math.floor(random() * eligibleIndexes.length)))];
+      const randomIndex = selected.index;
+      const receivedCardId = selected.cardId;
       state = {
         ...state,
         players: state.players.map((player) => {
@@ -1037,7 +1041,13 @@ export function resolveCardEffect(
     case "steal_eliminated_player_cards": {
       const target = requireEliminatedTarget(state, active.id, options.targetPlayerId);
       const activeHasKill = active.hand.includes("red_instant_kill");
-      const stolenCards = target.hand.filter((cardId) => !(activeHasKill && cardId === "red_instant_kill"));
+      let transferredKill = activeHasKill;
+      const stolenCards = target.hand.filter((cardId) => {
+        if (cardId !== "red_instant_kill") return true;
+        if (transferredKill) return false;
+        transferredKill = true;
+        return true;
+      });
       state = {
         ...state,
         players: state.players.map((player) => {
