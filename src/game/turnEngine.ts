@@ -893,3 +893,18 @@ export function getTeamScores(state: GameState): Record<string, number> {
     return scores;
   }, {});
 }
+
+/** Returns every score winner after applying the official surviving-player tiebreaker. */
+export function getScoreBasedWinners(state: GameState): string[] {
+  const scores = getTeamScores(state);
+  const highestScore = Math.max(...Object.values(scores));
+  const scoreTiedTeams = Object.keys(scores).filter(teamId => scores[teamId] === highestScore);
+  if (scoreTiedTeams.length <= 1) return scoreTiedTeams;
+
+  const survivingPlayers = state.players.reduce<Record<string, number>>((counts, player) => {
+    if (player.status === "alive") counts[player.teamId] = (counts[player.teamId] ?? 0) + 1;
+    return counts;
+  }, {});
+  const highestSurvivors = Math.max(...scoreTiedTeams.map(teamId => survivingPlayers[teamId] ?? 0));
+  return scoreTiedTeams.filter(teamId => (survivingPlayers[teamId] ?? 0) === highestSurvivors);
+}
