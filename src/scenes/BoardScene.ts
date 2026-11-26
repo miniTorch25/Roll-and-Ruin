@@ -483,7 +483,8 @@ export class BoardScene extends Phaser.Scene {
       const teamTargetEffect = ["team_heal", "gain_team_shield"].includes(card.effectId);
       const needsPlayer = (typeof card.parameters?.target === "string" &&
         ["one_player", "another_player", "one_eliminated_player", "one_teammate"].includes(String(card.parameters.target))) ||
-        card.effectId === "damage_with_random_splash" || (teamTargetEffect && teammates.length > 0);
+        ["damage_with_random_splash", "damage_with_self_hp_cost"].includes(card.effectId) ||
+        (teamTargetEffect && teammates.length > 0);
       if (needsPlayer) {
         if (!livingOpponents.length && card.effectId !== "resurrection") throw new Error("ไม่มีผู้เล่นเป้าหมายที่ใช้งานได้");
         const choices = card.effectId === "resurrection"
