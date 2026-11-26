@@ -13,6 +13,7 @@ import {
 import { resolveLegendOffering } from "../monsters/legend";
 import { createCardDeck, drawCards } from "../cards/deck";
 import { CARD_CATALOGUE } from "../cards/catalogue";
+import { selectKingoOfferingModal } from "../ui/kingoOfferingModal";
 
 const PATH_LENGTH = 32;
 const PLAYER_SETUP = [
@@ -191,7 +192,7 @@ export class BoardScene extends Phaser.Scene {
     return indexes.map(index => active.hand[index]);
   }
 
-  private handleMonsterAction(action: string, monsterId: string): void {
+  private async handleMonsterAction(action: string, monsterId: string): Promise<void> {
     const active = this.state.players[this.state.activePlayerIndex];
     const monster = this.state.monsters.find(item => item.id === monsterId && item.active);
     if (!active || !monster) return;
@@ -229,6 +230,24 @@ export class BoardScene extends Phaser.Scene {
         return;
       }
       if (action === "legend-offer") {
+        if (monster.catalogueId === "L10") {
+          const contributions = await selectKingoOfferingModal(this.state.players
+            .filter(player => player.status === "alive")
+            .map(player => ({
+              id: player.id,
+              label: player.id === active.id ? "ผู้เล่นปัจจุบัน" : player.id,
+              cards: player.hand.map(cardId => {
+                const definition = CARD_CATALOGUE.find(card => card.id === cardId);
+                return { id: cardId, name: definition?.name ?? cardId, color: definition?.color ?? "neutral" };
+              })
+            })));
+          if (!contributions) return;
+          const result = resolveLegendOffering(this.state, monsterId, contributions, this.deck);
+          this.state = result.state;
+          this.deck = result.deck;
+          this.updateHud(`Kingo รับเครื่องบูชาจาก ${result.event.contributorIds.length} ผู้เล่น · ${result.event.consumedCardIds.length} ใบ · ${result.event.removed ? "Kingo ออกจากกระดาน" : "ยังเหลือการแลกเปลี่ยน"}`);
+          return;
+        }
         const counts: Record<string, number> = { L01: 4, L02: 2, L03: 3, L04: 2, L05: 1, L06: 1, L07: 2, L08: 3, L09: 2, L10: 5 };
         const count = counts[monster.catalogueId ?? ""] ?? 1;
         const cards = this.askForHandCards(`ถวายไพ่ให้ ${monster.name ?? monster.catalogueId}`, count);
