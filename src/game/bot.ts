@@ -11,6 +11,11 @@ export type BotCursePayment =
   | { type: "discard"; cardIds: [string, string] }
   | { type: "cooldown" };
 
+export interface BotLegendOffering {
+  cardIds: string[];
+  selectedDeckCardId?: string;
+}
+
 /** Select a legal Curse cost after the Curse card has been removed from the bot's hand. */
 export function chooseBotCursePayment(
   state: GameState,
@@ -32,6 +37,84 @@ export function chooseBotCursePayment(
   }
   if (player.hp >= 5) return { type: "hp", amount: 5 };
   return undefined;
+}
+
+function offeringCardValue(cardId: string): number {
+  const card = CARD_CATALOGUE.find(candidate => candidate.id === cardId);
+  if (!card) return 0;
+  if (card.effectId === "instant_kill") return 100;
+  if (card.effectId === "resurrection") return 90;
+  if (card.kind === "curse") return 75;
+  if (card.kind === "support") return 55;
+  if (card.kind === "defense") return 45;
+  return 30;
+}
+function selectOfferingCards(hand: string[], predicate: (cardId: string) => boolean, count: number): string[] {
+  return hand.map((id, index) => ({ id, index })).filter(entry => predicate(entry.id))
+    .sort((a, b) => offeringCardValue(a.id) - offeringCardValue(b.id) || a.index - b.index)
+    .slice(0, count).map(entry => entry.id);
+}
+export function chooseBotLegendOffering(state: GameState, monsterId: string, drawPile: readonly string[] = []): BotLegendOffering | undefined {
+  const monster = state.monsters.find(candidate => candidate.id === monsterId && candidate.active);
+  const player = state.players[state.activePlayerIndex];
+  if (!monster || monster.rank !== "Legend" || !monster.catalogueId || !player || player.status !== "alive") return undefined;
+  const requirements: Record<string, { count: number; matches: (cardId: string) => boolean }> = {
+    L01: { count: 4, matches: id => CARD_CATALOGUE.find(card => card.id === id)?.kind === "support" },
+    L02: { count: 2, matches: id => CARD_CATALOGUE.find(card => card.id === id)?.color === "yellow" },
+    L03: { count: 3, matches: () => true },
+    L04: { count: 2, matches: id => CARD_CATALOGUE.find(card => card.id === id)?.color === "green" },
+    L05: { count: 1, matches: () => true },
+    L06: { count: 1, matches: id => id === "yellow_resurrection" },
+    L07: { count: 2, matches: id => { const card = CARD_CATALOGUE.find(candidate => candidate.id === id); return card?.color === "blue" && card.kind === "defense"; } },
+    L08: { count: 3, matches: id => CARD_CATALOGUE.find(card => card.id === id)?.color === "green" },
+    L09: { count: 2, matches: id => CARD_CATALOGUE.find(card => card.id === id)?.color === "blue" },
+    L10: { count: 5, matches: () => true }
+  };
+  const requirement = requirements[monster.catalogueId];
+  if (!requirement) return undefined;
+  const cardIds = selectOfferingCards(player.hand, requirement.matches, requirement.count);
+  if (cardIds.length !== requirement.count) return undefined;
+  if (monster.catalogueId !== "L03") return { cardIds };
+  if (!drawPile.length) return undefined;
+  const remainingHand = player.hand.filter(id => !cardIds.includes(id));
+  const selectedDeckCardId = [...drawPile].filter(id => id !== "red_instant_kill" || !remainingHand.includes("red_instant_kill"))
+    .sort((a, b) => {
+      const score = (id: string) => {
+        const card = CARD_CATALOGUE.find(candidate => candidate.id === id);
+        if (!card) return 0;
+        if (card.effectId === "instant_kill") return 100;
+        if (card.effectId === "gain_heart") return 90;
+        if (card.effectId === "grant_invulnerability") return 85;
+        if (card.kind === "curse") return 80;
+        if (card.kind === "support") return 70;
+        return 40;
+      };
+      return score(b) - score(a);
+    })[0];
+  return selectedDeckCardId ? { cardIds, selectedDeckCardId } : undefined;
+}
+export function chooseBotMythOffering(state: GameState, monsterId: string): string[] {
+  const monster = state.monsters.find(candidate => candidate.id === monsterId && candidate.active);
+  const player = state.players[state.activePlayerIndex];
+  if (!monster || !player || player.status !== "alive") return [];
+  const runtime = (state as GameState & { mythRuntime?: { monsterId: string; catalogueId: string; offerings: Record<string, string[]> } }).mythRuntime;
+  if (!runtime || runtime.monsterId !== monsterId) return [];
+  if (runtime.catalogueId === "M06") {
+    const offered = Object.values(runtime.offerings).reduce((sum, cards) => sum + cards.length, 0);
+    return selectOfferingCards(player.hand, () => true, Math.max(0, 10 - offered));
+  }
+  if (runtime.catalogueId === "M08") {
+    const offeredColors = new Set(Object.values(runtime.offerings).flat().map(id => CARD_CATALOGUE.find(card => card.id === id)?.color));
+    const selected: string[] = [];
+    for (const color of ["blue", "yellow", "green", "red"] as const) {
+      if (offeredColors.has(color)) continue;
+      const candidate = selectOfferingCards(player.hand.filter(id => !selected.includes(id)),
+        id => CARD_CATALOGUE.find(card => card.id === id)?.color === color, 1)[0];
+      if (candidate) selected.push(candidate);
+    }
+    return selected;
+  }
+  return [];
 }
 
 export function chooseBotAction(player: Pick<GamePlayer, "hand">): Exclude<PlayerAction, "use_cards"> {
