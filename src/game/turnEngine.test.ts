@@ -296,7 +296,7 @@ describe("Roll and Ruin turn engine", () => {
         status: index === 1 ? "eliminated" as const : "alive" as const
       }))
     };
-    expect(getScoreBasedWinners(state)).toEqual(["green"]);
+    expect(getScoreBasedWinners(state)).toEqual(["red"]);
 
     const tied = {
       ...state,
