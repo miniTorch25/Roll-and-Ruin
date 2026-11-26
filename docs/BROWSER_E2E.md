@@ -22,3 +22,8 @@ The suite runs in GitHub Actions after TypeScript and game-logic tests and befor
 ## Separate remaining work
 
 These tests cover the card-effect and monster interactions listed in the roadmap. They do not yet represent a full browser playthrough from match start to final scoring; that remains tracked as **Browser Playtest**.
+
+
+## Mobile layout smoke test
+
+A 390 × 844 mobile viewport test verifies that the board and all primary actions remain visible, the page does not overflow horizontally, and primary action buttons retain touch-friendly heights. The first responsive pass also accounts for device safe areas and keeps player status cards in a compact two-column layout on narrow phones.
