@@ -114,7 +114,7 @@ export function resolveLegendOffering(
       }
       const selected = card(options.selectedDeckCardId);
       if (!selected) throw new Error("The selected Gini reward is not in the card catalogue.");
-      if (selected.effectId === "instant_kill" && !canReceiveInstantKill(first.hand.filter(cardId => !contributions[0].cardIds.includes(cardId)))) {
+      if (selected.effectId === "instant_kill" && !canReceiveInstantKill((players.get(first.playerId)?.hand ?? []).filter(cardId => !first.cardIds.includes(cardId)))) {
         throw new Error("A player who already holds Instant Kill cannot receive another copy.");
       }
       deck.drawPile.splice(deck.drawPile.indexOf(options.selectedDeckCardId), 1);
@@ -136,7 +136,7 @@ export function resolveLegendOffering(
       requireCount(1);
       const remaining = monster.exchangesRemaining ?? 3;
       if (remaining <= 0) throw new Error("Lepri has no exchanges remaining.");
-      const remainingHand = first.hand.filter(cardId => !contributions[0].cardIds.includes(cardId));
+      const remainingHand = (players.get(first.playerId)?.hand ?? []).filter(cardId => !first.cardIds.includes(cardId));
       const matching = takeRandomMatching(deck.drawPile,
         definition => definition.effectId !== "instant_kill" || canReceiveInstantKill(remainingHand), 2, random);
       awardedCardIds.push(...matching);
