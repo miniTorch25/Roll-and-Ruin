@@ -545,12 +545,17 @@ export function playCardFromHand(state: GameState, cardId: string, scoreValue = 
 /** Card play does not consume a movement die; the normal movement roll is one D6. */
 export function finishCardActivity(
   state: GameState,
-  random: () => number = Math.random
+  random: () => number = Math.random,
+  movementStepsOverride?: number
 ): { state: GameState; diceRolls: number[] } {
   if (state.phase !== "play_cards" || state.selectedAction !== "use_cards") {
     throw new Error("The use-cards activity is not active.");
   }
   const active = getActivePlayer(state);
+  if (movementStepsOverride !== undefined &&
+      (!Number.isInteger(movementStepsOverride) || movementStepsOverride < 1 || movementStepsOverride >= state.boardLength)) {
+    throw new Error("Movement override must be a positive distance shorter than the board length.");
+  }
   const reduction = active.statusEffects
     .filter((effect) => effect.type === "dice_reduction" && effect.turnsRemaining > 0)
     .reduce((maximum, effect) => Math.max(maximum, effect.amount ?? 0), 0);
@@ -567,11 +572,13 @@ export function finishCardActivity(
     .reduce((total, effect) => total + (effect.amount ?? 1), 0);
   const diceCount = diceLimited ? 1 : Math.min(3, 1 + bonusDice + statusBonusDice);
   const controlledDiceValues = runtime?.controlledDiceValues ?? [];
-  const diceRolls = Array.from({ length: diceCount }, (_, index) => {
-    const controlledValue = controlledDiceValues[index];
-    const dieFace = controlledValue !== undefined ? controlledValue : rollD6(random);
-    return Math.max(minimum, dieFace - reduction);
-  });
+  const diceRolls = movementStepsOverride === undefined
+    ? Array.from({ length: diceCount }, (_, index) => {
+        const controlledValue = controlledDiceValues[index];
+        const dieFace = controlledValue !== undefined ? controlledValue : rollD6(random);
+        return Math.max(minimum, dieFace - reduction);
+      })
+    : [];
   let cardRuntime = state.cardRuntime;
   if (cardRuntime && runtime) {
     cardRuntime = {
@@ -590,7 +597,7 @@ export function finishCardActivity(
     state: {
       ...state,
       cardRuntime,
-      movementSteps: diceRolls.reduce((sum, value) => sum + value, 0),
+      movementSteps: movementStepsOverride ?? diceRolls.reduce((sum, value) => sum + value, 0),
       phase: "move"
     },
     diceRolls
