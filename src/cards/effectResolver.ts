@@ -1238,7 +1238,7 @@ export function resolveCardEffect(
           monsterId: targetMonster.id,
           sourcePlayerId: active.id,
           attemptedDamage: targetMonster.hp ?? 0,
-          hpBefore: targetMonster.hp,
+          hpBefore: targetMonster.hp ?? null,
           hpAfter: 0,
           hpDamage: targetMonster.hp ?? 0,
           defeated: true
