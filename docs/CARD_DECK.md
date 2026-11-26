@@ -15,5 +15,5 @@ The game uses the authoritative 60-card list in `Roll_and_Ruin_Rules.txt`, repre
 - The local prototype now shuffles the 60 real catalogue IDs and deals four starting cards to each player.
 - `playCatalogueCard` now removes a real catalogue card, applies its confirmed score value, and returns its effect definition.
 - Used cards are not automatically placed in the discard pile; the caller must explicitly discard them after effect resolution.
-- The effect resolver currently handles 55 of the 56 catalogue effect IDs. `move_to_next_special_tile` (Magic Shortcut) remains unresolved because it needs a board-aware movement result and special-tile resolution; do not treat the full catalogue as effect-complete.
+- The effect resolver handles all 56 catalogue effect IDs. `move_to_next_special_tile` receives the nearest special-tile destination from BoardScene and completes the card activity with that fixed movement distance without rolling dice; the normal landing-tile and movement-trigger checks still run.
 - Resurrection can be used on one eliminated player or automatically from the holder's hand on final-heart loss.
