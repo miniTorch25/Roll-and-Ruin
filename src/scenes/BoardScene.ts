@@ -18,7 +18,7 @@ import { CARD_CATALOGUE } from "../cards/catalogue";
 import { selectKingoOfferingModal } from "../ui/kingoOfferingModal";
 import { chooseOptionDialog, confirmActionDialog, selectCardsDialog, textInputDialog } from "../ui/gameDialogs";
 import { formatPlayerStatuses } from "../ui/statusEffects";
-import { chooseBotAction } from "../game/bot";
+import { chooseBotAction, chooseBotCards } from "../game/bot";
 
 const PATH_LENGTH = 32;
 const PLAYER_SETUP = [
@@ -616,16 +616,50 @@ export class BoardScene extends Phaser.Scene {
     let processed = 0;
     while (this.state.phase === "choose_action" && this.state.players[this.state.activePlayerIndex]?.isBot && processed < 8) {
       const active = this.state.players[this.state.activePlayerIndex];
-      const action = chooseBotAction(active);
-      let selected;
-      if (action === "draw_two_roll_one") {
-        const drawn = drawCards(active.hand, this.deck, 2);
-        this.deck = drawn.deck;
-        selected = selectPlayerAction(this.state, action, { drawnCardIds: drawn.drawnCardIds });
+      const plannedCards = chooseBotCards(this.state);
+      const action: PlayerAction = plannedCards.length ? "use_cards" : chooseBotAction(active);
+      let diceRolls: number[];
+      let cardSummary = "";
+
+      if (action === "use_cards") {
+        this.state = selectPlayerAction(this.state, "use_cards").state;
+        const usedCards: string[] = [];
+        for (const cardId of plannedCards) {
+          try {
+            const played = playCatalogueCard(this.state, cardId);
+            const resolved = resolveCardEffect(played.state, played.card, {
+              deck: this.deck,
+              random: Math.random
+            });
+            this.state = resolved.state;
+            this.deck = resolved.deck ?? this.deck;
+            this.deck = {
+              ...this.deck,
+              discardPile: [...this.deck.discardPile, ...resolved.discardedCardIds, cardId]
+            };
+            usedCards.push(played.card.name);
+            if (resolved.endsCardPlay) break;
+          } catch {
+            break;
+          }
+        }
+        const finished = finishCardActivity(this.state);
+        this.state = finished.state;
+        diceRolls = finished.diceRolls;
+        cardSummary = usedCards.length ? `ใช้ไพ่ ${usedCards.join(", ")} · ` : "";
       } else {
-        selected = selectPlayerAction(this.state, action);
+        let selected;
+        if (action === "draw_two_roll_one") {
+          const drawn = drawCards(active.hand, this.deck, 2);
+          this.deck = drawn.deck;
+          selected = selectPlayerAction(this.state, action, { drawnCardIds: drawn.drawnCardIds });
+        } else {
+          selected = selectPlayerAction(this.state, action);
+        }
+        this.state = selected.state;
+        diceRolls = selected.diceRolls;
       }
-      this.state = selected.state;
+
       const moved = moveActivePlayer(this.state);
       const tileMessage = this.resolveMovementAndSpecialTile(moved);
       this.state = finishStatusCheck(this.state);
@@ -633,7 +667,8 @@ export class BoardScene extends Phaser.Scene {
       if (endingPlayerId && this.state.monsters.some(monster => monster.active && monster.rank === "Myth")) {
         this.state = advanceMythTurn(this.state, endingPlayerId).state;
       }
-      summaries.push(`${active.id} ${action === "draw_two_roll_one" ? "จั่วไพ่" : "ทอยเต๋า"} (${selected.diceRolls.join("+")})${tileMessage}`);
+      const actionLabel = action === "draw_two_roll_one" ? "จั่วไพ่" : action === "roll_two_dice" ? "ทอยเต๋า" : "ใช้ไพ่";
+      summaries.push(`${active.id} ${cardSummary}${actionLabel} (${diceRolls.join("+")})${tileMessage}`);
       this.state = this.prepareNextTurn(endPlayerTurn(this.state));
       processed++;
     }
