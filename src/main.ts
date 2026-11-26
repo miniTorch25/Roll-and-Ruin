@@ -28,4 +28,9 @@ document.querySelector<HTMLButtonElement>("#draw-button")
   ?.addEventListener("click", () => sendAction("draw_two_roll_one"));
 document.querySelector<HTMLButtonElement>("#use-card-button")
   ?.addEventListener("click", () => sendAction("use_cards"));
+document.querySelector<HTMLButtonElement>("#finish-cards-button")
+  ?.addEventListener("click", () => {
+    const scene = game.scene.getScene("BoardScene") as BoardScene;
+    scene.finishCardPlay();
+  });
 window.addEventListener("resize", () => game.scale.refresh());

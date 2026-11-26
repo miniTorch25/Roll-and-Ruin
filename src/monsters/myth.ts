@@ -32,6 +32,19 @@ export interface MythActionResult {
   removed: boolean;
 }
 
+const MYTH_RULES: Record<MythId, readonly string[]> = {
+  M01: ["สังหารผู้เล่น 1 คนทันทีเมื่อถูกอัญเชิญ โดยไม่สนอมตะหรือเกราะ", "เชื่อม HP: เมื่อผู้เล่นคนหนึ่งได้รับความเสียหาย ผู้เล่นทุกคนได้รับความเสียหายเท่ากัน", "ถวายไพ่เหลือง 3 ใบเพื่อรับไพ่คำสาป 4 ใบ", "หากกำจัด Hecate ด้วยความเสียหาย รับไพ่คำสาป 2 ใบ", "หายไปภายใน 6 เทิร์น"],
+  M02: ["โจมตีทุกคนเฉพาะตอนถูกอัญเชิญ", "แลกไพ่เหลืองทั้งหมดกับไพ่คำสาปแบบสุ่มได้", "หายไปเมื่อแจกไพ่คำสาปครบ 4–12 ใบ หรือไม่มีการแลกเปลี่ยน 3 เทิร์น", "ก่อนหายไป มอบไพ่ชุบชีวิตให้ผู้เล่นสุ่ม 2 คน"],
+  M03: ["ผู้เล่นทุกคนข้ามเทิร์นถัดไป 1 ครั้ง", "ผู้เล่นที่ใช้ไพ่ครบ 3 ใบในเทิร์นต้องทิ้งไพ่สุ่ม 1 ใบ", "หายไปภายใน 5 เทิร์น"],
+  M04: ["เมื่อปรากฏตัว ชุบชีวิตผู้เล่นที่ตกรอบแบบสุ่ม 1 คน", "ผู้เล่นที่มี HP ต่ำสุดเสียหัวใจ 1 ดวง", "กำจัดได้ด้วยไพ่สังหารทันทีเท่านั้น"],
+  M05: ["ผู้เล่นมองไม่เห็นไพ่ในมือและต้องใช้ไพ่แบบสุ่ม", "หายไปภายใน 4 เทิร์น หรือเมื่อมีผู้เล่นใช้ไพ่ Luck"],
+  M06: ["โจมตีผู้เล่นทุกคนทุก 2 เทิร์น ดาเมจ 15 ทะลุโล่", "กำจัดด้วยเครื่องบูชาไพ่รวม 10 ใบ หรือไพ่สังหารทันที", "หายไปภายใน 8 เทิร์น"],
+  M07: ["เมื่อถูกอัญเชิญ ผู้เล่นทุกคนจั่วไพ่สุ่ม 3 ใบ", "หายไปทันทีหลังแจกไพ่"],
+  M08: ["โจมตีผู้เล่นทุกคนทุก 1 เทิร์น ดาเมจ 3", "ฟื้น HP เต็มทุกครั้งหลังโจมตี จึงกำจัดด้วยดาเมจไม่ได้", "ถวายไพ่ฟ้า เหลือง เขียว และแดง อย่างละ 1 ใบเพื่อกำจัด"],
+  M09: ["โจมตีผู้เล่นทุกคนทันทีเมื่อถูกอัญเชิญ 1 ครั้ง", "ผู้เล่นแต่ละคนเลือกเสียหัวใจ 1 ดวงเพื่อรับไพ่ Immortality และ Reflect", "หายไปภายใน 3 เทิร์น"],
+  M10: ["เมื่อถูกอัญเชิญ ผู้เล่นทุกคนทิ้งไพ่ครึ่งมือ ปัดขึ้นและสุ่ม", "หายไปทันทีเมื่อผู้เล่นคนใดคนหนึ่งตาย หรือครบ 5 เทิร์น"]
+};
+
 const MYTH_DATA: Record<MythId, Pick<GameMonster, "name" | "hp" | "maxHp" | "attackDamage" | "attackInterval" | "attackPattern">> = {
   M01: { name: "Hecate", hp: 10000, maxHp: 10000, attackDamage: 0, attackInterval: null, attackPattern: "all_living" },
   M02: { name: "Granfel", hp: null, maxHp: null, attackDamage: 1, attackInterval: null, attackPattern: "all_living" },
@@ -69,7 +82,7 @@ function removeMyth(state: MythGameState): MythGameState {
 
 function leaveGranfel(state: MythGameState, random: () => number): MythGameState {
   const removed = removeMyth(state);
-  const recipients = [...removed.players].filter(player => player.status === "alive");
+  const recipients = [...removed.players];
   const awarded = new Set<string>();
   while (awarded.size < 2 && awarded.size < recipients.length) {
     const remaining = recipients.filter(player => !awarded.has(player.id));
@@ -120,7 +133,7 @@ export function summonMyth(
     catalogueId,
     rank: "Myth" as const,
     ...data,
-    rules: [],
+    rules: [...MYTH_RULES[catalogueId]],
     reward: catalogueId === "M01" ? "ไพ่คำสาป 2 ใบ" : null,
     info: null
   };
@@ -168,7 +181,7 @@ export function summonMyth(
     }
     messages.push("Anubix revives one eliminated player if possible and takes one heart from the lowest-HP living player.");
   } else if (catalogueId === "M07") {
-    for (const player of state.players.filter(item => item.status === "alive")) {
+    for (const player of state.players) {
       const result = drawCards(player.hand, nextDeck, 3);
       nextDeck = result.deck;
       state = { ...state, players: state.players.map(item => item.id === player.id ? { ...item, hand: result.hand } : item) };
@@ -177,7 +190,7 @@ export function summonMyth(
     messages.push("Pandy distributes three cards to every living player and disappears.");
   } else if (catalogueId === "M10") {
     state = { ...state, players: state.players.map(player => {
-      if (player.status !== "alive" || player.hand.length === 0) return player;
+      if (player.hand.length === 0) return player;
       const hand = [...player.hand];
       const discardCount = Math.ceil(hand.length / 2);
       for (let i = 0; i < discardCount; i++) hand.splice(randomIndex(hand.length, random), 1);
@@ -278,7 +291,12 @@ export function offerGranfelTrade(input: GameState, playerId: string, deck: Card
   };
   const removed = next.mythRuntime!.granfelReceived >= runtime.granfelTarget;
   if (removed) next = leaveGranfel(next, random);
-  return { state: next, deck: trade.deck, messages: [`Granfel exchanged ${offered.length} yellow card(s) for ${trade.cards.length} curse card(s).`], removed };
+  return {
+    state: next,
+    deck: { ...trade.deck, discardPile: [...trade.deck.discardPile, ...offered] },
+    messages: [`Granfel exchanged ${offered.length} yellow card(s) for ${trade.cards.length} curse card(s).`],
+    removed
+  };
 }
 
 /** Resolves a voluntary multi-player offering to Ragnar or Ouro. */
@@ -298,7 +316,9 @@ export function offerMythCards(input: GameState, contributions: Array<{ playerId
   }
   let complete = false;
   if (runtime.catalogueId === "M06") {
-    complete = Object.values(runtime.offerings).reduce((sum, ids) => sum + ids.length, 0) + offered.length >= 10;
+    const totalOffered = Object.values(runtime.offerings).reduce((sum, ids) => sum + ids.length, 0) + offered.length;
+    if (totalOffered > 10) throw new Error("Ragnar requires exactly ten offered cards in total.");
+    complete = totalOffered === 10;
   } else {
     const offeredColors = offered.map(id => CARD_CATALOGUE.find(card => card.id === id)?.color);
     const previousColors = Object.values(runtime.offerings).flat().map(id => CARD_CATALOGUE.find(card => card.id === id)?.color);

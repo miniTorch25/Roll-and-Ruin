@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { applyPlayerDeath, createGameState } from "../game/turnEngine";
 import { resolveCardEffect } from "../cards/effectResolver";
+import { damageMonster } from "./engine";
 import {
   acceptLucyOffer,
   advanceMythTurn,
@@ -54,6 +55,17 @@ describe("Myth Monsters M01-M10", () => {
     expect(result.deck?.drawPile).toHaveLength(0);
   });
 
+
+  it("Pandy distributes three cards to eliminated players as well", () => {
+    const initial = game();
+    const state = {
+      ...initial,
+      players: initial.players.map(player => player.id === "p1" ? { ...player, status: "eliminated" as const, hearts: 0 } : player)
+    };
+    const result = summonMyth(state, "M07", "pandy-dead", deck(Array(12).fill("blue_common_sword")), () => 0);
+    expect(result.state.players.find(player => player.id === "p1")?.hand).toHaveLength(7);
+  });
+
   it("Ragnar accepts ten contributed cards across multiple players", () => {
     let state = game();
     state = { ...state, players: state.players.map(player => ({ ...player, hand: [...player.hand, ...Array(8).fill("blue_common_sword")] })) };
@@ -64,6 +76,26 @@ describe("Myth Monsters M01-M10", () => {
     ]);
     expect(result.removed).toBe(true);
     expect(result.state.monsters.find(monster => monster.id === "ragnar")?.active).toBe(false);
+  });
+
+
+  it("Ragnar cannot be defeated by ordinary damage, even if a hit would exhaust its HP", () => {
+    const summoned = summonMyth(game(), "M06", "ragnar-immortal", deck(), () => 0);
+    const hit = damageMonster(summoned.state, "ragnar-immortal", 99999, "p1");
+    expect(hit.event.defeated).toBe(false);
+    expect(hit.event.hpAfter).toBe(1);
+    expect(hit.state.monsters.find(monster => monster.id === "ragnar-immortal")?.active).toBe(true);
+  });
+
+
+  it("rejects Ragnar offerings that exceed ten cards", () => {
+    let state = game();
+    state = { ...state, players: state.players.map(player => ({ ...player, hand: [...player.hand, ...Array(8).fill("blue_common_sword")] })) };
+    const summoned = summonMyth(state, "M06", "ragnar-overpay", deck(), () => 0);
+    expect(() => offerMythCards(summoned.state, [
+      { playerId: "p1", cardIds: Array(6).fill("blue_common_sword") },
+      { playerId: "bot-1", cardIds: Array(5).fill("blue_common_sword") }
+    ])).toThrow(/exactly ten/);
   });
 
   it("Ouro requires exactly one card of each color", () => {
@@ -96,6 +128,25 @@ describe("Myth Monsters M01-M10", () => {
     const summoned = summonMyth(game(), "M01", "hecate-link", deck(), () => 0);
     const result = resolveCardEffect(summoned.state, "blue_common_sword", { targetPlayerId: "bot-1", random: () => 0 });
     expect(result.state.players.filter(player => player.status === "alive").every(player => player.hp === 17)).toBe(true);
+  });
+
+
+  it("does not recursively spread reflected damage through Hecate's HP link", () => {
+    const summoned = summonMyth(game(), "M01", "hecate-reflect", deck(), () => 0);
+    const withReflection = {
+      ...summoned.state,
+      cardRuntime: {
+        players: {
+          "bot-1": { shields: 0, invulnerableOwnerTurns: 0, reflectionCharges: 1 }
+        }
+      }
+    };
+    const result = resolveCardEffect(withReflection, "blue_common_sword", {
+      targetPlayerId: "bot-1",
+      random: () => 0
+    });
+    expect(result.state.players.find(player => player.id === "p1")?.hp).toBe(14);
+    expect(result.state.players.filter(player => player.id !== "p1").every(player => player.hp === 17)).toBe(true);
   });
 
   it("Chronos makes a player discard one random card after using three cards", () => {

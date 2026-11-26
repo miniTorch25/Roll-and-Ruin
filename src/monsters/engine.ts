@@ -9,7 +9,7 @@ export interface MonsterDamageEvent {
   hpAfter: number | null;
   hpDamage: number;
   defeated: boolean;
-  preventedBy?: "infinite_hp" | "attack_below_threshold";
+  preventedBy?: "infinite_hp" | "attack_below_threshold" | "cannot_be_defeated_by_damage";
   /** Additional green-card reward Chesty grants when defeated. */
   bonusReward?: { greenCards: number };
   /** Damage reflected to the attacking player by a Legend monster. */
@@ -102,8 +102,10 @@ export function damageMonster(
     return { state, event };
   }
 
-  const hpDamage = Math.min(monster.hp, amount);
-  const hpAfter = Math.max(0, monster.hp - amount);
+  const cannotDefeatByDamage = monster.catalogueId === "M06" && amount >= monster.hp;
+  const hpDamage = cannotDefeatByDamage ? Math.max(0, monster.hp - 1) : Math.min(monster.hp, amount);
+  const hpAfter = cannotDefeatByDamage ? 1 : Math.max(0, monster.hp - amount);
+  if (cannotDefeatByDamage) event.preventedBy = "cannot_be_defeated_by_damage";
   event.hpDamage = hpDamage;
   const phoenixRevives = hpAfter === 0 && monster.catalogueId === "L06" && (monster.revivalsRemaining ?? 0) > 0;
   event.revived = phoenixRevives;

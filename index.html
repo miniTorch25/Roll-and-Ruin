@@ -40,6 +40,11 @@
         <div class="stat-row"><span>ไพ่ในมือ</span><strong id="hand-count">4</strong></div>
         <div class="stat-row"><span>เฟส</span><strong id="phase-label">เลือกกิจกรรม</strong></div>
       </section>
+      <section id="hand-panel" class="info-card hand-panel" hidden aria-live="polite"></section>
+      <button id="finish-cards-button" type="button" class="finish-cards-button" disabled>จบช่วงใช้ไพ่และทอยเต๋า</button>
+      <section class="info-card">
+        <p class="eyebrow">ACTIVE MONSTERS</p><h3>มอนสเตอร์บนกระดาน</h3><div id="monster-panel"><p class="empty-note">ยังไม่มีมอนสเตอร์</p></div>
+      </section>
       <section class="info-card">
         <p class="eyebrow">LOCAL PLAYERS</p><h3>ผู้เล่นในห้องทดลอง</h3>
         <div id="player-list"></div>
@@ -49,8 +54,8 @@
         <ul>
           <li>ผู้เล่น 4 คนเป็นตัวแทนทดสอบในเครื่องเดียว</li>
           <li>กิจกรรมรองรับการจั่ว 2 ใบและทอย 1 ลูก หรือทอย 2 ลูก</li>
-          <li>ไพ่เริ่มต้นเป็น ID ทดลอง ยังไม่ใช่ไพ่จริงในแค็ตตาล็อก</li>
-          <li>ระบบใช้ไพ่รอเชื่อมเอฟเฟกต์จากรายการไพ่ 60 ใบ</li>
+          <li>ไพ่เริ่มต้นและเอฟเฟกต์เชื่อมกับแค็ตตาล็อกจริงแล้ว</li>
+          <li>การเลือกเป้าหมายบางชนิดใช้กล่องโต้ตอบของเบราว์เซอร์</li>
           <li>ยังไม่ใช่ระบบ Multiplayer</li>
         </ul>
       </section>

@@ -306,7 +306,8 @@ function applyDamage(
       {
         kind: "reflection",
         sourcePlayerId: targetPlayerId,
-        allowReflection: false
+        allowReflection: false,
+        skipHecateLink: true
       }
     );
     state = reflected.state;
