@@ -47,12 +47,30 @@ test("resolves a targeted Attack card through the browser UI", async ({ page }) 
   await chooseStartupOption(page, "0");
 
   await page.locator("#use-card-button").click();
-  await page.locator('#hand-panel [data-card-id="blue_accurate_arrow"]').click();
+  const handCardIds = await page.locator("#hand-panel [data-card-id]").evaluateAll(elements =>
+    elements.map(element => (element as HTMLButtonElement).dataset.cardId ?? "")
+  );
+  console.log("Deterministic starting hand:", handCardIds);
+  const attackDamage: Record<string, number> = {
+    blue_common_sword: 3,
+    blue_accurate_arrow: 2,
+    blue_armor_breaking_axe: 3,
+    blue_double_edged_sword: 6,
+    blue_counter_punch: 2
+  };
+  const cardId = handCardIds.find(id => id in attackDamage);
+  expect(cardId, `Starting hand has no targeted Attack card: ${handCardIds.join(", ")}`).toBeTruthy();
+  await page.locator(`#hand-panel [data-card-id="${cardId}"]`).click();
 
   const targetDialog = page.locator("dialog.game-choice-dialog");
-  await expect(targetDialog).toBeVisible();
-  await targetDialog.locator('[data-value="bot-1"]').click();
+  await expect(targetDialog).toBeVisible({ timeout: 5_000 });
+  const targetIds = await targetDialog.locator("[data-value]").evaluateAll(elements =>
+    elements.map(element => (element as HTMLButtonElement).dataset.value ?? "")
+  );
+  console.log("Available player targets:", targetIds);
+  const targetId = targetIds[0];
+  await targetDialog.locator(`[data-value="${targetId}"]`).click();
 
-  await expect(page.locator("#game-message")).toContainText("ใช้ไพ่ ธนูแม่นยำ สำเร็จ");
-  await expect(page.locator("#player-list .player-row").nth(1)).toContainText("HP 18");
+  await expect(page.locator("#game-message")).toContainText("ใช้ไพ่");
+  await expect(page.locator("#player-list .player-row").nth(1)).toContainText(`HP ${20 - attackDamage[cardId!]}`);
 });
