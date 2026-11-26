@@ -1,6 +1,6 @@
 # Turn Engine — Rule-Aligned Core
 
-The authoritative source is `Roll_and_Ruin_Rules.txt`. This document describes implemented engine behavior; tile effects, monster-specific effects, and match victory resolution remain separate systems.
+The authoritative source is `Roll_and_Ruin_Rules.txt`. This document describes implemented engine behavior; board and monster effects are connected through their dedicated modules, while match timers and result presentation remain separate integration work.
 
 ## Match formats
 - **1v1:** 2 players, 2 teams, 1 player per team.
@@ -17,7 +17,7 @@ The authoritative source is `Roll_and_Ruin_Rules.txt`. This document describes i
 
 The engine does not invent card IDs. The caller supplies the four starting cards from the authoritative 60-card catalogue. Human player counts may range from 1 to the selected mode's capacity. Missing seats are filled with bot players, and the deck layer must supply four starting cards for each generated bot.
 
-Bot seats and team assignments are represented in state; automated bot decision-making is a separate controller that has not yet been implemented.
+Bot seats and team assignments are represented in state. `src/game/bot.ts` and BoardScene provide heuristic Bot decisions for card use, movement actions, Monster offerings, and cooperative Kingo contributions. Joker Chaos is intentionally held because its random Curse can harm the Bot and teammates.
 
 ## Turn sequence
 1. Monster Attack.
@@ -38,7 +38,7 @@ A player skipped by Sleep or Prison enters Turn End without taking an action. Mo
 
 Dice reduction is applied to each die face individually, with the configured minimum applied after reduction.
 
-During the Use Cards activity, movement normally uses one D6. Lucky Dice can add one bonus die (the turn runtime supports at most two bonus dice, so the total never exceeds three). A one-die status takes precedence over bonus dice. Control Dice can replace the die faces for the current movement roll; active cursed-die reduction is still applied to the selected values. After the roll, temporary bonus and controlled values are consumed.
+During the Use Cards activity, movement normally uses one D6. Magic Shortcut replaces that roll with movement to the nearest special tile in the current movement direction; the usual landing-tile and movement-trigger checks still run. Lucky Dice can add one bonus die (the turn runtime supports at most two bonus dice, so the total never exceeds three). A one-die status takes precedence over bonus dice. Control Dice can replace the die faces for the current movement roll; active cursed-die reduction is still applied to the selected values. After the roll, temporary bonus and controlled values are consumed.
 
 Lucky Clover grants one reroll charge. `rerollOneDie` replaces one selected die after the Use Cards movement roll, updates the movement total, and consumes the charge. The reroll also respects active cursed-die reduction.
 
@@ -90,5 +90,5 @@ Holy Water clears the player's timed negative statuses. Reapplying the same stat
 ## Not implemented by this engine
 - Mystery, Monster, Prison, and Dice landing effects are connected by BoardScene.
 - Monster damage, HP, status effects, per-monster special behavior, and rewards.
-- Automated bot decision-making, mode timers, and match victory/tie resolution.
+- Time Limit / Speedrun timers, timeout handling, and final result UI.\n- Online multiplayer, rooms, server-authoritative state, and reconnection handling.
 - Online multiplayer, rooms, server-authoritative state, and reconnection handling.
