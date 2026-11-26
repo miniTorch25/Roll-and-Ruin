@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { applyPlayerDeath, createGameState } from "../game/turnEngine";
+import { applyPlayerDeath, createGameState, resolveMonsterAttackPhase, startPlayerTurn } from "../game/turnEngine";
 import { resolveCardEffect } from "../cards/effectResolver";
 import { damageMonster } from "./engine";
 import {
@@ -32,6 +32,19 @@ describe("Myth Monsters M01-M10", () => {
     expect(getMythInteractionState(result.state)?.linkedHp).toBe(true);
     const linked = applyHecateLinkedDamage(result.state, 2, () => 0);
     expect(linked.players.filter(player => player.status === "alive").every(player => player.hp === 18)).toBe(true);
+  });
+
+  it("shares Poison damage with every living player while Hecate is active", () => {
+    const summoned = summonMyth(game(), "M01", "hecate-poison-link", deck(), () => 0.99);
+    const poisoned = {
+      ...summoned.state,
+      players: summoned.state.players.map(player => player.id === "p1"
+        ? { ...player, statusEffects: [{ type: "poison" as const, turnsRemaining: 3, amount: 1 }] }
+        : player)
+    };
+    const started = startPlayerTurn(resolveMonsterAttackPhase(poisoned, () => 0).state, () => 0);
+    expect(started.players.filter(player => player.status === "alive").every(player => player.hp === 19)).toBe(true);
+    expect(started.players.find(player => player.id === "bot-3")?.status).toBe("eliminated");
   });
 
   it("Chronos marks every living player to skip their next turn", () => {
