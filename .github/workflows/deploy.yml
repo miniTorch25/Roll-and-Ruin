@@ -53,3 +53,49 @@ jobs:
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4
+      - name: Verify published website and built assets
+        env:
+          PAGE_URL: ${{ steps.deployment.outputs.page_url }}
+        run: |
+          node --input-type=module <<'NODE'
+          const base = new URL(process.env.PAGE_URL);
+          if (!base.pathname.endsWith("/")) base.pathname += "/";
+
+          let response;
+          for (let attempt = 1; attempt <= 12; attempt += 1) {
+            try {
+              response = await fetch(base);
+              if (response.ok) break;
+            } catch {}
+            if (attempt < 12) await new Promise((resolve) => setTimeout(resolve, 10000));
+          }
+
+          if (!response?.ok) {
+            throw new Error(`Published page did not respond successfully: ${response?.status ?? "network error"}`);
+          }
+
+          const html = await response.text();
+          if (!html.includes('id="app"') || !html.includes("ROLL")) {
+            throw new Error("Published page is missing the expected Roll and Ruin app shell.");
+          }
+
+          const assetPaths = [
+            ...[...html.matchAll(/<script[^>]+src=["']([^"']+)["']/g)].map((match) => match[1]),
+            ...[...html.matchAll(/<link[^>]+href=["']([^"']+\.css)["']/g)].map((match) => match[1]),
+          ];
+
+          if (assetPaths.length === 0) {
+            throw new Error("No built JavaScript or CSS assets were found in the published page.");
+          }
+
+          for (const path of assetPaths) {
+            const assetUrl = new URL(path, base);
+            const assetResponse = await fetch(assetUrl);
+            if (!assetResponse.ok) {
+              throw new Error(`Published asset failed: ${assetUrl} (${assetResponse.status})`);
+            }
+          }
+
+          console.log(`Website smoke test passed: ${base.href}`);
+          console.log(`Verified ${assetPaths.length} built asset(s).`);
+          NODE
