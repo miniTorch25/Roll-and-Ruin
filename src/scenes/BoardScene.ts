@@ -18,7 +18,7 @@ import { CARD_CATALOGUE } from "../cards/catalogue";
 import { selectKingoOfferingModal } from "../ui/kingoOfferingModal";
 import { chooseOptionDialog, confirmActionDialog, selectCardsDialog, textInputDialog } from "../ui/gameDialogs";
 import { formatPlayerStatuses } from "../ui/statusEffects";
-import { chooseBotAction, chooseBotCardTargets, chooseBotCards } from "../game/bot";
+import { chooseBotAction, chooseBotCardTargets, chooseBotCards, chooseBotCursePayment } from "../game/bot";
 
 const PATH_LENGTH = 32;
 const PLAYER_SETUP = [
@@ -632,9 +632,14 @@ export class BoardScene extends Phaser.Scene {
           try {
             const played = playCatalogueCard(this.state, cardId);
             const targets = chooseBotCardTargets(this.state, cardId);
+            const cursePayment = played.card.kind === "curse"
+              ? chooseBotCursePayment(played.state, active.id)
+              : undefined;
+            if (played.card.kind === "curse" && !cursePayment) throw new Error("No legal Curse payment is available.");
             const resolved = resolveCardEffect(played.state, played.card, {
               ...targets,
               deck: this.deck,
+              cursePayment,
               random: Math.random
             });
             this.state = resolved.state;

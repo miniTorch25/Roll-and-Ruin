@@ -48,6 +48,11 @@ export function chooseBotCardTargets(state: GameState, cardId: string): BotCardT
   const active = state.players[state.activePlayerIndex];
   if (!card || !active) return {};
 
+  if (card.effectId === "steal_eliminated_player_cards") {
+    const target = state.players.find(player => player.status === "eliminated" && player.hand.length > 0);
+    return target ? { targetPlayerId: target.id } : {};
+  }
+
   if (card.effectId === "damage_monster_only") {
     const monster = state.monsters
       .filter(candidate => candidate.active && candidate.hp !== null && candidate.hp !== undefined && candidate.hp > 0)
