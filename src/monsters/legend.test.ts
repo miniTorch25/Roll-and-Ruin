@@ -169,6 +169,30 @@ describe("Legend monster offerings", () => {
     expect(result.state.players[0].hand).toContain(result.event.awardedCardIds[0]);
   });
 
+  it("does not award a duplicate Instant Kill when the top contributor keeps another copy", () => {
+    const base = summon("kingo");
+    const state = {
+      ...base,
+      players: base.players.map(player => player.id === "p1"
+        ? { ...player, hand: [
+            "red_instant_kill", "red_instant_kill",
+            "green_herbal_potion", "green_life_core", "green_extra_heart"
+          ] }
+        : player.id === "p2"
+          ? { ...player, hand: ["blue_wooden_shield"] }
+          : player)
+    };
+    const result = resolveLegendOffering(state, "kingo", [
+      { playerId: "p1", cardIds: [
+        "red_instant_kill", "green_herbal_potion", "green_life_core", "green_extra_heart"
+      ] },
+      { playerId: "p2", cardIds: ["blue_wooden_shield"] }
+    ], { drawPile: ["red_instant_kill"], discardPile: [] }, { random: () => 0 });
+    expect(result.event.selectedPlayerId).toBe("p1");
+    expect(result.event.awardedCardIds).toEqual([]);
+    expect(result.state.players[0].hand).toEqual(["red_instant_kill"]);
+  });
+
   it.each([
     { id: "sphinxy", expected: 2 },
     { id: "unico", expected: 5 },
