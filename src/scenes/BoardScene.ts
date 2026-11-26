@@ -207,10 +207,17 @@ export class BoardScene extends Phaser.Scene {
         try {
           const summoned = summonRandomMonsterFromCatalogue(
             this.state,
-            "tile-monster-" + (++this.monsterInstanceCounter)
+            "tile-monster-" + (++this.monsterInstanceCounter),
+            this.deck
           );
-          this.state = resolveMonsterAttackEvents(this.state, [summoned.attack]).state;
-          message += " · Monster: อัญเชิญ " + summoned.monster.name + " (" + summoned.monster.rank + ") และโจมตีทันที";
+          this.state = summoned.state;
+          if (summoned.deck) this.deck = summoned.deck;
+          if (summoned.attack) {
+            this.state = resolveMonsterAttackEvents(this.state, [summoned.attack]).state;
+          }
+          message += " · Monster: อัญเชิญ " + summoned.monster.name + " (" + summoned.monster.rank + ")";
+          if (summoned.messages?.length) message += " · " + summoned.messages.join(" · ");
+          if (summoned.attack) message += " · โจมตีทันที";
         } catch (error) {
           message += " · Monster: " + (error instanceof Error ? error.message : "อัญเชิญมอนสเตอร์ไม่สำเร็จ");
         }
@@ -218,7 +225,22 @@ export class BoardScene extends Phaser.Scene {
         this.state = imprisonPlayer(this.state, active.id, 3);
         message += " · Prison: ถูกจำคุกและจะพลาด 3 เทิร์นถัดไป";
       } else if (landedTile === "dice") {
-        message += " · Dice: ยังไม่มีกติกากำหนดผลโบนัสลูกเต๋า";
+        this.state = {
+          ...this.state,
+          players: this.state.players.map(player => {
+            if (player.id !== active.id) return player;
+            const existing = player.statusEffects.find(effect => effect.type === "bonus_dice");
+            const retained = player.statusEffects.filter(effect => effect.type !== "bonus_dice");
+            return {
+              ...player,
+              statusEffects: [
+                ...retained,
+                { type: "bonus_dice" as const, turnsRemaining: 2, amount: (existing?.amount ?? 0) + 1 }
+              ]
+            };
+          })
+        };
+        message += " · Dice: ได้รับลูกเต๋าเพิ่ม 1 ลูกในเทิร์นถัดไป";
       }
     }
 
