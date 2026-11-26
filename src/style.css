@@ -156,3 +156,11 @@ button{min-height:44px;touch-action:manipulation}
   .actions{grid-template-columns:1fr}
   .actions #roll-button{grid-column:auto}
 }
+
+
+/* Keep custom selectable cards visibly keyboard-focused */
+.game-choice-dialog__card:has(input:focus-visible),
+.kingo-dialog__card:has(input:focus-visible){
+  outline:3px solid #f5d29e;
+  outline-offset:2px;
+}
