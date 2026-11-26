@@ -73,4 +73,5 @@ test("resolves a targeted Attack card through the browser UI", async ({ page }) 
 
   await expect(page.locator("#game-message")).toContainText("ใช้ไพ่");
   await expect(page.locator("#player-list .player-row").nth(1)).toContainText(`HP ${20 - attackDamage[cardId!]}`);
+  await expect(page.locator("#player-list .player-row").nth(0)).toContainText(`HP ${20 - (cardId === "blue_double_edged_sword" ? 2 : 0)}`);
 });
