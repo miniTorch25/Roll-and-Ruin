@@ -113,3 +113,46 @@ ul{margin:0;padding-left:18px;color:#b8c4d5;font-size:11px;line-height:1.9}foote
 
 #match-timer{font-variant-numeric:tabular-nums}
 .match-summary .match-winner{margin:0 0 10px;color:#f0d18b;font-size:18px;font-weight:800}
+
+
+/* First mobile usability pass: touch targets, compact status layout, and safe areas */
+button{min-height:44px;touch-action:manipulation}
+#app{padding-bottom:calc(18px + env(safe-area-inset-bottom,0px))}
+@media(max-width:540px){
+  body{overflow-x:hidden}
+  #app{padding-left:max(12px,env(safe-area-inset-left,0px));padding-right:max(12px,env(safe-area-inset-right,0px));padding-top:calc(12px + env(safe-area-inset-top,0px))}
+  .topbar{align-items:flex-start;gap:8px;margin-bottom:14px}
+  .topbar>div:first-child{min-width:0}
+  .status{flex:0 0 auto;max-width:44%;white-space:normal;text-align:center;line-height:1.4}
+  .game-panel{padding:10px}
+  .panel-heading{gap:5px}
+  .panel-heading h2{font-size:18px}
+  .action-bar{gap:10px}
+  .actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px}
+  .actions button{width:100%;min-width:0;min-height:48px;padding:9px 7px;font-size:12px;line-height:1.35;overflow-wrap:anywhere}
+  .actions #roll-button{grid-column:1/-1}
+  .side-panel{grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}
+  .side-panel>.info-card:first-child,
+  .side-panel>#hand-panel,
+  .side-panel>.finish-cards-button,
+  .side-panel>.note-card{grid-column:1/-1}
+  .info-card{min-width:0;padding:12px}
+  .info-card h3{font-size:14px;margin-bottom:10px}
+  .stat-row{font-size:11px;padding:7px 0}
+  .tile-legend{grid-template-columns:1fr;gap:7px}
+  .game-choice-dialog,.kingo-dialog{width:calc(100vw - 20px);max-height:calc(100dvh - 24px)}
+  .game-choice-dialog__content,.kingo-dialog__content{padding:12px}
+  .game-choice-dialog__options,.game-choice-dialog__cards,.kingo-dialog__players{max-height:38dvh}
+  .game-choice-dialog__actions,.kingo-dialog__actions{position:sticky;bottom:0;padding-top:8px;background:#1b2330}
+}
+@media(max-width:360px){
+  h1{font-size:21px}
+  .status{font-size:7px}
+  .side-panel{grid-template-columns:1fr}
+  .side-panel>.info-card:first-child,
+  .side-panel>#hand-panel,
+  .side-panel>.finish-cards-button,
+  .side-panel>.note-card{grid-column:auto}
+  .actions{grid-template-columns:1fr}
+  .actions #roll-button{grid-column:auto}
+}

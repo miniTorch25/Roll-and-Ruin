@@ -138,3 +138,31 @@ test("plays a turn and completes a timed match through the results screen", asyn
   await expect(page.locator("#game-message")).toContainText("หมดเวลา");
   await expect(page.locator("#roll-button")).toBeDisabled();
 });
+
+
+test("keeps the playable layout usable on a narrow mobile viewport", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("/");
+  await chooseStartupOption(page, "1");
+  await chooseStartupOption(page, "0");
+  await chooseStartupOption(page, "0");
+  await chooseStartupOption(page, "0");
+  await chooseStartupOption(page, "0");
+
+  await expect(page.locator("#game-container canvas")).toBeVisible();
+  await expect(page.locator("#roll-button")).toBeVisible();
+  await expect(page.locator("#draw-button")).toBeVisible();
+  await expect(page.locator("#use-card-button")).toBeVisible();
+
+  const layout = await page.evaluate(() => ({
+    viewportWidth: document.documentElement.clientWidth,
+    documentWidth: document.documentElement.scrollWidth,
+    canvasRight: document.querySelector("#game-container canvas")?.getBoundingClientRect().right ?? 0,
+    buttonHeights: Array.from(document.querySelectorAll(".actions button")).map(button =>
+      Math.round(button.getBoundingClientRect().height)
+    )
+  }));
+  expect(layout.documentWidth).toBeLessThanOrEqual(layout.viewportWidth);
+  expect(layout.canvasRight).toBeLessThanOrEqual(layout.viewportWidth);
+  expect(layout.buttonHeights.every(height => height >= 44)).toBe(true);
+});
