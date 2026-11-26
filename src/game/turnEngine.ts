@@ -27,7 +27,8 @@ export type PlayerStatusEffectType =
   | "reveal_hand"
   | "poison"
   | "cards_limit"
-  | "movement_reduction";
+  | "movement_reduction"
+  | "bonus_dice";
 
 export interface PlayerStatusEffect {
   type: PlayerStatusEffectType;
@@ -462,7 +463,10 @@ export function selectPlayerAction(
 
   const active = getActivePlayer(state);
   const diceLimit = active.statusEffects.some((effect) => effect.type === "dice_limit" && effect.turnsRemaining > 0);
-  const requestedDice = action === "draw_two_roll_one" || diceLimit ? 1 : 2;
+  const bonusDice = active.statusEffects
+    .filter((effect) => effect.type === "bonus_dice" && effect.turnsRemaining > 0)
+    .reduce((total, effect) => total + (effect.amount ?? 1), 0);
+  const requestedDice = diceLimit ? 1 : (action === "draw_two_roll_one" ? 1 : 2) + bonusDice;
   const diceReduction = active.statusEffects
     .filter((effect) => effect.type === "dice_reduction" && effect.turnsRemaining > 0)
     .reduce((maximum, effect) => Math.max(maximum, effect.amount ?? 0), 0);
@@ -557,7 +561,10 @@ export function finishCardActivity(
   const diceLimited = active.statusEffects.some((effect) =>
     effect.type === "dice_limit" && effect.turnsRemaining > 0
   );
-  const diceCount = diceLimited ? 1 : Math.min(3, 1 + bonusDice);
+  const statusBonusDice = active.statusEffects
+    .filter((effect) => effect.type === "bonus_dice" && effect.turnsRemaining > 0)
+    .reduce((total, effect) => total + (effect.amount ?? 1), 0);
+  const diceCount = diceLimited ? 1 : Math.min(3, 1 + bonusDice + statusBonusDice);
   const controlledDiceValues = runtime?.controlledDiceValues ?? [];
   const diceRolls = Array.from({ length: diceCount }, (_, index) => {
     const controlledValue = controlledDiceValues[index];
