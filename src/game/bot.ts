@@ -243,6 +243,15 @@ export function chooseBotCardTargets(state: GameState, cardId: string): BotCardT
     return target ? { targetPlayerId: target.id } : {};
   }
 
+  if (card.effectId === "gain_team_shield") {
+    const teammate = state.players
+      .filter(player => player.status === "alive" && player.id !== active.id && player.teamId === active.teamId)
+      .map(player => ({ player, shields: getPlayerShields(state, player.id) }))
+      .filter(entry => entry.shields < 3)
+      .sort((a, b) => a.shields - b.shields || (a.player.maxHp - a.player.hp) - (b.player.maxHp - b.player.hp))[0]?.player;
+    return teammate ? { targetPlayerId: teammate.id } : {};
+  }
+
   if (card.effectId === "damage_monster_only") {
     const monster = state.monsters
       .filter(candidate => candidate.active && candidate.hp !== null && candidate.hp !== undefined && candidate.hp > 0)
@@ -341,6 +350,39 @@ export function chooseBotCards(state: GameState, random: () => number = Math.ran
       case "team_heal":
         if (player.maxHp - player.hp >= 3) priority = 72;
         break;
+      case "gain_shield":
+        if (getPlayerShields(state, player.id) < 3) priority = 50 + (3 - getPlayerShields(state, player.id)) * 4;
+        break;
+      case "gain_team_shield": {
+        const teammateId = chooseBotCardTargets(state, id).targetPlayerId;
+        const teammate = state.players.find(candidate => candidate.id === teammateId);
+        const hasLivingTeammate = state.players.some(candidate => candidate.id !== player.id && candidate.teamId === player.teamId && candidate.status === "alive");
+        if (getPlayerShields(state, player.id) < 3 || (teammate && getPlayerShields(state, teammate.id) < 3) || !hasLivingTeammate) priority = 54;
+        break;
+      }
+      case "gain_shield_and_block_attack_cards":
+        if (getPlayerShields(state, player.id) < 3 && !runtime?.blockedAttackCardsThisTurn) priority = 58;
+        break;
+      case "boost_attack_damage":
+        if (player.hand.some(cardId => CARD_CATALOGUE.find(candidate => candidate.id === cardId)?.kind === "attack") &&
+            (runtime?.attackDamageBonus ?? 0) === 0) priority = 57;
+        break;
+      case "boost_defense_shield":
+        if (player.hand.some(cardId => CARD_CATALOGUE.find(candidate => candidate.id === cardId)?.kind === "defense") &&
+            (runtime?.defenseShieldBonus ?? 0) === 0) priority = 51;
+        break;
+      case "boost_next_attack_and_shield":
+        if ((runtime?.nextAttackDamageBonus ?? 0) === 0 && getPlayerShields(state, player.id) < 3) priority = 66;
+        break;
+      case "reroll_one_die":
+        if (!(runtime?.rerollCardUsedThisTurn ?? false) && (runtime?.rerollsRemaining ?? 0) === 0) priority = 42;
+        break;
+      case "draw_and_distribute_cards":
+        if (player.hand.length <= 2) priority = 70;
+        break;
+      case "damage_all_except_self":
+        if (state.players.some(candidate => candidate.status === "alive" && candidate.id !== player.id)) priority = 53;
+        break;
       case "control_dice_values":
         if (!(runtime?.diceControlUsedThisTurn ?? false) && chooseBotCursePayment(state, player.id, id)) priority = 50;
         break;
@@ -352,6 +394,7 @@ export function chooseBotCards(state: GameState, random: () => number = Math.ran
       case "conditional_damage":
       case "view_player_hand":
       case "steal_random_card":
+      case "swap_positions":
       case "skip_next_turn":
       case "limit_next_turn_dice":
       case "force_discard_selected_card":
@@ -376,6 +419,8 @@ export function chooseBotCards(state: GameState, random: () => number = Math.ran
       case "instant_kill":
       case "force_prison":
       case "weaken_attack_damage":
+      case "reduce_dice_values":
+      case "reveal_player_hand":
       case "drain_hp_and_heal":
       case "discard_random_half_hand":
       case "silence_card_use":
@@ -412,6 +457,8 @@ export function chooseBotCards(state: GameState, random: () => number = Math.ran
             : card.effectId === "force_prison" ? 64
             : card.effectId === "silence_card_use" ? 63
             : card.effectId === "halve_current_hp" ? 67
+            : card.effectId === "reduce_dice_values" ? 56
+            : card.effectId === "reveal_player_hand" ? 35
             : 54;
         }
         break;
