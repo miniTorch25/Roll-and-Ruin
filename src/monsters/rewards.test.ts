@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { CARD_CATALOGUE } from "../cards/catalogue";
 import { createGameState, type PlayerSetup } from "../game/turnEngine";
-import { damageMonster, summonRandomMonster } from "./engine";
+import { damageMonster, summonRandomMonster, summonRandomMonsterFromCatalogue } from "./engine";
 import { resolveMonsterDefeatRewards } from "./rewards";
 
 const setup: PlayerSetup[] = [
@@ -36,6 +36,39 @@ describe("centralized monster defeat rewards", () => {
     const result = resolveMonsterDefeatRewards(defeated.state, [defeated.event], deck, () => 0);
     expect(result.events[0].cardIds).toHaveLength(4);
     expect(result.events[0].cardIds.every((id) => CARD_CATALOGUE.find((card) => card.id === id)?.color === "yellow")).toBe(true);
+  });
+
+  it.each([
+    { id: "E01", counts: { yellow: 4 } },
+    { id: "E02", counts: { yellow: 3, green: 1 } },
+    { id: "E03", counts: { red: 3 } },
+    { id: "E04", counts: { yellow: 5 } },
+    { id: "E05", counts: { yellow: 3, red: 2 } },
+    { id: "E06", counts: { green: 4 } },
+    { id: "E07", counts: { blue: 4, yellow: 2 } },
+    { id: "E08", counts: { red: 4 } },
+    { id: "E09", counts: { yellow: 6 } },
+    { id: "E10", counts: { yellow: 4, red: 2, green: 2 } }
+  ])("$id grants every card in its configured Epic reward", ({ id, counts }) => {
+    const catalogueIndex = 20 + Number(id.slice(1)) - 1;
+    const summoned = summonRandomMonsterFromCatalogue(
+      createGameState("1x4", setup),
+      id,
+      deck,
+      () => catalogueIndex / 50
+    );
+    expect(summoned.monster.catalogueId).toBe(id);
+
+    const defeated = damageMonster(summoned.state, id, summoned.monster.hp ?? 0, "p1");
+    const result = resolveMonsterDefeatRewards(defeated.state, [defeated.event], deck, () => 0);
+    const awardedColors = result.events[0].cardIds.map(cardId =>
+      CARD_CATALOGUE.find(card => card.id === cardId)?.color
+    );
+
+    for (const [color, count] of Object.entries(counts)) {
+      expect(awardedColors.filter(awarded => awarded === color)).toHaveLength(count);
+    }
+    expect(awardedColors).toHaveLength(Object.values(counts).reduce((sum, count) => sum + count, 0));
   });
 
   it("grants Chesty three default cards plus its bonus green card", () => {
