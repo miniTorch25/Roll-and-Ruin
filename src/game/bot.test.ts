@@ -166,7 +166,11 @@ describe("chooseBotCards", () => {
 
   it("uses area damage and distributed draws only when useful recipients exist", () => {
     expect(chooseBotCards(stateWithHand(["blue_thunderclap"]))).toContain("blue_thunderclap");
-    expect(chooseBotCards(stateWithHand(["yellow_card_gift"]))).toContain("yellow_card_gift");
+    const giftState = stateWithHand(["yellow_card_gift"]);
+    const lowHandGift = { ...giftState, players: giftState.players.map((player, index) =>
+      index === 0 ? { ...player, hand: ["yellow_card_gift"] } : player
+    ) };
+    expect(chooseBotCards(lowHandGift)).toContain("yellow_card_gift");
     const base = stateWithHand(["blue_thunderclap"]);
     const solo = { ...base, players: base.players.map((player, index) => index === 0 ? player : { ...player, status: "eliminated" as const }) };
     expect(chooseBotCards(solo)).toEqual([]);
