@@ -30,7 +30,6 @@ export interface CatalogueSummonResult {
   attack: MonsterAttackEvent;
 }
 
-/** Selects uniformly from all 50 catalogue entries for the board's random-monster tile. */
 export interface FullCatalogueSummonResult {
   state: GameState;
   monster: GameMonster;
