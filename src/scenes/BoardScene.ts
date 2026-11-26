@@ -1,10 +1,16 @@
 import Phaser from "phaser";
 import {
-  createGameState, endPlayerTurn, finishSpecialTileCheck, finishStatusCheck,
+  createGameState, endPlayerTurn, finishCardActivity, finishSpecialTileCheck, finishStatusCheck,
   moveActivePlayer, resolveMonsterAttackPhase,
   selectPlayerAction, startPlayerTurn, type GameState, type PlayerAction
 } from "../game/turnEngine";
-import { resolveMonsterAttackEvents } from "../cards/effectResolver";
+import { resolveCardEffect, resolveMonsterAttackEvents } from "../cards/effectResolver";
+import { playCatalogueCard } from "../cards/play";
+import {
+  acceptLucyOffer, advanceMythTurn, chooseNyxiaRandomCard, getMythInteractionState,
+  notifyLuckCardUsed, offerGranfelTrade, offerHecateCards, offerMythCards
+} from "../monsters/myth";
+import { resolveLegendOffering } from "../monsters/legend";
 import { createCardDeck, drawCards } from "../cards/deck";
 import { CARD_CATALOGUE } from "../cards/catalogue";
 
@@ -114,7 +120,15 @@ export class BoardScene extends Phaser.Scene {
       return { ok: false, message: "กรุณารอให้เทิร์นปัจจุบันดำเนินการเสร็จ" };
     }
     if (action === "use_cards") {
-      return { ok: false, message: "ระบบใช้ไพ่จะเปิดใช้งานเมื่อเชื่อมต่อรายการไพ่และเอฟเฟกต์จริง" };
+      try {
+        this.state = selectPlayerAction(this.state, action).state;
+        this.updateHud("เลือกไพ่ที่ต้องการใช้ · ใช้ได้สูงสุด 3 ใบ แล้วกดจบช่วงใช้ไพ่");
+        return { ok: true, message: "เลือกไพ่ที่ต้องการใช้" };
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "ไม่สามารถเริ่มใช้ไพ่ได้";
+        this.updateHud(message);
+        return { ok: false, message };
+      }
     }
 
     this.actionLocked = true;
@@ -141,6 +155,10 @@ export class BoardScene extends Phaser.Scene {
       }
       this.state = finishSpecialTileCheck(this.state);
       this.state = finishStatusCheck(this.state);
+      const endingPlayerId = this.state.players[this.state.activePlayerIndex]?.id;
+      if (endingPlayerId && this.state.monsters.some(monster => monster.active && monster.rank === "Myth")) {
+        this.state = advanceMythTurn(this.state, endingPlayerId).state;
+      }
       this.state = endPlayerTurn(this.state);
 
       this.updateTokenPositions();
@@ -156,10 +174,252 @@ export class BoardScene extends Phaser.Scene {
     }
   }
 
+  private askForHandCards(promptTitle: string, requiredCount?: number): string[] | undefined {
+    const active = this.state.players[this.state.activePlayerIndex];
+    if (!active || active.hand.length === 0) throw new Error("ไม่มีไพ่ในมือให้เลือก");
+    const listing = active.hand.map((id, index) => {
+      const definition = CARD_CATALOGUE.find(card => card.id === id);
+      return `${index + 1}. ${definition?.name ?? id} (${id})`;
+    }).join("\\n");
+    const countText = requiredCount ? `\\nเลือก ${requiredCount} ใบพอดี` : "\\nเลือกหลายใบได้ หรือเว้นว่างเพื่อยกเลิก";
+    const raw = window.prompt(`${promptTitle}${countText}\\n${listing}`, requiredCount ? Array.from({ length: Math.min(requiredCount, active.hand.length) }, (_, i) => String(i + 1)).join(",") : "");
+    if (!raw) return undefined;
+    const indexes = raw.split(",").map(value => Number(value.trim()) - 1);
+    if (indexes.some(index => !Number.isInteger(index) || index < 0 || index >= active.hand.length)) throw new Error("หมายเลขไพ่ไม่ถูกต้อง");
+    if (new Set(indexes).size !== indexes.length) throw new Error("เลือกหมายเลขไพ่ซ้ำไม่ได้");
+    if (requiredCount !== undefined && indexes.length !== requiredCount) throw new Error(`ต้องเลือกไพ่ ${requiredCount} ใบพอดี`);
+    return indexes.map(index => active.hand[index]);
+  }
+
+  private handleMonsterAction(action: string, monsterId: string): void {
+    const active = this.state.players[this.state.activePlayerIndex];
+    const monster = this.state.monsters.find(item => item.id === monsterId && item.active);
+    if (!active || !monster) return;
+    try {
+      if (action === "hecate-offer") {
+        const cards = this.askForHandCards("เฮคาทีต้องการไพ่เหลือง 3 ใบ", 3);
+        if (!cards) return;
+        const result = offerHecateCards(this.state, active.id, cards, this.deck);
+        this.state = result.state;
+        this.deck = result.deck ?? this.deck;
+        this.updateHud(result.messages[0]);
+        return;
+      }
+      if (action === "granfel-trade") {
+        const result = offerGranfelTrade(this.state, active.id, this.deck);
+        this.state = result.state;
+        this.deck = result.deck ?? this.deck;
+        this.updateHud(result.messages[0]);
+        return;
+      }
+      if (action === "myth-offer") {
+        const cards = this.askForHandCards(monster.catalogueId === "M06" ? "เลือกไพ่สำหรับเครื่องบูชา Ragnar" : "เลือกไพ่ 1 ใบต่อสีสำหรับ Ouro");
+        if (!cards) return;
+        const result = offerMythCards(this.state, [{ playerId: active.id, cardIds: cards }]);
+        this.state = result.state;
+        this.deck = { ...this.deck, discardPile: [...this.deck.discardPile, ...cards] };
+        this.updateHud(result.messages[0]);
+        return;
+      }
+      if (action === "lucy-offer") {
+        const result = acceptLucyOffer(this.state, active.id, this.deck);
+        this.state = result.state;
+        this.deck = result.deck ?? this.deck;
+        this.updateHud(result.messages[0]);
+        return;
+      }
+      if (action === "legend-offer") {
+        const counts: Record<string, number> = { L01: 4, L02: 2, L03: 3, L04: 2, L05: 1, L06: 1, L07: 2, L08: 3, L09: 2, L10: 5 };
+        const count = counts[monster.catalogueId ?? ""] ?? 1;
+        const cards = this.askForHandCards(`ถวายไพ่ให้ ${monster.name ?? monster.catalogueId}`, count);
+        if (!cards) return;
+        let selectedDeckCardId: string | undefined;
+        if (monster.catalogueId === "L03") {
+          const choice = window.prompt(`เลือกไพ่จากกองจั่วเป็นรางวัล:\\n${this.deck.drawPile.join("\\n")}`);
+          if (!choice) return;
+          selectedDeckCardId = choice;
+        }
+        const result = resolveLegendOffering(this.state, monsterId, [{ playerId: active.id, cardIds: cards }], this.deck, { selectedDeckCardId });
+        this.state = result.state;
+        this.deck = result.deck;
+        this.updateHud(`ถวายไพ่สำเร็จ · ${result.event.consumedCardIds.length} ใบ · ${result.event.removed ? "มอนสเตอร์ออกจากกระดาน" : "ยังเหลือการแลกเปลี่ยน"}`);
+      }
+    } catch (error) {
+      this.updateHud(error instanceof Error ? error.message : "ดำเนินการกับมอนสเตอร์ไม่สำเร็จ");
+    }
+  }
+
+  private renderHandPanel(playerId: string): void {
+    const panel = document.querySelector<HTMLElement>("#hand-panel");
+    if (!panel) return;
+    const active = this.state.players.find(player => player.id === playerId);
+    if (!active || this.state.phase !== "play_cards") {
+      panel.hidden = true;
+      panel.innerHTML = "";
+      return;
+    }
+    panel.hidden = false;
+    const myth = getMythInteractionState(this.state);
+    const hidden = myth?.hiddenHands === true;
+    const limitReached = active.cardsPlayedThisTurn >= 3;
+    if (hidden) {
+      panel.innerHTML = `<p class="eyebrow">HIDDEN HAND · NYXIA</p><p>ไพ่ในมือถูกซ่อน เลือกใช้ไพ่แบบสุ่มเท่านั้น</p><button id="random-hidden-card" type="button" ${limitReached || active.hand.length === 0 ? "disabled" : ""}>ใช้ไพ่สุ่ม (${active.hand.length} ใบ)</button>`;
+      panel.querySelector<HTMLButtonElement>("#random-hidden-card")?.addEventListener("click", () => {
+        try {
+          const selectedId = chooseNyxiaRandomCard(this.state, playerId);
+          this.playCard(selectedId, true);
+        } catch (error) {
+          this.updateHud(error instanceof Error ? error.message : "ไม่สามารถใช้ไพ่ได้");
+        }
+      });
+      return;
+    }
+    const cards = active.hand.map((id, index) => {
+      const definition = CARD_CATALOGUE.find(card => card.id === id);
+      return { id, index, name: definition?.name ?? id, color: definition?.color ?? "neutral", description: definition?.description ?? "" };
+    });
+    panel.innerHTML = `<p class="eyebrow">YOUR HAND · ${active.cardsPlayedThisTurn}/3 USED</p><div class="hand-card-list">${cards.map(card =>
+      `<button class="hand-card ${card.color}" data-card-id="${card.id}" type="button" ${limitReached ? "disabled" : ""}><strong>${card.name}</strong><small>${card.description} · ${card.id}</small></button>`
+    ).join("")}</div>`;
+    panel.querySelectorAll<HTMLButtonElement>("[data-card-id]").forEach(button => {
+      button.addEventListener("click", () => this.playCard(button.dataset.cardId ?? ""));
+    });
+  }
+
+  private playCard(cardId: string, randomSelection = false): void {
+    if (this.state.phase !== "play_cards" || !cardId) return;
+    const before = this.state;
+    const deckBefore = this.deck;
+    const active = before.players[before.activePlayerIndex];
+    const card = CARD_CATALOGUE.find(item => item.id === cardId);
+    if (!active || !card) return;
+    try {
+      let targetPlayerId: string | undefined;
+      let targetMonsterId: string | undefined;
+      let selectedCardId: string | undefined;
+      let diceValues: number[] | undefined;
+      const livingOpponents = before.players.filter(player => player.status === "alive" && player.id !== active.id);
+      const teammates = before.players.filter(player => player.status === "alive" && player.id !== active.id && player.teamId === active.teamId);
+      const teamTargetEffect = ["team_heal", "gain_team_shield"].includes(card.effectId);
+      const needsPlayer = (typeof card.parameters?.target === "string" &&
+        ["one_player", "another_player", "one_eliminated_player", "one_teammate"].includes(String(card.parameters.target))) ||
+        card.effectId === "damage_with_random_splash" || (teamTargetEffect && teammates.length > 0);
+      if (needsPlayer) {
+        if (!livingOpponents.length && card.effectId !== "resurrection") throw new Error("ไม่มีผู้เล่นเป้าหมายที่ใช้งานได้");
+        const choices = card.effectId === "resurrection"
+          ? before.players.filter(player => player.status === "eliminated")
+          : teamTargetEffect ? teammates : livingOpponents;
+        if (!choices.length) throw new Error("ไม่มีผู้เล่นเป้าหมายที่ใช้งานได้");
+        const choice = window.prompt(`เลือกผู้เล่นเป้าหมาย (พิมพ์ ID):\n${choices.map(player => `${player.id} · HP ${player.hp} · ♥ ${player.hearts}`).join("\n")}`, choices[0].id);
+        if (!choice) return;
+        if (!choices.some(player => player.id === choice)) throw new Error("ไม่พบผู้เล่นเป้าหมาย");
+        targetPlayerId = choice;
+      }
+      if (card.effectId === "damage_monster_only" || (card.effectId === "instant_kill" && before.monsters.some(monster => monster.active && monster.rank === "Myth"))) {
+        const targets = before.monsters.filter(monster => monster.active && (card.effectId !== "instant_kill" || monster.rank === "Myth"));
+        if (targets.length && (card.effectId === "damage_monster_only" || window.confirm("ต้องการใช้สังหารทันทีใส่ Myth Monster หรือไม่?"))) {
+          const choice = window.prompt(`เลือกมอนสเตอร์ (พิมพ์ ID):\n${targets.map(monster => `${monster.id} · ${monster.name ?? monster.catalogueId}`).join("\n")}`, targets[0].id);
+          if (!choice) return;
+          if (!targets.some(monster => monster.id === choice)) throw new Error("ไม่พบมอนสเตอร์เป้าหมาย");
+          targetMonsterId = choice;
+          targetPlayerId = undefined;
+        }
+      }
+      if (card.effectId === "trade_for_random_card") {
+        const choices = [...active.hand];
+        choices.splice(choices.indexOf(cardId), 1);
+        if (!choices.length) throw new Error("ไม่มีไพ่เหลือสำหรับแลก");
+        selectedCardId = window.prompt(`เลือกไพ่ที่จะมอบให้ผู้เล่นเป้าหมาย:\n${choices.join("\n")}`, choices[0]) ?? undefined;
+        if (!selectedCardId) return;
+      } else if (card.effectId === "force_discard_selected_card" && targetPlayerId) {
+        const target = before.players.find(player => player.id === targetPlayerId);
+        if (!target?.hand.length) throw new Error("ผู้เล่นเป้าหมายไม่มีไพ่");
+        selectedCardId = window.prompt(`เลือกไพ่ที่ผู้เล่นเป้าหมายต้องทิ้ง:\n${target.hand.join("\n")}`, target.hand[0]) ?? undefined;
+        if (!selectedCardId) return;
+      }
+      if (card.effectId === "control_dice_values") {
+        const raw = window.prompt("ใส่ค่าลูกเต๋าคั่นด้วยเครื่องหมายจุลภาค (1-6):", "6");
+        if (!raw) return;
+        diceValues = raw.split(",").map(value => Number(value.trim()));
+      }
+      let cursePayment;
+      if (card.kind === "curse") {
+        const paymentHand = [...active.hand];
+        paymentHand.splice(paymentHand.indexOf(cardId), 1);
+        if (active.hp > 5) cursePayment = { type: "hp" as const, amount: 5 };
+        else if (paymentHand.length >= 2) cursePayment = { type: "discard" as const, cardIds: [paymentHand[0], paymentHand[1]] as [string, string] };
+        else cursePayment = { type: "cooldown" as const };
+      }
+      const played = playCatalogueCard(before, cardId);
+      const resolved = resolveCardEffect(played.state, played.card, {
+        targetPlayerId, targetMonsterId, selectedCardId, diceValues,
+        deck: this.deck, cursePayment,
+        random: Math.random
+      });
+      this.state = resolved.state;
+      this.deck = resolved.deck ?? this.deck;
+      if (resolved.monsterSummonEvents.length > 0) {
+        this.state = resolveMonsterAttackEvents(this.state, resolved.monsterSummonEvents).state;
+      }
+      this.deck = { ...this.deck, discardPile: [...this.deck.discardPile, cardId] };
+      if (cardId === "green_lucky_clover" && this.state.monsters.some(monster => monster.active && monster.catalogueId === "M05")) {
+        this.state = notifyLuckCardUsed(this.state).state;
+      }
+      const warning = resolved.summonWarnings[0];
+      const summary = warning
+        ? warning.reason === "board_full" ? "อัญเชิญไม่ได้: มอนสเตอร์บนกระดานเต็มแล้ว" : `อัญเชิญไม่ได้: มอนสเตอร์ระดับ ${warning.rank} เต็มจำนวนแล้ว`
+        : randomSelection ? "ใช้ไพ่แบบสุ่มสำเร็จ" : `ใช้ไพ่ ${card.name} สำเร็จ`;
+      this.updateHud(`${summary} · ใช้แล้ว ${this.state.players[this.state.activePlayerIndex].cardsPlayedThisTurn}/3 ใบ`);
+    } catch (error) {
+      this.state = before;
+      this.deck = deckBefore;
+      this.updateHud(error instanceof Error ? error.message : "ใช้ไพ่ไม่สำเร็จ");
+    }
+  }
+
+  finishCardPlay(): { ok: boolean; message: string } {
+    if (this.state.phase !== "play_cards") return { ok: false, message: "ยังไม่อยู่ในช่วงใช้ไพ่" };
+    try {
+      const finished = finishCardActivity(this.state);
+      this.state = finished.state;
+      const moved = moveActivePlayer(this.state);
+      this.state = moved.state;
+      if (moved.monsterAttackEvents.length > 0) {
+        this.state = resolveMonsterAttackEvents(this.state, moved.monsterAttackEvents).state;
+      }
+      this.state = finishSpecialTileCheck(this.state);
+      this.state = finishStatusCheck(this.state);
+      const endingPlayerId = this.state.players[this.state.activePlayerIndex]?.id;
+      if (endingPlayerId && this.state.monsters.some(monster => monster.active && monster.rank === "Myth")) {
+        this.state = advanceMythTurn(this.state, endingPlayerId).state;
+      }
+      this.state = endPlayerTurn(this.state);
+      this.updateTokenPositions();
+      this.state = this.prepareNextTurn(this.state);
+      const message = `ใช้ไพ่เสร็จ · ทอยเต๋า ${finished.diceRolls.join(" + ")} · เดิน ${finished.diceRolls.reduce((sum, value) => sum + value, 0)} ช่อง`;
+      this.updateHud(message);
+      return { ok: true, message };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "จบช่วงใช้ไพ่ไม่สำเร็จ";
+      this.updateHud(message);
+      return { ok: false, message };
+    }
+  }
+
   private prepareNextTurn(state: GameState): GameState {
-    let next = startPlayerTurn(resolveMonsterAttackPhase(state).state);
+    const resolveOpeningAttacks = (input: GameState): GameState => {
+      const phase = resolveMonsterAttackPhase(input);
+      return phase.attacks.length > 0
+        ? resolveMonsterAttackEvents(phase.state, phase.attacks).state
+        : phase.state;
+    };
+    let next = startPlayerTurn(resolveOpeningAttacks(state));
     while (next.phase === "turn_end") {
-      next = startPlayerTurn(resolveMonsterAttackPhase(endPlayerTurn(next)).state);
+      const skippedPlayerId = next.players[next.activePlayerIndex]?.id;
+      if (skippedPlayerId && next.monsters.some(monster => monster.active && monster.rank === "Myth")) {
+        next = advanceMythTurn(next, skippedPlayerId).state;
+      }
+      next = startPlayerTurn(resolveOpeningAttacks(endPlayerTurn(next)));
     }
     return next;
   }
@@ -190,6 +450,7 @@ export class BoardScene extends Phaser.Scene {
     const hp = document.querySelector<HTMLElement>("#hp");
     const dice = document.querySelector<HTMLElement>("#dice-result");
     const players = document.querySelector<HTMLElement>("#player-list");
+    const monsterPanel = document.querySelector<HTMLElement>("#monster-panel");
     const phase = document.querySelector<HTMLElement>("#phase-label");
 
     if (position) position.textContent = `ช่อง ${active.position + 1} / ${this.state.boardLength}`;
@@ -208,6 +469,29 @@ export class BoardScene extends Phaser.Scene {
         </div>`
       ).join("");
     }
+    if (monsterPanel) {
+      const activeMonsters = this.state.monsters.filter(monster => monster.active);
+      monsterPanel.innerHTML = activeMonsters.length
+        ? activeMonsters.map(monster => {
+            const action = monster.rank === "Legend" ? "legend-offer"
+              : monster.catalogueId === "M01" ? "hecate-offer"
+              : monster.catalogueId === "M02" ? "granfel-trade"
+              : monster.catalogueId === "M06" || monster.catalogueId === "M08" ? "myth-offer"
+              : monster.catalogueId === "M09" ? "lucy-offer"
+              : "";
+            const label = action === "legend-offer" ? "ถวายไพ่"
+              : action === "hecate-offer" ? "ถวายไพ่ 3 ใบ"
+              : action === "granfel-trade" ? "แลกไพ่เหลือง"
+              : action === "myth-offer" ? "ถวายเครื่องบูชา"
+              : action === "lucy-offer" ? "รับข้อเสนอ"
+              : "";
+            return `<div class="monster-row"><strong>${monster.name ?? monster.catalogueId ?? monster.id} · ${monster.rank ?? "?"}</strong><small>HP: ${monster.hp === null ? "∞" : monster.hp ?? "?"} · ATK: ${monster.attackDamage ?? 0}</small><small>${(monster.rules ?? []).join(" · ")}</small>${action ? `<button class="monster-action" data-monster-action="${action}" data-monster-id="${monster.id}" type="button">${label}</button>` : ""}</div>`;
+          }).join("")
+        : '<p class="empty-note">ยังไม่มีมอนสเตอร์</p>';
+      monsterPanel.querySelectorAll<HTMLButtonElement>("[data-monster-action]").forEach(button => {
+        button.addEventListener("click", () => this.handleMonsterAction(button.dataset.monsterAction ?? "", button.dataset.monsterId ?? ""));
+      });
+    }
     this.logText?.setText(message.toUpperCase());
     const messageNode = document.querySelector<HTMLElement>("#game-message");
     if (messageNode) messageNode.textContent = message;
@@ -216,6 +500,9 @@ export class BoardScene extends Phaser.Scene {
     const use = document.querySelector<HTMLButtonElement>("#use-card-button");
     if (draw) draw.disabled = this.state.phase !== "choose_action";
     if (roll) roll.disabled = this.state.phase !== "choose_action";
-    if (use) use.disabled = true;
+    if (use) use.disabled = this.state.phase !== "choose_action";
+    this.renderHandPanel(active.id);
+    const finishCards = document.querySelector<HTMLButtonElement>("#finish-cards-button");
+    if (finishCards) finishCards.disabled = this.state.phase !== "play_cards";
   }
 }
