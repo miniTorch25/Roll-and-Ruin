@@ -6,9 +6,11 @@ Roll and Ruin เป็นเกมกระดานผจญภัยแนว
 
 ## เว็บไซต์
 
-เมื่อ GitHub Pages deployment สำเร็จ สามารถเล่นเกมผ่าน Browser ได้ที่:
+หลังเปิดใช้งาน GitHub Pages ครั้งแรกและ Workflow Deploy สำเร็จ สามารถเล่นเกมผ่าน Browser ได้ที่:
 
 https://minitorch25.github.io/Roll-and-Ruin/
+
+**การตั้งค่าครั้งแรก:** Repository owner ต้องเปิด `Settings → Pages → Build and deployment → Source: GitHub Actions` แล้วกด Save ก่อนเริ่ม Deploy
 
 ## เป้าหมายแพลตฟอร์ม
 - เว็บไซต์ที่เล่นผ่าน Browser
