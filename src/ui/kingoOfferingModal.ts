@@ -46,7 +46,7 @@ export function selectKingoOfferingModal(
             <section class="kingo-dialog__player">
               <h3>${escapeHtml(player.label)} <span>${player.cards.length} ใบ</span></h3>
               <div class="kingo-dialog__cards">
-                ${player.cards.map((card, index) => `
+                ${player.cards.map(card => `
                   <label class="kingo-dialog__card">
                     <input type="checkbox" data-player-id="${escapeHtml(player.id)}" data-card-id="${escapeHtml(card.id)}" />
                     <span><strong>${escapeHtml(card.name)}</strong><small>${escapeHtml(card.color)} · ${escapeHtml(card.id)}</small></span>
