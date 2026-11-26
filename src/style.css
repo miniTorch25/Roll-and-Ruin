@@ -31,6 +31,7 @@ ul{margin:0;padding-left:18px;color:#b8c4d5;font-size:11px;line-height:1.9}foote
 .hand-card.yellow{border-left-color:#e5c56c}
 .hand-card.green{border-left-color:#9bc47b}
 .hand-card.red{border-left-color:#d87979}
+.hand-card.white{border-left-color:#f0f0f0}
 .hand-card.neutral{border-left-color:#a6aab5}
 .hand-card:disabled{opacity:.4}
 .finish-cards-button{width:100%;margin-top:10px;background:#7db69b;color:#13221a}
