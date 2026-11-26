@@ -14,6 +14,7 @@ test("starts a local match and renders the playable board", async ({ page }) => 
   await chooseStartupOption(page, "0");
   await chooseStartupOption(page, "0");
   await chooseStartupOption(page, "0");
+  await chooseStartupOption(page, "0");
 
   await expect(page.locator("#game-message")).toContainText("เริ่มเกม");
   await expect(page.locator("#game-container canvas")).toBeVisible();
@@ -27,6 +28,7 @@ test("starts a local match and renders the playable board", async ({ page }) => 
 test("accepts a player turn action from the browser UI", async ({ page }) => {
   await page.goto("/");
   await chooseStartupOption(page, "1");
+  await chooseStartupOption(page, "0");
   await chooseStartupOption(page, "0");
   await chooseStartupOption(page, "0");
   await chooseStartupOption(page, "0");
@@ -46,6 +48,7 @@ test("resolves a targeted Attack card through the browser UI", async ({ page }) 
   });
   await page.goto("/");
   await chooseStartupOption(page, "1");
+  await chooseStartupOption(page, "0");
   await chooseStartupOption(page, "0");
   await chooseStartupOption(page, "0");
   await chooseStartupOption(page, "0");
@@ -93,6 +96,7 @@ test("summons a monster and damages it through the browser UI", async ({ page })
   await chooseStartupOption(page, "0");
   await chooseStartupOption(page, "0");
   await chooseStartupOption(page, "0");
+  await chooseStartupOption(page, "0");
 
   await page.locator("#use-card-button").click();
   await page.locator('#hand-panel [data-card-id="red_summon_rare"]').click();
@@ -109,4 +113,25 @@ test("summons a monster and damages it through the browser UI", async ({ page })
   await targetDialog.locator("[data-value]").first().click();
 
   await expect(monsterRow).toContainText(`HP: ${hpBefore - 5}`);
+});
+
+test("ends a timed match and displays the score-based results", async ({ page }) => {
+  await page.goto("/");
+  await chooseStartupOption(page, "1");
+  await chooseStartupOption(page, "0");
+  await chooseStartupOption(page, "0");
+  await chooseStartupOption(page, "0");
+  await chooseStartupOption(page, "300");
+
+  await expect(page.locator("#match-timer")).toHaveText("05:00");
+  const startedAt = await page.evaluate(() => Date.now());
+  await page.evaluate((now) => {
+    Date.now = () => now + 301_000;
+  }, startedAt);
+
+  await expect(page.locator("#match-timer")).toHaveText("หมดเวลา");
+  await expect(page.locator("#match-summary")).toBeVisible();
+  await expect(page.locator("#match-summary")).toContainText("สรุปผลการแข่งขัน");
+  await expect(page.locator("#game-message")).toContainText("หมดเวลา");
+  await expect(page.locator("#roll-button")).toBeDisabled();
 });
