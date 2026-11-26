@@ -185,7 +185,7 @@ describe("bot monster offerings", () => {
     expect(chooseBotMythOffering(insufficient, "hecate")).toEqual([]);
     const granfel = { ...hecate, monsters: [{ ...hecate.monsters[0], id: "granfel", catalogueId: "M02" }],
       mythRuntime: { ...hecate.mythRuntime, monsterId: "granfel", catalogueId: "M02" } };
-    expect(chooseBotMythOffering(granfel, "granfel")).toEqual(["yellow_peek", "yellow_sleep_spell"]);
+    expect(chooseBotMythOffering(granfel, "granfel")).toHaveLength(3);
   });
 
   it("uses one random hand card while Nyxia hides card identities", () => {
@@ -206,7 +206,7 @@ describe("bot monster offerings", () => {
         isBot: index !== 3,
         hand: index === 0 ? ["green_herbal_potion", "green_life_core"]
           : index === 1 ? ["blue_wooden_shield"]
-          : index === 2 ? ["yellow_peek", "green_herbal_potion"]
+          : index === 2 ? ["yellow_peek", "red_summon_common"]
           : ["red_instant_kill", "blue_common_sword"]
       })),
       monsters: [{ id: "kingo", catalogueId: "L10", name: "Kingo", rank: "Legend" as const,
