@@ -466,7 +466,7 @@ export function selectPlayerAction(
   const bonusDice = active.statusEffects
     .filter((effect) => effect.type === "bonus_dice" && effect.turnsRemaining > 0)
     .reduce((total, effect) => total + (effect.amount ?? 1), 0);
-  const requestedDice = diceLimit ? 1 : (action === "draw_two_roll_one" ? 1 : 2) + bonusDice;
+  const requestedDice = diceLimit ? 1 : Math.min(3, (action === "draw_two_roll_one" ? 1 : 2) + bonusDice);
   const diceReduction = active.statusEffects
     .filter((effect) => effect.type === "dice_reduction" && effect.turnsRemaining > 0)
     .reduce((maximum, effect) => Math.max(maximum, effect.amount ?? 0), 0);
