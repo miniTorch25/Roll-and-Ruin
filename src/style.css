@@ -164,3 +164,83 @@ button{min-height:44px;touch-action:manipulation}
   outline:3px solid #f5d29e;
   outline-offset:2px;
 }
+
+
+/* Final usability pass: consistent keyboard, touch, compact-height, and motion behavior */
+:where(button, input, select, textarea, summary, [tabindex]:not([tabindex="-1"])):focus-visible{
+  outline:3px solid #f5d29e;
+  outline-offset:3px;
+}
+button{line-height:1.4}
+button:disabled,.hand-card:disabled,.game-choice-dialog__card:has(input:disabled),.kingo-dialog__card:has(input:disabled){
+  cursor:not-allowed;
+  filter:saturate(.55);
+  opacity:.58;
+}
+.game-choice-dialog,.kingo-dialog{
+  overflow:auto;
+  overscroll-behavior:contain;
+  scrollbar-gutter:stable;
+  max-height:calc(100vh - 24px);
+  max-height:calc(100dvh - 24px);
+}
+.game-choice-dialog__content,.kingo-dialog__content{min-width:0}
+.game-choice-dialog__option{min-height:48px;line-height:1.45}
+.game-choice-dialog__card,.kingo-dialog__card{min-height:48px}
+.game-choice-dialog__card input,.kingo-dialog__card input{width:18px;height:18px}
+.game-choice-dialog__input{min-height:48px}
+.game-choice-dialog__actions button,.kingo-dialog__actions button{min-width:104px}
+#game-message{overflow-wrap:anywhere;line-height:1.6}
+#player-list,#monster-panel,.hand-card-list{min-width:0}
+.player-row strong,.monster-row small,.hand-card small{overflow-wrap:anywhere}
+#game-container{contain:layout paint}
+#game-container canvas{max-width:100%}
+@media(max-width:850px){
+  .side-panel>.info-card{min-width:0}
+  .game-panel{min-width:0}
+}
+@media(max-width:540px){
+  .game-choice-dialog__actions,.kingo-dialog__actions{
+    position:sticky;
+    bottom:-1px;
+    z-index:1;
+    padding:10px 0 max(4px,env(safe-area-inset-bottom,0px));
+    background:linear-gradient(180deg,#1b233000 0%,#1b2330 22%);
+  }
+  .game-choice-dialog__actions button,.kingo-dialog__actions button{flex:1}
+  .game-choice-dialog__options,.game-choice-dialog__cards,.kingo-dialog__players{
+    max-height:min(38dvh,320px);
+  }
+  .hand-card-list{max-height:min(42dvh,360px)}
+  .player-row{gap:8px}
+}
+@media(max-width:360px){
+  #app{padding-left:max(10px,env(safe-area-inset-left,0px));padding-right:max(10px,env(safe-area-inset-right,0px))}
+  .status{max-width:40%;letter-spacing:.04em}
+  .stat-row{align-items:flex-start}
+  .stat-row strong{max-width:58%;overflow-wrap:anywhere}
+  .game-choice-dialog__actions,.kingo-dialog__actions{flex-direction:column-reverse}
+  .game-choice-dialog__actions button,.kingo-dialog__actions button{width:100%}
+}
+@media(orientation:landscape) and (max-height:540px){
+  #app{padding-top:10px}
+  .topbar{margin-bottom:10px}
+  main{gap:10px}
+  .game-panel{padding:10px}
+  .game-choice-dialog,.kingo-dialog{
+    width:min(900px,calc(100vw - 24px));
+    max-height:calc(100dvh - 16px);
+  }
+  .game-choice-dialog__content,.kingo-dialog__content{gap:8px;padding:12px}
+  .game-choice-dialog__options,.game-choice-dialog__cards,.kingo-dialog__players{
+    max-height:34dvh;
+  }
+}
+@media(prefers-reduced-motion:reduce){
+  *,*::before,*::after{
+    scroll-behavior:auto!important;
+    animation-duration:.01ms!important;
+    animation-iteration-count:1!important;
+    transition-duration:.01ms!important;
+  }
+}
