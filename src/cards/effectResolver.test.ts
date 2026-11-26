@@ -498,7 +498,7 @@ describe("Myth Monster Instant Kill", () => {
     expect(result.monsterRewardEvents).toMatchObject([
       { monsterId: "anubix-instant-kill", playerId: "p1", cardIds: drawPile }
     ]);
-    expect(result.state.players[0].hand).toEqual(["yellow_peek", "red_forced_prison", "red_table_flip", "blue_wooden_shield"]);
+    expect(result.state.players[0].hand).toEqual(["green_extra_heart", "blue_wooden_shield", "yellow_peek", "red_forced_prison", "red_table_flip"]);
     expect(result.deck?.drawPile).toEqual([]);
   });
 });
