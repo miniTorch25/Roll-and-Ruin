@@ -35,6 +35,5 @@ The rules specify a maximum of 4 Mystery, 4 Monster, and 4 Dice spaces, but do n
 ## Remaining integration
 - The board core exposes special tile placement, forward/reverse movement paths, landing events, and regeneration.
 - The local BoardScene asks the player to configure Mystery, Monster, and Dice counts (0–4 each) at match start instead of assuming unspecified counts.
-- Prison is always placed exactly twice. Mystery draws one eligible card; Monster summons uniformly from the full 50-entry monster catalogue and resolves its mandatory first-summon attack; Prison sets a three-turn skip counter.
-- Dice tiles add one bonus D6 to the player's next turn; the bonus applies to Roll, Draw, and Use Cards movement (unless a one-die limit overrides it), then expires.
-- Monster tile draws uniformly from the full 50-entry catalogue; Myth results route through the Myth rules engine and shared deck.
+- Prison is always placed exactly twice. Mystery draws one eligible card; Monster selects uniformly from all 50 catalogue entries and routes Myth results through the Myth rules engine; Prison sets a three-turn skip counter.
+- Dice tiles add one bonus D6 to the player's next movement roll (Roll, Draw, or Use Cards); an active one-die limit takes precedence and the bonus expires at turn end.
