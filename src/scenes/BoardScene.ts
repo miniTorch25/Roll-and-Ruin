@@ -18,7 +18,7 @@ import { CARD_CATALOGUE } from "../cards/catalogue";
 import { selectKingoOfferingModal } from "../ui/kingoOfferingModal";
 import { chooseOptionDialog, confirmActionDialog, selectCardsDialog, textInputDialog } from "../ui/gameDialogs";
 import { formatPlayerStatuses } from "../ui/statusEffects";
-import { chooseBotAction, chooseBotCardTargets, chooseBotCards, chooseBotCursePayment } from "../game/bot";
+import { chooseBotAction, chooseBotCardTargets, chooseBotCards, chooseBotCursePayment, chooseBotLegendOffering, chooseBotMythOffering } from "../game/bot";
 
 const PATH_LENGTH = 32;
 const PLAYER_SETUP = [
@@ -615,15 +615,58 @@ export class BoardScene extends Phaser.Scene {
     }
   }
 
+  private runBotMonsterActions(playerId: string): string {
+    const messages: string[] = [];
+    const monsters = this.state.monsters.filter(monster => monster.active);
+    for (const monster of monsters) {
+      const active = this.state.players.find(player => player.id === playerId && player.status === "alive");
+      if (!active) break;
+      if (monster.catalogueId === "M06" || monster.catalogueId === "M08") {
+        const cards = chooseBotMythOffering(this.state, monster.id);
+        if (cards.length) {
+          const result = offerMythCards(this.state, [{ playerId, cardIds: cards }]);
+          this.state = result.state;
+          this.deck = { ...this.deck, discardPile: [...this.deck.discardPile, ...cards] };
+          messages.push(`${monster.name ?? monster.catalogueId} offering: ${cards.length} card(s)`);
+          continue;
+        }
+      }
+      if (monster.catalogueId === "M09") {
+        const runtime = (this.state as GameState & { mythRuntime?: { monsterId: string; lucyAcceptedPlayerIds: string[] } }).mythRuntime;
+        const hasPactCards = this.deck.drawPile.some(id => CARD_CATALOGUE.find(card => card.id === id)?.effectId === "grant_invulnerability") &&
+          this.deck.drawPile.some(id => CARD_CATALOGUE.find(card => card.id === id)?.effectId === "reflect_next_damage");
+        if (runtime?.monsterId === monster.id && !runtime.lucyAcceptedPlayerIds.includes(playerId) && active.hearts > 1 && hasPactCards) {
+          const result = acceptLucyOffer(this.state, playerId, this.deck);
+          this.state = result.state;
+          this.deck = result.deck ?? this.deck;
+          messages.push("Accepted Lucy's bargain");
+          continue;
+        }
+      }
+      if (monster.rank === "Legend") {
+        const offering = chooseBotLegendOffering(this.state, monster.id, this.deck.drawPile);
+        if (!offering) continue;
+        const result = resolveLegendOffering(this.state, monster.id, [{ playerId, cardIds: offering.cardIds }], this.deck,
+          { selectedDeckCardId: offering.selectedDeckCardId });
+        this.state = result.state;
+        this.deck = result.deck;
+        messages.push(`${monster.name ?? monster.catalogueId} offering: ${result.event.consumedCardIds.length} card(s)`);
+      }
+    }
+    return messages.join(", ");
+  }
+
   private runBotTurns(): string {
     const summaries: string[] = [];
     let processed = 0;
     while (this.state.phase === "choose_action" && this.state.players[this.state.activePlayerIndex]?.isBot && processed < 8) {
+      const playerBeforeOffers = this.state.players[this.state.activePlayerIndex];
+      const monsterSummary = this.runBotMonsterActions(playerBeforeOffers.id);
       const active = this.state.players[this.state.activePlayerIndex];
       const plannedCards = chooseBotCards(this.state);
       const action: PlayerAction = plannedCards.length ? "use_cards" : chooseBotAction(active);
       let diceRolls: number[];
-      let cardSummary = "";
+      let cardSummary = monsterSummary ? `${monsterSummary} · ` : "";
 
       if (action === "use_cards") {
         this.state = selectPlayerAction(this.state, "use_cards").state;
