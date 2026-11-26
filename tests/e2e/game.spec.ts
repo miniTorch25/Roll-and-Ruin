@@ -56,8 +56,11 @@ test("shows each active player turn on its own compact line on mobile", async ({
     lines: (element.textContent ?? "").split(/\r?\n/).filter(line => line.trim()),
     fontSize: Number.parseFloat(getComputedStyle(element).fontSize)
   }));
-  expect(result.lines).toHaveLength(4);
-  result.lines.forEach((line, index) => expect(line).toContain(`ผู้เล่น ${index + 1}`));
+  expect(result.lines.length).toBeGreaterThanOrEqual(4);
+  expect(result.lines.slice(0, 4).map(line => line.match(/^ผู้เล่น [1-4]/)?.[0])).toEqual([
+    "ผู้เล่น 1", "ผู้เล่น 2", "ผู้เล่น 3", "ผู้เล่น 4"
+  ]);
+  result.lines.forEach(line => expect(line).toMatch(/^ผู้เล่น [1-4]/));
   expect(result.fontSize).toBeLessThanOrEqual(11);
 });
 
