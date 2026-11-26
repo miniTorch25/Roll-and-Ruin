@@ -100,7 +100,7 @@ test("summons a monster and damages it through the browser UI", async ({ page })
 
   const monsterRow = page.locator("#monster-panel .monster-row").first();
   const hpText = await monsterRow.locator("small").first().innerText();
-  const hpBefore = Number(hpText.match(/HP:\\s*(\\d+)/)?.[1]);
+  const hpBefore = Number(hpText.match(/HP:\s*(\d+)/)?.[1]);
   expect(Number.isFinite(hpBefore)).toBe(true);
 
   await page.locator('#hand-panel [data-card-id="blue_monster_hunter"]').click();
