@@ -79,3 +79,34 @@ test("resolves a targeted Attack card through the browser UI", async ({ page }) 
   await expect(page.locator("#player-list .player-row").nth(1)).toContainText(`HP ${20 - attackDamage[cardId!]}`);
   await expect(page.locator("#player-list .player-row").nth(0)).toContainText(`HP ${20 - (cardId === "blue_double_edged_sword" ? 2 : 0)}`);
 });
+
+test("summons a monster and damages it through the browser UI", async ({ page }) => {
+  await page.addInitScript(() => {
+    let seed = 471;
+    Math.random = () => {
+      seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0;
+      return seed / 4294967296;
+    };
+  });
+  await page.goto("/");
+  await chooseStartupOption(page, "1");
+  await chooseStartupOption(page, "0");
+  await chooseStartupOption(page, "0");
+  await chooseStartupOption(page, "0");
+
+  await page.locator("#use-card-button").click();
+  await page.locator('#hand-panel [data-card-id="red_summon_rare"]').click();
+  await expect(page.locator("#monster-panel .monster-row")).toBeVisible();
+
+  const monsterRow = page.locator("#monster-panel .monster-row").first();
+  const hpText = await monsterRow.locator("small").first().innerText();
+  const hpBefore = Number(hpText.match(/HP:\\s*(\\d+)/)?.[1]);
+  expect(Number.isFinite(hpBefore)).toBe(true);
+
+  await page.locator('#hand-panel [data-card-id="blue_monster_hunter"]').click();
+  const targetDialog = page.locator("dialog.game-choice-dialog");
+  await expect(targetDialog).toBeVisible();
+  await targetDialog.locator("[data-value]").first().click();
+
+  await expect(monsterRow).toContainText(`HP: ${hpBefore - 5}`);
+});
