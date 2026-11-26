@@ -166,6 +166,70 @@ export class BoardScene extends Phaser.Scene {
     }).setOrigin(0.5);
   }
 
+  private resolveMovementAndSpecialTile(moved: ReturnType<typeof moveActivePlayer>): string {
+    this.state = moved.state;
+    const occupied = this.state.players
+      .filter(player => player.status === "alive")
+      .map(player => player.position);
+    const previousRegenerationCount = this.board.regenerationCount;
+    const boardResult = moveAndRegenerateBoard(
+      this.board,
+      moved.from,
+      moved.steps,
+      occupied,
+      Math.random,
+      this.state.movementDirection
+    );
+    this.board = boardResult.board;
+
+    let message = "";
+    if (moved.monsterAttackEvents.length > 0) {
+      this.state = resolveMonsterAttackEvents(this.state, moved.monsterAttackEvents).state;
+      message += " · มิโนทอร์โจมตีจากช่องมุม";
+    }
+
+    const landedTile = boardResult.movement.landedTile;
+    const active = this.state.players[this.state.activePlayerIndex];
+    if (landedTile && active?.status === "alive") {
+      if (landedTile === "mystery") {
+        const drawn = drawCards(active.hand, this.deck, 1);
+        this.deck = drawn.deck;
+        this.state = {
+          ...this.state,
+          players: this.state.players.map(player =>
+            player.id === active.id ? { ...player, hand: drawn.hand } : player
+          )
+        };
+        message += drawn.drawnCardIds.length
+          ? " · Mystery: จั่วไพ่ 1 ใบ"
+          : " · Mystery: ไม่มีไพ่ที่สามารถจั่วได้";
+      } else if (landedTile === "monster") {
+        try {
+          const summoned = summonRandomMonsterFromCatalogue(
+            this.state,
+            "tile-monster-" + (++this.monsterInstanceCounter)
+          );
+          this.state = resolveMonsterAttackEvents(this.state, [summoned.attack]).state;
+          message += " · Monster: อัญเชิญ " + summoned.monster.name + " (" + summoned.monster.rank + ") และโจมตีทันที";
+        } catch (error) {
+          message += " · Monster: " + (error instanceof Error ? error.message : "อัญเชิญมอนสเตอร์ไม่สำเร็จ");
+        }
+      } else if (landedTile === "prison") {
+        this.state = imprisonPlayer(this.state, active.id, 3);
+        message += " · Prison: ถูกจำคุกและจะพลาด 3 เทิร์นถัดไป";
+      } else if (landedTile === "dice") {
+        message += " · Dice: ยังไม่มีกติกากำหนดผลโบนัสลูกเต๋า";
+      }
+    }
+
+    this.state = finishSpecialTileCheck(this.state);
+    if (this.board.regenerationCount !== previousRegenerationCount) {
+      this.drawBoard();
+      message += " · ครบรอบกระดาน: สุ่มตำแหน่งช่องพิเศษใหม่";
+    }
+    return message;
+  }
+
   chooseAction(action: PlayerAction): { ok: boolean; message: string } {
     if (this.actionLocked || this.state.phase !== "choose_action") {
       return { ok: false, message: "กรุณารอให้เทิร์นปัจจุบันดำเนินการเสร็จ" };
