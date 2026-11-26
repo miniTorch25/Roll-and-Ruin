@@ -1,5 +1,5 @@
 import { summonMonster, type GameMonster, type GameState, type MonsterAttackEvent } from "../game/turnEngine";
-import { getRandomMonsterByRank, type MonsterRank } from "./catalogue";
+import { getRandomMonsterByRank, MONSTER_CATALOGUE, type MonsterRank } from "./catalogue";
 
 export interface MonsterDamageEvent {
   monsterId: string;
@@ -26,6 +26,42 @@ export interface CatalogueSummonResult {
   state: GameState;
   monster: GameMonster;
   attack: MonsterAttackEvent;
+}
+
+/** Selects uniformly from all 50 catalogue entries for the board's random-monster tile. */
+export function summonRandomMonsterFromCatalogue(
+  state: GameState,
+  instanceId: string,
+  random: () => number = Math.random
+): CatalogueSummonResult {
+  if (!instanceId.trim()) throw new Error("A unique monster instance ID is required.");
+  const index = Math.min(MONSTER_CATALOGUE.length - 1, Math.max(0, Math.floor(random() * MONSTER_CATALOGUE.length)));
+  const definition = MONSTER_CATALOGUE[index];
+  const triggerPosition = definition.id === "R09"
+    ? [0, 8, 16, 24][Math.min(3, Math.max(0, Math.floor(random() * 4)))]
+    : undefined;
+  const monster: Omit<GameMonster, "turnsSinceLastAttack" | "active"> = {
+    id: instanceId,
+    catalogueId: definition.id,
+    ...(triggerPosition === undefined ? {} : { triggerPosition }),
+    ...(definition.id === "L06" ? { revivalsRemaining: 1 } : {}),
+    ...(definition.id === "L05" ? { exchangesRemaining: 3 } : {}),
+    name: definition.name,
+    rank: definition.rank,
+    hp: definition.hp,
+    maxHp: definition.hp,
+    attackDamage: definition.attackDamage,
+    attackPattern: definition.attackPattern,
+    attackInterval: definition.attackInterval,
+    targetCount: definition.targetCount,
+    rules: [...definition.rules],
+    reward: definition.reward,
+    info: definition.info
+  };
+  const summoned = summonMonster(state, monster);
+  const created = summoned.state.monsters.find(item => item.id === instanceId);
+  if (!created) throw new Error("The summoned monster was not added to the game state.");
+  return { state: summoned.state, monster: created, attack: summoned.attack };
 }
 
 /** Adds a catalogue monster to the board and returns its mandatory first-summon attack event. */
