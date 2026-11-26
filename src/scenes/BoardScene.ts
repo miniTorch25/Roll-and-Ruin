@@ -101,24 +101,45 @@ export class BoardScene extends Phaser.Scene {
   }
 
   private drawBoard(): void {
+    this.boardLayer?.destroy(true);
+    this.boardLayer = this.add.container(0, 0).setDepth(1);
     this.tileCenters = this.createPath();
-    this.tileCenters.forEach((p, i) => {
-      const color = i === 0 ? 0x3b806b : i % 8 === 0 ? 0x596b83 : 0x46566d;
-      this.add.polygon(p.x, p.y, [0,-14,28,0,0,14,-28,0], color)
-        .setStrokeStyle(2, 0x9ba9bd, 0.8).setDepth(p.y);
-      if (i % 4 === 0) {
-        this.add.text(p.x, p.y - 6, String(i + 1), {
-          fontFamily: "monospace", fontSize: "11px", color: "#dce5f2"
-        }).setOrigin(0.5).setDepth(p.y + 1);
+    const tileStyle: Record<SpecialTileType, { color: number; label: string; text: string }> = {
+      prison: { color: 0x8d4f59, label: "P", text: "#ffe0e2" },
+      mystery: { color: 0x715a9b, label: "?", text: "#f0e5ff" },
+      monster: { color: 0xa95f3d, label: "!", text: "#ffe4d4" },
+      dice: { color: 0x426f9b, label: "D", text: "#e1f2ff" }
+    };
+    this.tileCenters.forEach((point, index) => {
+      const special = this.board.tiles[index].special;
+      const color = special
+        ? tileStyle[special].color
+        : index === 0 ? 0x3b806b : index % 8 === 0 ? 0x596b83 : 0x46566d;
+      const polygon = this.add.polygon(point.x, point.y, [0,-14,28,0,0,14,-28,0], color)
+        .setStrokeStyle(special ? 3 : 2, special ? 0xf0d4a5 : 0x9ba9bd, 0.9)
+        .setDepth(point.y);
+      this.boardLayer.add(polygon);
+      if (special || index % 4 === 0) {
+        const label = special ? tileStyle[special].label : String(index + 1);
+        const textColor = special ? tileStyle[special].text : "#dce5f2";
+        const text = this.add.text(point.x, point.y - 6, label, {
+          fontFamily: "monospace",
+          fontSize: special ? "13px" : "11px",
+          fontStyle: "bold",
+          color: textColor
+        }).setOrigin(0.5).setDepth(point.y + 1);
+        this.boardLayer.add(text);
       }
     });
-    const ruins = this.add.graphics().setDepth(10);
-    ruins.fillStyle(0x111722, 0.75);
-    [[400,210],[500,210],[400,340],[500,340]].forEach(([x,y]) => {
-      ruins.fillRect(x,y,22,32); ruins.fillRect(x+27,y+10,16,22);
-    });
+    if (!this.ruinsLayer) {
+      this.ruinsLayer = this.add.graphics().setDepth(10);
+      this.ruinsLayer.fillStyle(0x111722, 0.75);
+      [[400,210],[500,210],[400,340],[500,340]].forEach(([x,y]) => {
+        this.ruinsLayer!.fillRect(x,y,22,32);
+        this.ruinsLayer!.fillRect(x+27,y+10,16,22);
+      });
+    }
   }
-
   private createPlayers(): void {
     this.state.players.forEach((player, index) => {
       const p = this.tileCenters[player.position];
