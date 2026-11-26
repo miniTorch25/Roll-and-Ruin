@@ -333,8 +333,7 @@ export function chooseBotCards(state: GameState): string[] {
       case "remove_other_players_shields":
       case "remove_buffs_and_shields":
       case "steal_eliminated_player_cards":
-      case "mark_monster_attack_target":
-      case "control_dice_values": {
+      case "mark_monster_attack_target": {
         if (!chooseBotCursePayment(state, player.id, id)) break;
         if (card.effectId === "steal_eliminated_player_cards" &&
             !state.players.some(candidate => candidate.status === "eliminated" && candidate.hand.length > 0)) break;
