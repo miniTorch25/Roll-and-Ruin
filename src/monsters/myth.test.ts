@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { applyPlayerDeath, createGameState } from "../game/turnEngine";
 import { resolveCardEffect } from "../cards/effectResolver";
+import { damageMonster } from "./engine";
 import {
   acceptLucyOffer,
   advanceMythTurn,
