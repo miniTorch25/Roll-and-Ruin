@@ -38,7 +38,7 @@ test("accepts a player turn action from the browser UI", async ({ page }) => {
 
 test("resolves a targeted Attack card through the browser UI", async ({ page }) => {
   await page.addInitScript(() => {
-    let seed = 10;
+    let seed = 1;
     Math.random = () => {
       seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0;
       return seed / 4294967296;
