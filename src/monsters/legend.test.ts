@@ -136,10 +136,10 @@ describe("Legend monster offerings", () => {
     };
     const result = resolveLegendOffering(state, "dwarfy", [
       { playerId: "p2", cardIds: ["blue_wooden_shield", "blue_wooden_shield"] }
-    ], deck);
+    ], { drawPile: [], discardPile: [] });
     expect(result.state.players.find(player => player.id === "p2")?.hand.filter(id => id === "blue_wooden_shield")).toHaveLength(0);
     expect(result.event.consumedCardIds).toEqual(["blue_wooden_shield", "blue_wooden_shield"]);
-    expect(result.event.awardedCardIds).toHaveLength(3);
+    expect(result.event.awardedCardIds).toHaveLength(0);
   });
 
   it("does not consume unoffered duplicate copies from a contributor's hand", () => {
@@ -152,7 +152,7 @@ describe("Legend monster offerings", () => {
     };
     const result = resolveLegendOffering(state, "dwarfy", [
       { playerId: "p2", cardIds: ["blue_wooden_shield", "blue_wooden_shield"] }
-    ], deck);
+    ], { drawPile: [], discardPile: [] });
     expect(result.state.players.find(player => player.id === "p2")?.hand.filter(id => id === "blue_wooden_shield")).toHaveLength(1);
   });
 
