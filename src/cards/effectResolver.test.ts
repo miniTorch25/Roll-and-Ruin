@@ -246,8 +246,13 @@ describe("catalogue card effect resolver foundation", () => {
     expect(result.state.cardRuntime.players.p1.nextAttackDamageBonus).toBe(1);
   });
 
-  it("rejects effects that depend on systems not integrated yet", () => {
-    expect(() => resolveCardEffect(cardPlayState(), "yellow_magic_shortcut")).toThrow(/not implemented yet/);
+  it("returns a validated movement target for Magic Shortcut without moving the player prematurely", () => {
+    const state = cardPlayState();
+    const result = resolveCardEffect(state, "yellow_magic_shortcut", { specialTileTargetPosition: 7 });
+    expect(result.movementTargetPosition).toBe(7);
+    expect(result.state.players[0].position).toBe(0);
+    expect(() => resolveCardEffect(state, "yellow_magic_shortcut")).toThrow(/valid next special-tile position/);
+    expect(() => resolveCardEffect(state, "yellow_magic_shortcut", { specialTileTargetPosition: 0 })).toThrow(/valid next special-tile position/);
   });
 });
 
