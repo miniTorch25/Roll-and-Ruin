@@ -17,11 +17,16 @@ const NEGATIVE_STATUSES = new Set([
   "cards_limit", "movement_reduction", "poison"
 ]);
 
+function getPlayerShields(state: GameState, playerId: string): number {
+  const runtime = state.cardRuntime?.players[playerId] as unknown as { shields?: number } | undefined;
+  return runtime?.shields ?? 0;
+}
+
 function targetScore(state: GameState, player: GamePlayer, effectId: CardEffectId): number {
   const runtime = state.cardRuntime?.players[player.id];
   const handValue = player.hand.length * 1.5;
   const vulnerability = (player.maxHp - player.hp) * 0.35 + (3 - player.hearts) * 2;
-  const shieldValue = runtime?.shields ?? 0;
+  const shieldValue = getPlayerShields(state, player.id);
   const protectedTarget = (runtime?.invulnerableOwnerTurns ?? 0) > 0 ? 100 : 0;
   if (effectId === "steal_random_card") return handValue + vulnerability - protectedTarget;
   if (effectId === "view_player_hand") return handValue - protectedTarget;
@@ -139,7 +144,7 @@ export function chooseBotCards(state: GameState): string[] {
         if (opponent && healthyEnough) {
           priority = card.effectId === "steal_random_card" ? (opponent.hand.length ? 67 : 0)
             : card.effectId === "skip_next_turn" ? 58
-            : card.effectId === "damage_and_remove_shields" && (state.cardRuntime?.players[opponent.id]?.shields ?? 0) > 0 ? 62
+            : card.effectId === "damage_and_remove_shields" && getPlayerShields(state, opponent.id) > 0 ? 62
             : card.kind === "attack" ? 48 : 42;
         }
         break;
