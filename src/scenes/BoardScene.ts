@@ -14,6 +14,7 @@ import { resolveLegendOffering } from "../monsters/legend";
 import { createCardDeck, drawCards } from "../cards/deck";
 import { CARD_CATALOGUE } from "../cards/catalogue";
 import { selectKingoOfferingModal } from "../ui/kingoOfferingModal";
+import { chooseOptionDialog, confirmActionDialog, selectCardsDialog, textInputDialog } from "../ui/gameDialogs";
 
 const PATH_LENGTH = 32;
 const PLAYER_SETUP = [
@@ -175,21 +176,22 @@ export class BoardScene extends Phaser.Scene {
     }
   }
 
-  private askForHandCards(promptTitle: string, requiredCount?: number): string[] | undefined {
+  private async askForHandCards(promptTitle: string, requiredCount?: number): Promise<string[] | undefined> {
     const active = this.state.players[this.state.activePlayerIndex];
     if (!active || active.hand.length === 0) throw new Error("ไม่มีไพ่ในมือให้เลือก");
-    const listing = active.hand.map((id, index) => {
+    const cards = active.hand.map(id => {
       const definition = CARD_CATALOGUE.find(card => card.id === id);
-      return `${index + 1}. ${definition?.name ?? id} (${id})`;
-    }).join("\\n");
-    const countText = requiredCount ? `\\nเลือก ${requiredCount} ใบพอดี` : "\\nเลือกหลายใบได้ หรือเว้นว่างเพื่อยกเลิก";
-    const raw = window.prompt(`${promptTitle}${countText}\\n${listing}`, requiredCount ? Array.from({ length: Math.min(requiredCount, active.hand.length) }, (_, i) => String(i + 1)).join(",") : "");
-    if (!raw) return undefined;
-    const indexes = raw.split(",").map(value => Number(value.trim()) - 1);
-    if (indexes.some(index => !Number.isInteger(index) || index < 0 || index >= active.hand.length)) throw new Error("หมายเลขไพ่ไม่ถูกต้อง");
-    if (new Set(indexes).size !== indexes.length) throw new Error("เลือกหมายเลขไพ่ซ้ำไม่ได้");
-    if (requiredCount !== undefined && indexes.length !== requiredCount) throw new Error(`ต้องเลือกไพ่ ${requiredCount} ใบพอดี`);
-    return indexes.map(index => active.hand[index]);
+      return {
+        id,
+        name: definition?.name ?? id,
+        color: definition?.color ?? "neutral",
+        description: definition?.description ?? ""
+      };
+    });
+    const description = requiredCount === undefined
+      ? "เลือกไพ่ที่ต้องการได้หนึ่งใบหรือหลายใบ แล้วกดยืนยัน"
+      : `เลือกไพ่ให้ครบ ${requiredCount} ใบพอดี`;
+    return selectCardsDialog(promptTitle, description, cards, requiredCount);
   }
 
   private async handleMonsterAction(action: string, monsterId: string): Promise<void> {
@@ -198,7 +200,7 @@ export class BoardScene extends Phaser.Scene {
     if (!active || !monster) return;
     try {
       if (action === "hecate-offer") {
-        const cards = this.askForHandCards("เฮคาทีต้องการไพ่เหลือง 3 ใบ", 3);
+        const cards = await this.askForHandCards("เฮคาทีต้องการไพ่เหลือง 3 ใบ", 3);
         if (!cards) return;
         const result = offerHecateCards(this.state, active.id, cards, this.deck);
         this.state = result.state;
@@ -214,7 +216,7 @@ export class BoardScene extends Phaser.Scene {
         return;
       }
       if (action === "myth-offer") {
-        const cards = this.askForHandCards(monster.catalogueId === "M06" ? "เลือกไพ่สำหรับเครื่องบูชา Ragnar" : "เลือกไพ่ 1 ใบต่อสีสำหรับ Ouro");
+        const cards = await this.askForHandCards(monster.catalogueId === "M06" ? "เลือกไพ่สำหรับเครื่องบูชา Ragnar" : "เลือกไพ่ 1 ใบต่อสีสำหรับ Ouro");
         if (!cards) return;
         const result = offerMythCards(this.state, [{ playerId: active.id, cardIds: cards }]);
         this.state = result.state;
@@ -250,11 +252,18 @@ export class BoardScene extends Phaser.Scene {
         }
         const counts: Record<string, number> = { L01: 4, L02: 2, L03: 3, L04: 2, L05: 1, L06: 1, L07: 2, L08: 3, L09: 2, L10: 5 };
         const count = counts[monster.catalogueId ?? ""] ?? 1;
-        const cards = this.askForHandCards(`ถวายไพ่ให้ ${monster.name ?? monster.catalogueId}`, count);
+        const cards = await this.askForHandCards(`ถวายไพ่ให้ ${monster.name ?? monster.catalogueId}`, count);
         if (!cards) return;
         let selectedDeckCardId: string | undefined;
         if (monster.catalogueId === "L03") {
-          const choice = window.prompt(`เลือกไพ่จากกองจั่วเป็นรางวัล:\\n${this.deck.drawPile.join("\\n")}`);
+          const choice = await chooseOptionDialog(
+            "เลือกไพ่รางวัลจากกองจั่ว",
+            "Gini ให้เลือกไพ่จากกองจั่ว 1 ใบ",
+            this.deck.drawPile.map(cardId => {
+              const definition = CARD_CATALOGUE.find(card => card.id === cardId);
+              return { value: cardId, label: definition?.name ?? cardId, description: cardId };
+            })
+          );
           if (!choice) return;
           selectedDeckCardId = choice;
         }
@@ -286,7 +295,7 @@ export class BoardScene extends Phaser.Scene {
       panel.querySelector<HTMLButtonElement>("#random-hidden-card")?.addEventListener("click", () => {
         try {
           const selectedId = chooseNyxiaRandomCard(this.state, playerId);
-          this.playCard(selectedId, true);
+          void this.playCard(selectedId, true);
         } catch (error) {
           this.updateHud(error instanceof Error ? error.message : "ไม่สามารถใช้ไพ่ได้");
         }
@@ -301,11 +310,11 @@ export class BoardScene extends Phaser.Scene {
       `<button class="hand-card ${card.color}" data-card-id="${card.id}" type="button" ${limitReached ? "disabled" : ""}><strong>${card.name}</strong><small>${card.description} · ${card.id}</small></button>`
     ).join("")}</div>`;
     panel.querySelectorAll<HTMLButtonElement>("[data-card-id]").forEach(button => {
-      button.addEventListener("click", () => this.playCard(button.dataset.cardId ?? ""));
+      button.addEventListener("click", () => void this.playCard(button.dataset.cardId ?? ""));
     });
   }
 
-  private playCard(cardId: string, randomSelection = false): void {
+  private async playCard(cardId: string, randomSelection = false): Promise<void> {
     if (this.state.phase !== "play_cards" || !cardId) return;
     const before = this.state;
     const deckBefore = this.deck;
@@ -329,17 +338,33 @@ export class BoardScene extends Phaser.Scene {
           ? before.players.filter(player => player.status === "eliminated")
           : teamTargetEffect ? teammates : livingOpponents;
         if (!choices.length) throw new Error("ไม่มีผู้เล่นเป้าหมายที่ใช้งานได้");
-        const choice = window.prompt(`เลือกผู้เล่นเป้าหมาย (พิมพ์ ID):\n${choices.map(player => `${player.id} · HP ${player.hp} · ♥ ${player.hearts}`).join("\n")}`, choices[0].id);
+        const choice = await chooseOptionDialog(
+          "เลือกผู้เล่นเป้าหมาย",
+          "เลือกผู้เล่นที่ต้องการให้เอฟเฟกต์ของไพ่ทำงาน",
+          choices.map(player => ({
+            value: player.id,
+            label: player.id,
+            description: `HP ${player.hp} · หัวใจ ${player.hearts}`
+          }))
+        );
         if (!choice) return;
-        if (!choices.some(player => player.id === choice)) throw new Error("ไม่พบผู้เล่นเป้าหมาย");
         targetPlayerId = choice;
       }
       if (card.effectId === "damage_monster_only" || (card.effectId === "instant_kill" && before.monsters.some(monster => monster.active && monster.rank === "Myth"))) {
         const targets = before.monsters.filter(monster => monster.active && (card.effectId !== "instant_kill" || monster.rank === "Myth"));
-        if (targets.length && (card.effectId === "damage_monster_only" || window.confirm("ต้องการใช้สังหารทันทีใส่ Myth Monster หรือไม่?"))) {
-          const choice = window.prompt(`เลือกมอนสเตอร์ (พิมพ์ ID):\n${targets.map(monster => `${monster.id} · ${monster.name ?? monster.catalogueId}`).join("\n")}`, targets[0].id);
+        const shouldTargetMonster = card.effectId === "damage_monster_only" ||
+          (targets.length > 0 && await confirmActionDialog("ใช้สังหารทันทีใส่ Myth Monster?", "ยืนยันเพื่อเลือก Myth Monster เป็นเป้าหมาย"));
+        if (targets.length && shouldTargetMonster) {
+          const choice = await chooseOptionDialog(
+            "เลือกมอนสเตอร์เป้าหมาย",
+            "เลือกมอนสเตอร์ที่ต้องการโจมตี",
+            targets.map(monster => ({
+              value: monster.id,
+              label: monster.name ?? monster.catalogueId ?? monster.id,
+              description: `${monster.id} · HP ${monster.hp === null ? "∞" : monster.hp ?? "?"}`
+            }))
+          );
           if (!choice) return;
-          if (!targets.some(monster => monster.id === choice)) throw new Error("ไม่พบมอนสเตอร์เป้าหมาย");
           targetMonsterId = choice;
           targetPlayerId = undefined;
         }
@@ -348,16 +373,30 @@ export class BoardScene extends Phaser.Scene {
         const choices = [...active.hand];
         choices.splice(choices.indexOf(cardId), 1);
         if (!choices.length) throw new Error("ไม่มีไพ่เหลือสำหรับแลก");
-        selectedCardId = window.prompt(`เลือกไพ่ที่จะมอบให้ผู้เล่นเป้าหมาย:\n${choices.join("\n")}`, choices[0]) ?? undefined;
+        selectedCardId = await chooseOptionDialog(
+          "เลือกไพ่ที่จะมอบให้ผู้เล่นเป้าหมาย",
+          "เลือกไพ่หนึ่งใบจากมือของคุณเพื่อแลกเปลี่ยน",
+          choices.map(id => {
+            const definition = CARD_CATALOGUE.find(item => item.id === id);
+            return { value: id, label: definition?.name ?? id, description: id };
+          })
+        );
         if (!selectedCardId) return;
       } else if (card.effectId === "force_discard_selected_card" && targetPlayerId) {
         const target = before.players.find(player => player.id === targetPlayerId);
         if (!target?.hand.length) throw new Error("ผู้เล่นเป้าหมายไม่มีไพ่");
-        selectedCardId = window.prompt(`เลือกไพ่ที่ผู้เล่นเป้าหมายต้องทิ้ง:\n${target.hand.join("\n")}`, target.hand[0]) ?? undefined;
+        selectedCardId = await chooseOptionDialog(
+          "เลือกไพ่ที่ผู้เล่นเป้าหมายต้องทิ้ง",
+          `เลือกไพ่หนึ่งใบจากมือของ ${targetPlayerId}`,
+          target.hand.map(id => {
+            const definition = CARD_CATALOGUE.find(item => item.id === id);
+            return { value: id, label: definition?.name ?? id, description: id };
+          })
+        );
         if (!selectedCardId) return;
       }
       if (card.effectId === "control_dice_values") {
-        const raw = window.prompt("ใส่ค่าลูกเต๋าคั่นด้วยเครื่องหมายจุลภาค (1-6):", "6");
+        const raw = await textInputDialog("กำหนดค่าลูกเต๋า", "ใส่ค่าลูกเต๋าคั่นด้วยจุลภาค โดยแต่ละค่าต้องอยู่ระหว่าง 1 ถึง 6", "6");
         if (!raw) return;
         diceValues = raw.split(",").map(value => Number(value.trim()));
       }
