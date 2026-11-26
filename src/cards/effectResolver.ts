@@ -697,54 +697,64 @@ export function resolveCardEffect(
 
   switch (card.effectId) {
     case "joker_chaos": {
-      const curseCards = CARD_CATALOGUE.filter((candidate) => candidate.kind === "curse");
-      if (curseCards.length === 0) throw new Error("Joker requires at least one Curse card in the catalogue.");
       const recipients = state.players.filter((player) => player.status === "alive").map((player) => player.id);
 
       for (const recipientId of recipients) {
         const recipient = state.players.find((player) => player.id === recipientId);
         if (!recipient || recipient.status !== "alive") continue;
 
+        // Exclude curses that cannot currently resolve because their required world/player state is absent.
+        const eliminatedPlayers = state.players.filter((player) => player.status === "eliminated");
+        const activeMonsters = state.monsters.filter((monster) => monster.active);
+        const recipientRuntime = state.cardRuntime.players[recipientId];
+        const curseCards = CARD_CATALOGUE.filter((candidate) =>
+          candidate.kind === "curse" &&
+          (candidate.effectId !== "steal_eliminated_player_cards" || eliminatedPlayers.length > 0) &&
+          (candidate.effectId !== "mark_monster_attack_target" || activeMonsters.length > 0) &&
+          (candidate.effectId !== "control_dice_values" || !recipientRuntime.diceControlUsedThisTurn)
+        );
+        if (curseCards.length === 0) throw new Error("Joker has no currently resolvable Curse cards.");
+
         const curseIndex = Math.min(curseCards.length - 1, Math.max(0, Math.floor(random() * curseCards.length)));
         const curse = curseCards[curseIndex];
         let curseTargetId = recipientId;
         let diceValues: number[] | undefined;
 
-        // Grave Robbery specifically requires an eliminated player, so it uses a random valid grave target.
         if (curse.effectId === "steal_eliminated_player_cards") {
-          const eliminated = state.players.filter((player) => player.status === "eliminated");
-          if (eliminated.length === 0) continue;
-          const targetIndex = Math.min(eliminated.length - 1, Math.max(0, Math.floor(random() * eliminated.length)));
-          curseTargetId = eliminated[targetIndex].id;
+          const targetIndex = Math.min(eliminatedPlayers.length - 1, Math.max(0, Math.floor(random() * eliminatedPlayers.length)));
+          curseTargetId = eliminatedPlayers[targetIndex].id;
         }
 
         // Control Dice is auto-resolved with random legal values for the recipient's current dice count.
         if (curse.effectId === "control_dice_values") {
-          const runtime = state.cardRuntime.players[recipientId];
           const limited = recipient.statusEffects.some((effect) => effect.type === "dice_limit" && effect.turnsRemaining > 0);
-          const expectedDice = limited ? 1 : Math.min(3, 1 + runtime.bonusDiceThisTurn);
+          const expectedDice = limited ? 1 : Math.min(3, 1 + recipientRuntime.bonusDiceThisTurn);
           diceValues = Array.from({ length: expectedDice }, () => 1 + Math.floor(random() * 6));
         }
 
-        const resolvedCurse = resolveCardEffect(state, curse, {
-          targetPlayerId: curseTargetId,
-          deck: updatedDeck,
-          random,
-          skipCursePayment: true,
-          allowSelfTarget: true,
-          diceValues
-        });
-        state = resolvedCurse.state;
-        updatedDeck = resolvedCurse.deck ?? updatedDeck;
-        appliedToPlayerIds.push(...resolvedCurse.appliedToPlayerIds.filter((id) => !appliedToPlayerIds.includes(id)));
-        damageEvents.push(...resolvedCurse.damageEvents);
-        monsterDamageEvents.push(...resolvedCurse.monsterDamageEvents);
-        monsterSummonEvents.push(...resolvedCurse.monsterSummonEvents);
-        summonWarnings.push(...resolvedCurse.summonWarnings);
-        revealedHands.push(...resolvedCurse.revealedHands);
-        discardedCardIds.push(...resolvedCurse.discardedCardIds);
-        drawEvents.push(...resolvedCurse.drawEvents);
-        boardRerollRequested ||= resolvedCurse.boardRerollRequested;
+        try {
+          const resolvedCurse = resolveCardEffect(state, curse, {
+            targetPlayerId: curseTargetId,
+            deck: updatedDeck,
+            random,
+            skipCursePayment: true,
+            allowSelfTarget: true,
+            diceValues
+          });
+          state = resolvedCurse.state;
+          updatedDeck = resolvedCurse.deck ?? updatedDeck;
+          appliedToPlayerIds.push(...resolvedCurse.appliedToPlayerIds.filter((id) => !appliedToPlayerIds.includes(id)));
+          damageEvents.push(...resolvedCurse.damageEvents);
+          monsterDamageEvents.push(...resolvedCurse.monsterDamageEvents);
+          monsterSummonEvents.push(...resolvedCurse.monsterSummonEvents);
+          summonWarnings.push(...resolvedCurse.summonWarnings);
+          revealedHands.push(...resolvedCurse.revealedHands);
+          discardedCardIds.push(...resolvedCurse.discardedCardIds);
+          drawEvents.push(...resolvedCurse.drawEvents);
+          boardRerollRequested ||= resolvedCurse.boardRerollRequested;
+        } catch {
+          // A curse that becomes invalid during the chain fizzles without cancelling the other players' curses.
+        }
       }
       break;
     }
