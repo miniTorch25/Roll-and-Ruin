@@ -46,6 +46,6 @@ The Phaser BoardScene now uses the approved card catalogue, turn engine, monster
 ## Local Bot opponents
 - At match setup, choose one to four human-controlled seats; remaining seats in the 1x4 match are filled by bots with normal starting hands.
 - Bot turns run automatically after the human turn and resolve the same movement, special-tile, monster-attack, status-check, and turn-end pipeline as human turns.
-- Bot policy: draw two and roll one when holding fewer than three cards; otherwise roll two dice. Before moving, it can use up to two safe self-support cards when their effects are immediately useful (healing, extra heart, max HP, cleansing, defensive buffs, bonus dice, and emergency card draw).
+- Bot policy: draw two and roll one when holding fewer than three cards; otherwise roll two dice. Before moving, it can use up to two useful self-support cards or targeted attacks/pranks. It selects vulnerable living opponents for player-target effects and the weakest finite-HP active monster for Monster Hunter.
 - Bot seats are labelled BOT in the turn header and player list; human action controls are disabled while a bot is active.
-- Bot limitation: targeted attacks/pranks, curses, summon cards, card-payment choices, and Myth/Legend offerings are not automated yet. The bot deliberately avoids effects that require human target selection. This remains a local single-device opponent prototype, not online multiplayer.
+- Bot limitation: curses, summon cards, effects requiring a selected card from another player's hand, and Myth/Legend offerings are not automated yet. The bot deliberately avoids effects that require human target selection. This remains a local single-device opponent prototype, not online multiplayer.

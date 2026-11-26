@@ -1,7 +1,11 @@
 import { CARD_CATALOGUE, type CardEffectId } from "../cards/catalogue";
 import type { GamePlayer, GameState, PlayerAction } from "./turnEngine";
 
-/** Baseline policy: refill a small hand, otherwise prioritize movement. */
+export interface BotCardTargets {
+  targetPlayerId?: string;
+  targetMonsterId?: string;
+}
+
 export function chooseBotAction(player: Pick<GamePlayer, "hand">): Exclude<PlayerAction, "use_cards"> {
   if (player.hand.length < 3) return "draw_two_roll_one";
   return "roll_two_dice";
@@ -13,32 +17,82 @@ const NEGATIVE_STATUSES = new Set([
   "cards_limit", "movement_reduction", "poison"
 ]);
 
-/**
- * Select only self-contained support cards. Targeted effects, curses, summons,
- * and cooperative offerings are skipped until their decisions can be automated.
- */
+function getPlayerShields(state: GameState, playerId: string): number {
+  const runtime = state.cardRuntime?.players[playerId] as unknown as { shields?: number } | undefined;
+  return runtime?.shields ?? 0;
+}
+
+function targetScore(state: GameState, player: GamePlayer, effectId: CardEffectId): number {
+  const runtime = state.cardRuntime?.players[player.id];
+  const handValue = player.hand.length * 1.5;
+  const vulnerability = (player.maxHp - player.hp) * 0.35 + (3 - player.hearts) * 2;
+  const shieldValue = getPlayerShields(state, player.id);
+  const protectedTarget = (runtime?.invulnerableOwnerTurns ?? 0) > 0 ? 100 : 0;
+  if (effectId === "steal_random_card") return handValue + vulnerability - protectedTarget;
+  if (effectId === "view_player_hand") return handValue - protectedTarget;
+  if (effectId === "skip_next_turn") {
+    const skipped = player.statusEffects.some(effect => effect.type === "skip_turn" && effect.turnsRemaining > 0);
+    return (skipped ? -100 : 8) + vulnerability - protectedTarget;
+  }
+  if (effectId === "limit_next_turn_dice") {
+    const limited = player.statusEffects.some(effect => effect.type === "dice_limit" && effect.turnsRemaining > 0);
+    return (limited ? -100 : 8) + vulnerability - protectedTarget;
+  }
+  if (effectId === "damage_and_remove_shields") return vulnerability + shieldValue * 3 - protectedTarget;
+  if (effectId === "damage_single_pierce_shield") return vulnerability + shieldValue - protectedTarget;
+  return vulnerability - protectedTarget;
+}
+
+export function chooseBotCardTargets(state: GameState, cardId: string): BotCardTargets {
+  const card = CARD_CATALOGUE.find(candidate => candidate.id === cardId);
+  const active = state.players[state.activePlayerIndex];
+  if (!card || !active) return {};
+
+  if (card.effectId === "damage_monster_only") {
+    const monster = state.monsters
+      .filter(candidate => candidate.active && candidate.hp !== null && candidate.hp !== undefined && candidate.hp > 0)
+      .sort((a, b) => (a.hp ?? Infinity) - (b.hp ?? Infinity))[0];
+    return monster ? { targetMonsterId: monster.id } : {};
+  }
+
+  const requiresPlayerTarget = (typeof card.parameters?.target === "string" &&
+    ["one_player", "another_player"].includes(String(card.parameters.target))) ||
+    ["damage_with_random_splash", "damage_with_self_hp_cost", "conditional_damage"].includes(card.effectId);
+  if (!requiresPlayerTarget) return {};
+
+  const target = state.players
+    .filter(player => player.status === "alive" && player.id !== active.id)
+    .map(player => ({ player, score: targetScore(state, player, card.effectId) }))
+    .filter(entry => entry.score > -50)
+    .sort((a, b) => b.score - a.score)[0]?.player;
+  return target ? { targetPlayerId: target.id } : {};
+}
+
+/** Choose useful self-support or targeted attack/prank cards, never manual-choice curses. */
 export function chooseBotCards(state: GameState): string[] {
   const player = state.players[state.activePlayerIndex];
   if (!player || player.status !== "alive") return [];
   if (player.statusEffects.some(effect => effect.type === "cards_silenced" && effect.turnsRemaining > 0)) return [];
 
+  const runtime = state.cardRuntime?.players[player.id];
   const cardLimit = player.statusEffects
     .filter(effect => effect.type === "cards_limit" && effect.turnsRemaining > 0)
     .reduce((limit, effect) => Math.min(limit, effect.amount ?? 2), 3);
-  const remainingPlays = Math.max(0, cardLimit - player.cardsPlayedThisTurn);
+  const remainingPlays = Math.max(0, Math.min(3, cardLimit) - player.cardsPlayedThisTurn);
   if (remainingPlays === 0) return [];
 
-  const runtime = state.cardRuntime?.players[player.id];
   const activeMonsters = state.monsters.filter(monster => monster.active);
   const hasIncomingThreat = activeMonsters.some(monster => (monster.attackDamage ?? 0) > 0);
   const hasNegativeStatus = player.statusEffects.some(effect =>
     effect.turnsRemaining > 0 && NEGATIVE_STATUSES.has(effect.type)
   );
-  const handDefinitions = player.hand.map(id => CARD_CATALOGUE.find(card => card.id === id));
-
   const candidates: Array<{ id: string; effectId: CardEffectId; priority: number }> = [];
-  for (const card of handDefinitions) {
-    if (!card) continue;
+
+  for (const id of player.hand) {
+    const card = CARD_CATALOGUE.find(candidate => candidate.id === id);
+    if (!card || card.kind === "curse" || card.kind === "summon" || card.kind === "joker") continue;
+    if (card.kind === "attack" && runtime?.blockedAttackCardsThisTurn) continue;
+
     let priority = 0;
     const amount = Number(card.parameters?.amount ?? 0);
     switch (card.effectId) {
@@ -73,10 +127,35 @@ export function chooseBotCards(state: GameState): string[] {
       case "team_heal":
         if (player.maxHp - player.hp >= 3) priority = 72;
         break;
+      case "damage_single":
+      case "damage_single_pierce_shield":
+      case "damage_and_remove_shields":
+      case "damage_with_random_splash":
+      case "damage_with_self_hp_cost":
+      case "conditional_damage":
+      case "view_player_hand":
+      case "steal_random_card":
+      case "skip_next_turn":
+      case "limit_next_turn_dice": {
+        const target = chooseBotCardTargets(state, id);
+        const opponent = state.players.find(candidate => candidate.id === target.targetPlayerId);
+        const healthyEnough = card.effectId !== "damage_with_self_hp_cost" ||
+          player.hp > Number(card.parameters?.selfHpCost ?? 2) + 1;
+        if (opponent && healthyEnough) {
+          priority = card.effectId === "steal_random_card" ? (opponent.hand.length ? 67 : 0)
+            : card.effectId === "skip_next_turn" ? 58
+            : card.effectId === "damage_and_remove_shields" && getPlayerShields(state, opponent.id) > 0 ? 62
+            : card.kind === "attack" ? 48 : 42;
+        }
+        break;
+      }
+      case "damage_monster_only":
+        if (chooseBotCardTargets(state, id).targetMonsterId) priority = 57;
+        break;
       default:
         break;
     }
-    if (priority > 0) candidates.push({ id: card.id, effectId: card.effectId, priority });
+    if (priority > 0) candidates.push({ id, effectId: card.effectId, priority });
   }
 
   candidates.sort((a, b) => b.priority - a.priority);

@@ -18,7 +18,7 @@ import { CARD_CATALOGUE } from "../cards/catalogue";
 import { selectKingoOfferingModal } from "../ui/kingoOfferingModal";
 import { chooseOptionDialog, confirmActionDialog, selectCardsDialog, textInputDialog } from "../ui/gameDialogs";
 import { formatPlayerStatuses } from "../ui/statusEffects";
-import { chooseBotAction, chooseBotCards } from "../game/bot";
+import { chooseBotAction, chooseBotCardTargets, chooseBotCards } from "../game/bot";
 
 const PATH_LENGTH = 32;
 const PLAYER_SETUP = [
@@ -631,17 +631,26 @@ export class BoardScene extends Phaser.Scene {
         for (const cardId of plannedCards) {
           try {
             const played = playCatalogueCard(this.state, cardId);
+            const targets = chooseBotCardTargets(this.state, cardId);
             const resolved = resolveCardEffect(played.state, played.card, {
+              ...targets,
               deck: this.deck,
               random: Math.random
             });
             this.state = resolved.state;
             this.deck = resolved.deck ?? this.deck;
+            if (resolved.boardRerollRequested) {
+              this.board = regenerateSpecialTiles(this.board, this.state.players.filter(player => player.status === "alive").map(player => player.position));
+              this.drawBoard();
+            }
+            if (resolved.monsterSummonEvents.length > 0) {
+              this.state = resolveMonsterAttackEvents(this.state, resolved.monsterSummonEvents).state;
+            }
             this.deck = {
               ...this.deck,
               discardPile: [...this.deck.discardPile, ...resolved.discardedCardIds, cardId]
             };
-            usedCards.push(played.card.name);
+            usedCards.push(played.card.name + (targets.targetPlayerId ? `→${targets.targetPlayerId}` : targets.targetMonsterId ? `→${targets.targetMonsterId}` : ""));
             if (resolved.endsCardPlay) break;
           } catch {
             break;
