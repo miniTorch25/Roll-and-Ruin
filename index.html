@@ -14,30 +14,30 @@
     <div class="status">LOCAL TURN PROTOTYPE</div>
   </header>
   <main>
-    <section class="game-panel">
+    <section class="game-panel" aria-label="พื้นที่เล่นเกม">
       <div class="panel-heading">
         <div><p class="eyebrow">THE FIRST EXPEDITION</p><h2>กระดาน 32 ช่อง</h2></div>
         <p class="turn-label" id="turn-label">เทิร์น 1 · ผู้เล่น 1</p>
       </div>
-      <div id="game-container" aria-label="กระดานเกม Roll and Ruin"></div>
+      <div id="game-container" role="img" aria-label="กระดานเกม Roll and Ruin แสดงเส้นทาง 32 ช่องและตำแหน่งผู้เล่น"></div>
       <div class="action-bar">
         <div class="dice-result"><span class="eyebrow">ผลการทอย</span><strong id="dice-result">—</strong></div>
-        <div class="actions">
+        <div class="actions" role="group" aria-label="การกระทำของผู้เล่น">
           <button id="roll-button" type="button">ทอยเต๋า 2 ลูก</button>
           <button id="draw-button" type="button" class="secondary">จั่ว 2 ใบ + ทอย 1 ลูก</button>
           <button id="use-card-button" type="button" class="secondary" disabled>ใช้ไพ่ (สูงสุด 3 ใบ)</button>
         </div>
       </div>
-      <p class="hint" id="game-message">เลือกกิจกรรมเพื่อเริ่มเทิร์น</p>
+      <p class="hint" id="game-message" role="status" aria-live="polite" aria-atomic="true">เลือกกิจกรรมเพื่อเริ่มเทิร์น</p>
     </section>
-    <aside class="side-panel">
+    <aside class="side-panel" aria-label="ข้อมูลการแข่งขัน">
       <section class="info-card">
         <p class="eyebrow">ACTIVE PLAYER</p><h3>สถานะผู้เล่น</h3>
         <div class="stat-row"><span>ตำแหน่ง</span><strong id="position">ช่อง 1 / 32</strong></div>
         <div class="stat-row"><span>HP</span><strong id="hp">20 / 20</strong></div>
         <div class="stat-row"><span>หัวใจ</span><strong id="hearts">♥ ♥ ♥</strong></div>
         <div class="stat-row"><span>คะแนน</span><strong id="score">0</strong></div>
-        <div class="stat-row"><span>เวลาแข่งขัน</span><strong id="match-timer" role="timer">ไม่จำกัด</strong></div>
+        <div class="stat-row"><span>เวลาแข่งขัน</span><strong id="match-timer" role="timer" aria-live="off">ไม่จำกัด</strong></div>
         <div class="stat-row"><span>ไพ่ในมือ</span><strong id="hand-count">4</strong></div>
         <div class="stat-row"><span>เฟส</span><strong id="phase-label">เลือกกิจกรรม</strong></div>
         <div class="status-effects-block"><p class="eyebrow">EFFECTS</p><div id="status-effects" class="status-effects" aria-live="polite"><span class="empty-note">ไม่มีสถานะพิเศษ</span></div></div>
@@ -56,11 +56,11 @@
         <p id="tile-counts" class="tile-counts">กำลังตั้งค่ากระดาน…</p>
       </section>
       <section class="info-card">
-        <p class="eyebrow">ACTIVE MONSTERS</p><h3>มอนสเตอร์บนกระดาน</h3><div id="monster-panel"><p class="empty-note">ยังไม่มีมอนสเตอร์</p></div>
+        <p class="eyebrow">ACTIVE MONSTERS</p><h3>มอนสเตอร์บนกระดาน</h3><div id="monster-panel" role="list" aria-label="มอนสเตอร์ที่ยังมีชีวิต"><p class="empty-note">ยังไม่มีมอนสเตอร์</p></div>
       </section>
       <section class="info-card">
         <p class="eyebrow">LOCAL PLAYERS</p><h3>ผู้เล่นในห้องทดลอง</h3>
-        <div id="player-list"></div>
+        <div id="player-list" role="list" aria-label="รายชื่อผู้เล่น"></div>
       </section>
       <section class="info-card note-card">
         <p class="eyebrow">PROTOTYPE NOTES</p>
