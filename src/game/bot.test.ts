@@ -2,8 +2,8 @@ import { describe, expect, it } from "vitest";
 import { chooseBotAction } from "./bot";
 import type { GamePlayer } from "./turnEngine";
 
-function player(hand: string[], statusEffects: GamePlayer["statusEffects"] = []): Pick<GamePlayer, "hand" | "statusEffects"> {
-  return { hand, statusEffects };
+function player(hand: string[]): Pick<GamePlayer, "hand"> {
+  return { hand };
 }
 
 describe("chooseBotAction", () => {
@@ -17,7 +17,8 @@ describe("chooseBotAction", () => {
     expect(chooseBotAction(player(["a", "b", "c", "d"]))).toBe("roll_two_dice");
   });
 
-  it("does not rely on card actions while card use is silenced", () => {
-    expect(chooseBotAction(player(["a"], [{ type: "cards_silenced", turnsRemaining: 2 }]))).toBe("draw_two_roll_one");
+  it("only selects movement or draw actions, never a card-play action", () => {
+    expect(chooseBotAction(player(["a"]))).toBe("draw_two_roll_one");
+    expect(chooseBotAction(player(["a", "b", "c"]))).toBe("roll_two_dice");
   });
 });
