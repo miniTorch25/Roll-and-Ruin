@@ -128,7 +128,7 @@ export class BoardScene extends Phaser.Scene {
     this.createLabels();
     const botSummary = this.runBotTurns();
     this.updateTokenPositions();
-    this.updateHud(`เริ่มเกม · ผู้เล่นจริง ${humanCount} คน · Bot ${4 - humanCount} คน · ทุกคนมี HP 20 หัวใจ 3 และไพ่เริ่มต้น 4 ใบ${botSummary ? ` · ${botSummary}` : ""}`);
+    this.updateHud(`เริ่มเกม · ผู้เล่นจริง ${humanCount} คน · Bot ${4 - humanCount} คน · ทุกคนมี HP 20 หัวใจ 3 และไพ่เริ่มต้น 4 ใบ${botSummary ? `\n${botSummary}` : ""}`);
   }
 
   private drawBackdrop(): void {
@@ -322,6 +322,8 @@ export class BoardScene extends Phaser.Scene {
       }
     }
 
+    const actingPlayerIndex = this.state.activePlayerIndex;
+    const actingPlayerLabel = `ผู้เล่น ${actingPlayerIndex + 1}`;
     this.actionLocked = true;
     try {
       let selected;
@@ -348,7 +350,7 @@ export class BoardScene extends Phaser.Scene {
       this.state = this.prepareNextTurn(this.state);
       const botSummary = this.runBotTurns();
       this.updateTokenPositions();
-      this.updateHud(`${message}${botSummary ? ` · ${botSummary}` : ""}`);
+      this.updateHud(`${actingPlayerLabel}: ${message}${botSummary ? `\n${botSummary}` : ""}`);
       this.actionLocked = false;
       return { ok: true, message };
     } catch (error) {
@@ -688,6 +690,9 @@ export class BoardScene extends Phaser.Scene {
 
   finishCardPlay(): { ok: boolean; message: string } {
     if (this.state.phase !== "play_cards") return { ok: false, message: "ยังไม่อยู่ในช่วงใช้ไพ่" };
+    const actingPlayerIndex = this.state.activePlayerIndex;
+    const actingPlayer = this.state.players[actingPlayerIndex];
+    const actingPlayerLabel = `ผู้เล่น ${actingPlayerIndex + 1}${actingPlayer?.isBot ? " (BOT)" : ""}`;
     try {
       const shortcutSteps = this.pendingShortcutMovementSteps;
       const finished = finishCardActivity(this.state, Math.random, shortcutSteps);
@@ -707,7 +712,7 @@ export class BoardScene extends Phaser.Scene {
       const movementSummary = shortcutSteps === undefined
         ? `ทอยเต๋า ${finished.diceRolls.join(" + ")} · เดิน ${finished.diceRolls.reduce((sum, value) => sum + value, 0)} ช่อง`
         : `ทางลัด · เดิน ${shortcutSteps} ช่องโดยไม่ทอยเต๋า`;
-      const message = `ใช้ไพ่เสร็จ · ${movementSummary}${tileMessage}${botSummary ? ` · ${botSummary}` : ""}`;
+      const message = `${actingPlayerLabel}: ใช้ไพ่เสร็จ · ${movementSummary}${tileMessage}${botSummary ? `\n${botSummary}` : ""}`;
       this.updateHud(message);
       return { ok: true, message };
     } catch (error) {
@@ -868,11 +873,12 @@ export class BoardScene extends Phaser.Scene {
       const movementSummary = action === "use_cards" && this.state.movementSteps > 0 && diceRolls.length === 0
         ? `ทางลัด ${this.state.movementSteps} ช่อง`
         : `(${diceRolls.join("+")})`;
-      summaries.push(`${active.id} ${cardSummary}${actionLabel} ${movementSummary}${tileMessage}`);
+      const playerNumber = this.state.players.findIndex(player => player.id === active.id) + 1;
+      summaries.push(`ผู้เล่น ${playerNumber}${active.isBot ? " (BOT)" : ""}: ${cardSummary}${actionLabel} ${movementSummary}${tileMessage}`);
       this.state = this.prepareNextTurn(endPlayerTurn(this.state));
       processed++;
     }
-    return summaries.join(" / ");
+    return summaries.join("\n");
   }
 
   private prepareNextTurn(state: GameState): GameState {
@@ -934,7 +940,7 @@ export class BoardScene extends Phaser.Scene {
     if (turn) turn.textContent = `เทิร์น ${this.state.turnNumber} · ${active.isBot ? "BOT" : "ผู้เล่น"} ${this.state.activePlayerIndex + 1}`;
     if (hearts) hearts.textContent = "♥ ".repeat(active.hearts).trim() || "หมด";
     if (hp) hp.textContent = `${active.hp} / ${active.maxHp}`;
-    if (dice && message.includes("เต๋า")) dice.textContent = message.match(/ได้ (.*)$/)?.[1] ?? "—";
+    if (dice && message.includes("เต๋า")) dice.textContent = message.split("\n", 1)[0].match(/ได้ ([^\n]*)/)?.[1] ?? "—";
     if (phase) phase.textContent = this.state.phase === "choose_action" ? "เลือกกิจกรรม" : this.state.phase;
     const activeStatuses = formatPlayerStatuses(active.statusEffects, active.prisonTurnsRemaining);
     if (statusEffects) {

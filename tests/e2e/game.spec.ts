@@ -40,7 +40,8 @@ test("starts a local match and renders the playable board", async ({ page }) => 
   await expect(page.locator("#draw-button")).toBeEnabled();
 });
 
-test("accepts a player turn action from the browser UI", async ({ page }) => {
+test("shows each active player turn on its own compact line on mobile", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("/");
   await chooseStartupOption(page, "1");
   await chooseStartupOption(page, "0");
@@ -51,6 +52,16 @@ test("accepts a player turn action from the browser UI", async ({ page }) => {
   await page.locator("#roll-button").click();
   await expect(page.locator("#game-message")).toContainText("ทอยเต๋า 2 ลูกได้");
   await expect(page.locator("#turn-label")).toContainText("เทิร์น");
+  const result = await page.locator("#game-message").evaluate(element => ({
+    lines: (element.textContent ?? "").split(/\r?\n/).filter(line => line.trim()),
+    fontSize: Number.parseFloat(getComputedStyle(element).fontSize)
+  }));
+  expect(result.lines.length).toBeGreaterThanOrEqual(4);
+  expect(result.lines.slice(0, 4).map(line => line.match(/^ผู้เล่น [1-4]/)?.[0])).toEqual([
+    "ผู้เล่น 1", "ผู้เล่น 2", "ผู้เล่น 3", "ผู้เล่น 4"
+  ]);
+  result.lines.forEach(line => expect(line).toMatch(/^ผู้เล่น [1-4]/));
+  expect(result.fontSize).toBeLessThanOrEqual(11);
 });
 
 test("resolves a targeted Attack card through the browser UI", async ({ page }) => {
