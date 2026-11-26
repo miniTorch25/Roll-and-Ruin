@@ -520,7 +520,7 @@ describe("player-targeted Curse effects", () => {
   it("shares direct HP loss from Despair with every living player while Hecate is active", () => {
     const summoned = summonMyth(cardPlayState(), "M01", "hecate-direct-link",
       { drawPile: [], discardPile: [] }, () => 0.99);
-    const withCard = withPlayer(summoned.state, "p1", {
+    const withCard = withPlayer(summoned.state as CardEffectGameState, "p1", {
       hand: [...summoned.state.players.find(player => player.id === "p1")!.hand, "red_despair"]
     });
     const result = resolveCardEffect(withCard, "red_despair", {
