@@ -17,6 +17,7 @@ import { summonRandomMonsterFromCatalogue } from "../monsters/engine";
 import { CARD_CATALOGUE } from "../cards/catalogue";
 import { selectKingoOfferingModal } from "../ui/kingoOfferingModal";
 import { chooseOptionDialog, confirmActionDialog, selectCardsDialog, textInputDialog } from "../ui/gameDialogs";
+import { formatPlayerStatuses } from "../ui/statusEffects";
 
 const PATH_LENGTH = 32;
 const PLAYER_SETUP = [
@@ -636,6 +637,7 @@ export class BoardScene extends Phaser.Scene {
     const players = document.querySelector<HTMLElement>("#player-list");
     const monsterPanel = document.querySelector<HTMLElement>("#monster-panel");
     const phase = document.querySelector<HTMLElement>("#phase-label");
+    const statusEffects = document.querySelector<HTMLElement>("#status-effects");
     const tileCounts = document.querySelector<HTMLElement>("#tile-counts");
     if (tileCounts && this.board) {
       const counts = this.board.specialTileCounts;
@@ -650,13 +652,21 @@ export class BoardScene extends Phaser.Scene {
     if (hp) hp.textContent = `${active.hp} / ${active.maxHp}`;
     if (dice && message.includes("เต๋า")) dice.textContent = message.match(/ได้ (.*)$/)?.[1] ?? "—";
     if (phase) phase.textContent = this.state.phase === "choose_action" ? "เลือกกิจกรรม" : this.state.phase;
+    const activeStatuses = formatPlayerStatuses(active.statusEffects, active.prisonTurnsRemaining);
+    if (statusEffects) {
+      statusEffects.innerHTML = activeStatuses.length
+        ? activeStatuses.map(status => `<span class="status-effect-chip">${status}</span>`).join("")
+        : '<span class="empty-note">ไม่มีสถานะพิเศษ</span>';
+    }
     if (players) {
-      players.innerHTML = this.state.players.map((player, index) =>
-        `<div class="player-row ${index === this.state.activePlayerIndex ? "active" : ""}">
+      players.innerHTML = this.state.players.map((player, index) => {
+        const statuses = formatPlayerStatuses(player.statusEffects, player.prisonTurnsRemaining);
+        return `<div class="player-row ${index === this.state.activePlayerIndex ? "active" : ""}">
           <span><i style="background:#${COLORS[index].toString(16)}"></i> ผู้เล่น ${index + 1}</span>
           <strong>♥ ${player.hearts} · HP ${player.hp} · ช่อง ${player.position + 1}</strong>
-        </div>`
-      ).join("");
+          ${statuses.length ? `<small class="player-status">${statuses.join(" · ")}</small>` : ""}
+        </div>`;
+      }).join("");
     }
     if (monsterPanel) {
       const activeMonsters = this.state.monsters.filter(monster => monster.active);
