@@ -76,6 +76,8 @@ describe("Myth Monsters M01-M10", () => {
     ]);
     expect(result.removed).toBe(true);
     expect(result.state.monsters.find(monster => monster.id === "ragnar")?.active).toBe(false);
+    expect(result.state.players.find(player => player.id === "p1")?.hand.filter(id => id === "blue_common_sword")).toHaveLength(4);
+    expect(result.state.players.find(player => player.id === "bot-1")?.hand.filter(id => id === "blue_common_sword")).toHaveLength(4);
   });
 
 

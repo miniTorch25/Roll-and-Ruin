@@ -65,6 +65,17 @@ function randomIndex(length: number, random: () => number): number {
   return Math.min(length - 1, Math.max(0, Math.floor(random() * length)));
 }
 
+/** Card IDs identify card types; consume only the selected number of copies. */
+function removeSelectedCards(hand: readonly string[], selectedCardIds: readonly string[]): string[] {
+  const remaining = [...hand];
+  for (const cardId of selectedCardIds) {
+    const index = remaining.indexOf(cardId);
+    if (index < 0) throw new Error("Every offered card copy must belong to its contributor.");
+    remaining.splice(index, 1);
+  }
+  return remaining;
+}
+
 function activeRuntime(state: MythGameState): MythRuntime {
   if (!state.mythRuntime) throw new Error("There is no active Myth Monster.");
   const monster = state.monsters.find(item => item.id === state.mythRuntime?.monsterId && item.active);
@@ -314,9 +325,12 @@ export function offerMythCards(input: GameState, contributions: Array<{ playerId
   const runtime = activeRuntime(state);
   if (runtime.catalogueId !== "M06" && runtime.catalogueId !== "M08") throw new Error("This Myth Monster does not accept group offerings.");
   const offered = contributions.flatMap(item => item.cardIds);
+  const contributorIds = new Set<string>();
   for (const item of contributions) {
     const player = state.players.find(candidate => candidate.id === item.playerId && candidate.status === "alive");
     if (!player) throw new Error("Every contributor must be a living player.");
+    if (contributorIds.has(item.playerId)) throw new Error("Each player must submit one combined contribution.");
+    contributorIds.add(item.playerId);
     const requested = new Map<string, number>();
     for (const id of item.cardIds) requested.set(id, (requested.get(id) ?? 0) + 1);
     for (const [id, count] of requested) {
@@ -344,7 +358,7 @@ export function offerMythCards(input: GameState, contributions: Array<{ playerId
     ...state,
     players: state.players.map(player => {
       const item = contributions.find(entry => entry.playerId === player.id);
-      return item ? { ...player, hand: player.hand.filter(id => !item.cardIds.includes(id)) } : player;
+      return item ? { ...player, hand: removeSelectedCards(player.hand, item.cardIds) } : player;
     }),
     monsters: state.monsters.map(monster => monster.id === runtime.monsterId && complete ? { ...monster, active: false } : monster),
     mythRuntime: { ...runtime, offerings, linkedHp: complete ? false : runtime.linkedHp, hiddenHands: complete ? false : runtime.hiddenHands }

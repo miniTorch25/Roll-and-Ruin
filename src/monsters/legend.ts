@@ -29,6 +29,17 @@ function card(cardId: string): CardDefinition | undefined {
   return CARD_CATALOGUE.find((definition) => definition.id === cardId);
 }
 
+/** Card IDs identify card types, so a hand may contain several copies of one ID. */
+function removeSelectedCards(hand: readonly string[], selectedCardIds: readonly string[]): string[] {
+  const remaining = [...hand];
+  for (const cardId of selectedCardIds) {
+    const index = remaining.indexOf(cardId);
+    if (index < 0) throw new Error("Every contributed card must be in its owner's hand.");
+    remaining.splice(index, 1);
+  }
+  return remaining;
+}
+
 function takeRandomMatching(
   drawPile: string[],
   predicate: (definition: CardDefinition) => boolean,
@@ -66,15 +77,19 @@ export function resolveLegendOffering(
   }
   if (!contributions.length) throw new Error("At least one player must contribute cards.");
   const players = new Map(inputState.players.map((player) => [player.id, player]));
-  const seen = new Set<string>();
+  const contributorIds = new Set<string>();
   const total = contributions.reduce((sum, contribution) => sum + contribution.cardIds.length, 0);
   for (const contribution of contributions) {
     const player = players.get(contribution.playerId);
     if (!player || player.status !== "alive") throw new Error("Every contributor must be a living player.");
-    if (new Set(contribution.cardIds).size !== contribution.cardIds.length) throw new Error("A player cannot contribute the same card twice.");
-    for (const cardId of contribution.cardIds) {
-      if (seen.has(cardId) || !player.hand.includes(cardId)) throw new Error("Every contributed card must be a unique card in its owner's hand.");
-      seen.add(cardId);
+    if (contributorIds.has(contribution.playerId)) throw new Error("Each player must submit one combined contribution.");
+    contributorIds.add(contribution.playerId);
+    const requestedCounts = new Map<string, number>();
+    for (const cardId of contribution.cardIds) requestedCounts.set(cardId, (requestedCounts.get(cardId) ?? 0) + 1);
+    for (const [cardId, count] of requestedCounts) {
+      if (player.hand.filter(id => id === cardId).length < count) {
+        throw new Error("Every contributed card copy must be in its owner's hand.");
+      }
     }
   }
   if (monster.catalogueId !== "L10" && contributions.length !== 1) {
@@ -196,7 +211,7 @@ export function resolveLegendOffering(
       return {
         ...player,
         hand: [
-          ...player.hand.filter(cardId => !contribution.cardIds.includes(cardId)),
+          ...removeSelectedCards(player.hand, contribution.cardIds),
           ...(player.id === first.playerId && monster.catalogueId !== "L10" ? awardedCardIds : []),
           ...(player.id === selectedPlayerId ? awardedCardIds : [])
         ]
