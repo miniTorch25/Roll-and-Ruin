@@ -52,7 +52,7 @@ src/
 - [x] Card Catalogue 60 ใบ, กองจั่ว/กองทิ้ง และระบบใช้ไพ่พื้นฐาน
 - [x] Card Effect Resolver ครบ 56/56 Effect IDs พร้อม Board-aware Magic Shortcut ที่เดินไปช่องพิเศษโดยไม่ทอยเต๋า
 - [x] Monster Catalogue 50 ตัว, ขีดจำกัดการอัญเชิญ, การโจมตีพื้นฐาน, รางวัล และความสามารถเฉพาะหลายตัว
-- [ ] ตรวจสอบและเชื่อม Monster Rules ที่เหลือให้ครบทั้ง 50 ตัว
+- [x] ตรวจสอบและเชื่อม Monster Rules ครบทั้ง 50 ตัว พร้อม Regression Tests สำหรับความสามารถเฉพาะและรางวัล
 - [ ] ทดสอบ Card Effect และ Monster interaction แบบ end-to-end ใน Browser
 - [x] ระบบรวมคะแนนทีมและตัดสินผู้ชนะจากคะแนนพร้อมกติกาเสมอด้วยจำนวนผู้เล่นที่รอด
 - [ ] ระบบจับเวลา Time Limit / Speedrun และหน้าสรุปผลการแข่งขัน
