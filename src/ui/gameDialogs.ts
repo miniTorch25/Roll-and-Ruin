@@ -17,32 +17,6 @@ function escapeHtml(value: string): string {
   })[character] ?? character);
 }
 
-function createDialog(title: string, description: string, content: string): {
-  dialog: HTMLDialogElement;
-  finish: (value: string | string[] | boolean | undefined) => void;
-} {
-  const dialog = document.createElement("dialog");
-  dialog.className = "game-choice-dialog";
-  dialog.innerHTML = `
-    <form method="dialog" class="game-choice-dialog__content">
-      <p class="eyebrow">GAME ACTION</p>
-      <h2>${escapeHtml(title)}</h2>
-      <p class="game-choice-dialog__description">${escapeHtml(description)}</p>
-      ${content}
-    </form>`;
-  document.body.append(dialog);
-  let settled = false;
-  const finish = (value: string | string[] | boolean | undefined) => {
-    if (settled) return;
-    settled = true;
-    dialog.close();
-    dialog.remove();
-    resolve(value);
-  };
-  let resolve!: (value: string | string[] | boolean | undefined) => void;
-  return { dialog, finish };
-}
-
 /** Select one option in an in-game modal. */
 export function chooseOptionDialog(
   title: string,
@@ -96,7 +70,6 @@ export function selectCardsDialog(
   requiredCount?: number
 ): Promise<string[] | undefined> {
   if (!cards.length) return Promise.resolve(undefined);
-  const uniqueIds = [...new Set(cards.map(card => card.id))];
   return new Promise(resolve => {
     const dialog = document.createElement("dialog");
     dialog.className = "game-choice-dialog";
