@@ -17,6 +17,7 @@ The Phaser BoardScene now uses the approved card catalogue, turn engine, monster
 - Active monsters and their combat data are shown in the side panel.
 - Myth actions include Hecate's three-card offering, Granfel's yellow-card exchange, Ragnar/Ouro offerings, and Lucy's bargain.
 - Legend monsters expose their offering action and validate offerings through the Legend engine.
+- Kingo (L10) uses a dedicated in-game contribution dialog: all living local players can select cards, and the dialog enables confirmation only when exactly five unique cards are selected.
 - Nyxia hides card identities and exposes only a random-card action.
 - Myth summon cards choose M01–M10 and run the Myth summon effect before resolving any first-summon attack.
 - Webby's Attack-card defeat flag is passed into `resolveMonsterDefeatRewards`; its normal reward is suppressed while the shared deck remains unchanged.
@@ -26,7 +27,7 @@ The Phaser BoardScene now uses the approved card catalogue, turn engine, monster
 |---|---|---|
 | Catalogue card effects | Implemented | Connected; target prompts used where needed |
 | Myth M01–M10 | Implemented | Basic status and offering controls connected |
-| Legend offerings | Implemented | Single-player offering flow connected |
+| Legend offerings | Implemented | Single-player offerings plus cooperative Kingo contribution dialog |
 | Monster scheduled attacks | Implemented | Resolved during turn preparation |
 | Summon capacity warnings | Implemented | Displayed |
 | Webby reward suppression | Implemented and covered by effect-resolver test | Consumed by shared reward resolver |
@@ -34,6 +35,6 @@ The Phaser BoardScene now uses the approved card catalogue, turn engine, monster
 ## Remaining prototype limitations
 - The four local players are placeholders in one browser session, not network-connected players.
 - Target selection uses browser prompts rather than custom in-game modal windows.
-- Kingo's five-card payment is currently offered by one player in the UI; the engine supports multi-player contributions.
+- The Kingo dialog is a local shared-screen contribution flow; it does not provide private simultaneous input or network multiplayer.
 - Myth and Legend interaction controls are functional but still need visual polish and richer feedback.
 - Special-tile UI and authoritative multiplayer sessions remain separate work.
