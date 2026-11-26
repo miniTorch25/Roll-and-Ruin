@@ -361,7 +361,7 @@ export class BoardScene extends Phaser.Scene {
       if (resolved.monsterSummonEvents.length > 0) {
         this.state = resolveMonsterAttackEvents(this.state, resolved.monsterSummonEvents).state;
       }
-      this.deck = { ...this.deck, discardPile: [...this.deck.discardPile, cardId] };
+      this.deck = { ...this.deck, discardPile: [...this.deck.discardPile, ...resolved.discardedCardIds, cardId] };
       if (cardId === "green_lucky_clover" && this.state.monsters.some(monster => monster.active && monster.catalogueId === "M05")) {
         this.state = notifyLuckCardUsed(this.state).state;
       }
