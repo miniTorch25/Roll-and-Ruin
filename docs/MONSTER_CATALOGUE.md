@@ -19,4 +19,4 @@ The catalogue is connected to the game logic for all 50 monsters. The data remai
 - Legend entries: offering/exchange conditions, reflection, revival, and leave conditions.
 - Myth entries: summon-time effects, timed rules, group offerings, player bargains, Instant Kill removal, and reward handling.
 
-Regression tests for these integrations are maintained in `src/game/turnEngine.test.ts`, `src/monsters/* .test.ts`, and `src/cards/effectResolver.test.ts`. Browser end-to-end playtesting is tracked separately in the project roadmap.
+Regression tests for these integrations are maintained in `src/game/turnEngine.test.ts`, `src/monsters/*.test.ts`, and `src/cards/effectResolver.test.ts`. Browser end-to-end playtesting is tracked separately in the project roadmap.
