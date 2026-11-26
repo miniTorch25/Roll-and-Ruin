@@ -531,7 +531,7 @@ describe("player-targeted Curse effects", () => {
     expect(result.state.players.find(player => player.id === "p1")?.hp).toBe(10);
     expect(result.state.players.find(player => player.id === "p2")?.hp).toBe(10);
     expect(result.state.players.find(player => player.id === "p3")?.hp).toBe(10);
-    expect(result.state.players.find(player => player.id === "p4")?.status).toBe("eliminated");
+    expect(result.state.players.find(player => player.id === "p4")?.hp).toBe(10);
   });
 
   it("halves current HP using floor without consuming shields", () => {

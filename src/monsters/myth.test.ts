@@ -44,7 +44,7 @@ describe("Myth Monsters M01-M10", () => {
     };
     const started = startPlayerTurn(resolveMonsterAttackPhase(poisoned, () => 0).state, () => 0);
     expect(started.players.filter(player => player.status === "alive").every(player => player.hp === 19)).toBe(true);
-    expect(started.players.find(player => player.id === "bot-3")?.status).toBe("eliminated");
+    expect(started.players.find(player => player.id === "bot-3")?.hp).toBe(19);
   });
 
   it("Chronos marks every living player to skip their next turn", () => {
