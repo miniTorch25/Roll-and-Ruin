@@ -18,7 +18,7 @@ export function chooseBotCursePayment(
   excludedCardId?: string
 ): BotCursePayment | undefined {
   const player = state.players.find(candidate => candidate.id === playerId);
-  const runtime = state.cardRuntime?.players[playerId];
+  const runtime = state.cardRuntime?.players[playerId] as unknown as { curseCooldownUses?: number; curseCooldownTurnsRemaining?: number } | undefined;
   if (!player) return undefined;
   const availableCards = player.hand.filter(cardId => cardId !== excludedCardId);
   if (player.hp > 10) return { type: "hp", amount: 5 };
@@ -75,11 +75,6 @@ export function chooseBotCardTargets(state: GameState, cardId: string): BotCardT
   const card = CARD_CATALOGUE.find(candidate => candidate.id === cardId);
   const active = state.players[state.activePlayerIndex];
   if (!card || !active) return {};
-
-  if (card.effectId === "steal_eliminated_player_cards") {
-    const target = state.players.find(player => player.status === "eliminated" && player.hand.length > 0);
-    return target ? { targetPlayerId: target.id } : {};
-  }
 
   if (card.effectId === "steal_eliminated_player_cards") {
     const target = state.players.find(player => player.status === "eliminated" && player.hand.length > 0);
