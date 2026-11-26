@@ -1,7 +1,7 @@
 import Phaser from "phaser";
 import {
   createGameState, endPlayerTurn, finishCardActivity, finishSpecialTileCheck, finishStatusCheck,
-  moveActivePlayer, resolveMonsterAttackPhase,
+  imprisonPlayer, moveActivePlayer, resolveMonsterAttackPhase,
   selectPlayerAction, startPlayerTurn, type GameState, type PlayerAction
 } from "../game/turnEngine";
 import { resolveCardEffect, resolveMonsterAttackEvents } from "../cards/effectResolver";
@@ -12,6 +12,8 @@ import {
 } from "../monsters/myth";
 import { resolveLegendOffering } from "../monsters/legend";
 import { createCardDeck, drawCards } from "../cards/deck";
+import { createBoardState, moveAndRegenerateBoard, type BoardState, type SpecialTileCounts, type SpecialTileType } from "../game/board";
+import { summonRandomMonsterFromCatalogue } from "../monsters/engine";
 import { CARD_CATALOGUE } from "../cards/catalogue";
 import { selectKingoOfferingModal } from "../ui/kingoOfferingModal";
 import { chooseOptionDialog, confirmActionDialog, selectCardsDialog, textInputDialog } from "../ui/gameDialogs";
@@ -27,6 +29,10 @@ const COLORS = [0xe0a85b, 0x75b8d1, 0x9bc47b, 0xc18bd1];
 
 export class BoardScene extends Phaser.Scene {
   private state!: GameState;
+  private board!: BoardState;
+  private boardLayer?: Phaser.GameObjects.Container;
+  private ruinsLayer?: Phaser.GameObjects.Graphics;
+  private monsterInstanceCounter = 0;
   private tileCenters: { x: number; y: number }[] = [];
   private tokens: Phaser.GameObjects.Container[] = [];
   private deck = createCardDeck(CARD_CATALOGUE.map((card) => card.id));
@@ -36,14 +42,36 @@ export class BoardScene extends Phaser.Scene {
   constructor() { super("BoardScene"); }
 
   create(): void {
+    this.drawBackdrop();
+    void this.initializeGame();
+  }
+
+  private async initializeGame(): Promise<void> {
+    const chooseCount = async (label: string): Promise<number> => {
+      const selected = await chooseOptionDialog(
+        "กำหนดจำนวนช่อง " + label,
+        "กติกากำหนดจำนวนสูงสุด 4 ช่อง แต่ยังไม่กำหนดจำนวนตายตัว คุณสามารถเลือก 0–4 ได้",
+        Array.from({ length: 5 }, (_, count) => ({
+          value: String(count),
+          label: count + " ช่อง",
+          description: count === 0 ? "ไม่วางช่องชนิดนี้" : "สุ่มวาง " + count + " ช่องบนกระดาน"
+        }))
+      );
+      return Number(selected ?? "0");
+    };
+    const specialTileCounts: SpecialTileCounts = {
+      mystery: await chooseCount("Mystery"),
+      monster: await chooseCount("Monster"),
+      dice: await chooseCount("Dice")
+    };
     const startingSetup = PLAYER_SETUP.map((player) => {
       const drawn = drawCards([], this.deck, 4);
       this.deck = drawn.deck;
       return { ...player, startingHand: drawn.hand };
     });
     this.state = createGameState("1x4", startingSetup, PATH_LENGTH);
+    this.board = createBoardState(specialTileCounts, this.state.players.map(player => player.position));
     this.state = this.prepareNextTurn(this.state);
-    this.drawBackdrop();
     this.drawBoard();
     this.createPlayers();
     this.createLabels();
