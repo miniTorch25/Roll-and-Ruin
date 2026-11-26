@@ -43,3 +43,27 @@ ul{margin:0;padding-left:18px;color:#b8c4d5;font-size:11px;line-height:1.9}foote
 .monster-row .monster-action{margin-top:8px;padding:7px 10px;background:#43546b;color:#edf3fb;font-size:10px}
 .empty-note{margin:0;color:#8594aa;font-size:11px}
 @media(max-width:540px){.hand-card-list{grid-template-columns:1fr}}
+
+
+/* Cooperative Kingo offering dialog */
+.kingo-dialog{width:min(720px,calc(100vw - 28px));max-height:min(82vh,760px);padding:0;border:1px solid #53647b;border-radius:14px;background:#1b2330;color:#e9edf5;box-shadow:0 24px 80px #0009}
+.kingo-dialog::backdrop{background:#080c13c9;backdrop-filter:blur(3px)}
+.kingo-dialog__content{display:grid;gap:12px;padding:20px}
+.kingo-dialog__content h2{margin:0;font-size:21px}
+.kingo-dialog__hint{margin:0;color:#bac6d7;font-size:12px;line-height:1.6}
+.kingo-dialog__count{position:sticky;top:0;padding:9px 12px;border:1px solid #52627a;border-radius:8px;background:#29384b;color:#f2c77f;font-weight:700;font-size:13px}
+.kingo-dialog__players{display:grid;gap:12px;overflow:auto;max-height:42vh;padding-right:3px}
+.kingo-dialog__player{padding:11px;border:1px solid #344154;border-radius:9px;background:#202b3a}
+.kingo-dialog__player h3{display:flex;justify-content:space-between;margin:0 0 9px;font-size:13px}
+.kingo-dialog__player h3 span{color:#9eacc0;font-size:11px;font-weight:400}
+.kingo-dialog__cards{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px}
+.kingo-dialog__card{display:flex;align-items:center;gap:8px;min-width:0;padding:8px;border:1px solid #42536a;border-radius:7px;background:#2b394c;cursor:pointer}
+.kingo-dialog__card:has(input:checked){border-color:#e3ad62;background:#3a3c3a}
+.kingo-dialog__card input{accent-color:#dfa75b;flex:0 0 auto}
+.kingo-dialog__card span{display:grid;min-width:0;gap:2px}
+.kingo-dialog__card strong{font-size:11px;overflow-wrap:anywhere}
+.kingo-dialog__card small{color:#aebbd0;font-size:9px;overflow-wrap:anywhere}
+.kingo-dialog__card:has(input:disabled){opacity:.35;cursor:not-allowed}
+.kingo-dialog__error{min-height:16px;margin:0;color:#f09b9b;font-size:11px}
+.kingo-dialog__actions{display:flex;justify-content:flex-end;gap:8px}
+@media(max-width:520px){.kingo-dialog__content{padding:14px}.kingo-dialog__cards{grid-template-columns:1fr}.kingo-dialog__players{max-height:38vh}}
