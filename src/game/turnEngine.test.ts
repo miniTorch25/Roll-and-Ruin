@@ -126,6 +126,20 @@ describe("Roll and Ruin turn engine", () => {
     expect(finished.state.players[0].hand).toEqual(["d"]);
   });
 
+  it("uses a supplied movement distance without rolling dice for Magic Shortcut", () => {
+    const state = selectPlayerAction(readyState(), "use_cards").state;
+    const finished = finishCardActivity(state, () => { throw new Error("dice must not be rolled"); }, 7);
+    expect(finished.diceRolls).toEqual([]);
+    expect(finished.state.movementSteps).toBe(7);
+    expect(finished.state.phase).toBe("move");
+  });
+
+  it("rejects invalid movement overrides", () => {
+    const state = selectPlayerAction(readyState(), "use_cards").state;
+    expect(() => finishCardActivity(state, Math.random, 0)).toThrow(/positive distance/);
+    expect(() => finishCardActivity(state, Math.random, 32)).toThrow(/positive distance/);
+  });
+
   it("rejects playing a card that is not in the active player's hand", () => {
     const state = selectPlayerAction(readyState(), "use_cards").state;
     expect(() => playCardFromHand(state, "missing")).toThrow();
