@@ -129,9 +129,9 @@ describe("chooseBotCards", () => {
 
   it("selects cards for manual discard and trade effects", () => {
     const state = stateWithHand(["yellow_card_trade", "yellow_forced_discard", "green_herbal_potion"]);
-    const targetState = { ...state, players: state.players.map((player, index) => index === 1
-      ? { ...player, hand: ["blue_common_sword", "red_instant_kill"] }
-      : player) };
+    const targetState = { ...state, players: state.players.map((player, index) => index === 0
+      ? { ...player, hand: ["green_herbal_potion", "blue_common_sword"] }
+      : index === 1 ? { ...player, hand: ["blue_common_sword", "red_instant_kill"] } : player) };
     expect(chooseBotSelectedCardId(targetState, "force_discard_selected_card", "p2")).toBe("red_instant_kill");
     expect(chooseBotSelectedCardId(targetState, "trade_for_random_card", "p2")).toBe("blue_common_sword");
   });
