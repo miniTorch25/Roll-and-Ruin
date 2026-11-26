@@ -266,13 +266,17 @@ export function chooseBotCardTargets(state: GameState, cardId: string): BotCardT
 export function chooseBotCards(state: GameState, random: () => number = Math.random): string[] {
   const player = state.players[state.activePlayerIndex];
   if (!player || player.status !== "alive") return [];
+  if (player.statusEffects.some(effect => effect.type === "cards_silenced" && effect.turnsRemaining > 0)) return [];
+  const cardLimit = player.statusEffects
+    .filter(effect => effect.type === "cards_limit" && effect.turnsRemaining > 0)
+    .reduce((limit, effect) => Math.min(limit, effect.amount ?? 2), 3);
+  if (player.cardsPlayedThisTurn >= Math.min(3, cardLimit)) return [];
   const mythRuntime = (state as GameState & { mythRuntime?: { catalogueId: string; hiddenHands: boolean } }).mythRuntime;
   if (mythRuntime?.catalogueId === "M05" && mythRuntime.hiddenHands && player.hand.length > 0) {
     const roll = random();
     const index = Math.min(player.hand.length - 1, Math.max(0, Math.floor(roll * player.hand.length)));
     return [player.hand[index]];
   }
-  if (player.statusEffects.some(effect => effect.type === "cards_silenced" && effect.turnsRemaining > 0)) return [];
 
   const runtime = state.cardRuntime?.players[player.id];
   const cardLimit = player.statusEffects
