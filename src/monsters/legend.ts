@@ -176,7 +176,8 @@ export function resolveLegendOffering(
       const candidates = contributions.filter(contribution => contribution.cardIds.length === highest);
       selectedPlayerId = candidates[Math.min(candidates.length - 1, Math.max(0, Math.floor(random() * candidates.length)))].playerId;
       const recipient = players.get(selectedPlayerId);
-      const recipientHand = recipient?.hand ?? [];
+      const recipientContribution = contributions.find(contribution => contribution.playerId === selectedPlayerId);
+      const recipientHand = recipient?.hand.filter(cardId => !recipientContribution?.cardIds.includes(cardId)) ?? [];
       const curse = takeRandomMatching(deck.drawPile,
         definition => definition.kind === "curse" && (definition.effectId !== "instant_kill" || canReceiveInstantKill(recipientHand)), 1, random);
       awardedCardIds.push(...curse);
