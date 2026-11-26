@@ -115,7 +115,7 @@ test("summons a monster and damages it through the browser UI", async ({ page })
   await expect(monsterRow).toContainText(`HP: ${hpBefore - 5}`);
 });
 
-test("ends a timed match and displays the score-based results", async ({ page }) => {
+test("plays a turn and completes a timed match through the results screen", async ({ page }) => {
   await page.goto("/");
   await chooseStartupOption(page, "1");
   await chooseStartupOption(page, "0");
@@ -124,6 +124,9 @@ test("ends a timed match and displays the score-based results", async ({ page })
   await chooseStartupOption(page, "300");
 
   await expect(page.locator("#match-timer")).toHaveText("05:00");
+  await expect(page.locator("#roll-button")).toBeEnabled();
+  await page.locator("#roll-button").click();
+  await expect(page.locator("#game-message")).toContainText("ทอยเต๋า 2 ลูกได้");
   const startedAt = await page.evaluate(() => Date.now());
   await page.evaluate((now) => {
     Date.now = () => now + 301_000;
