@@ -226,3 +226,59 @@ test("keeps the game layout balanced on tablet and desktop viewports", async ({ 
     expect(geometry.gameLeft).toBeGreaterThanOrEqual(0);
   }
 });
+
+
+test("announces game feedback and labels the main action controls", async ({ page }) => {
+  await page.goto("/");
+  await chooseStartupOption(page, "1");
+  await chooseStartupOption(page, "0");
+  await chooseStartupOption(page, "0");
+  await chooseStartupOption(page, "0");
+  await chooseStartupOption(page, "0");
+
+  await expect(page.getByRole("group", { name: "การกระทำของผู้เล่น" })).toBeVisible();
+  await expect(page.getByRole("status")).toContainText("เริ่มเกม");
+  await expect(page.getByRole("complementary", { name: "ข้อมูลการแข่งขัน" })).toBeVisible();
+  await expect(page.locator("#player-list")).toHaveAttribute("role", "list");
+  await expect(page.locator("#monster-panel")).toHaveAttribute("role", "list");
+});
+
+test("keeps setup choices reachable in a short landscape viewport", async ({ page }) => {
+  await page.setViewportSize({ width: 844, height: 390 });
+  await page.goto("/");
+  const dialog = page.locator("dialog.game-choice-dialog");
+  await expect(dialog).toBeVisible();
+
+  const bounds = await dialog.evaluate(element => {
+    const rect = element.getBoundingClientRect();
+    const firstOption = element.querySelector<HTMLElement>("[data-value]")!;
+    return {
+      top: rect.top,
+      bottom: rect.bottom,
+      viewportHeight: window.innerHeight,
+      optionHeight: firstOption.getBoundingClientRect().height,
+      scrollable: element.scrollHeight >= element.clientHeight
+    };
+  });
+  expect(bounds.top).toBeGreaterThanOrEqual(0);
+  expect(bounds.bottom).toBeLessThanOrEqual(bounds.viewportHeight);
+  expect(bounds.optionHeight).toBeGreaterThanOrEqual(44);
+});
+
+test("prevents horizontal overflow at the minimum supported phone width", async ({ page }) => {
+  await page.setViewportSize({ width: 320, height: 640 });
+  await page.goto("/");
+  await chooseStartupOption(page, "1");
+  await chooseStartupOption(page, "0");
+  await chooseStartupOption(page, "0");
+  await chooseStartupOption(page, "0");
+  await chooseStartupOption(page, "0");
+
+  const dimensions = await page.evaluate(() => ({
+    viewport: document.documentElement.clientWidth,
+    document: document.documentElement.scrollWidth,
+    canvas: document.querySelector("#game-container canvas")!.getBoundingClientRect().right
+  }));
+  expect(dimensions.document).toBeLessThanOrEqual(dimensions.viewport);
+  expect(dimensions.canvas).toBeLessThanOrEqual(dimensions.viewport);
+});

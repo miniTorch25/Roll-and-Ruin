@@ -57,7 +57,7 @@ src/
 - [x] ระบบรวมคะแนนทีมและตัดสินผู้ชนะจากคะแนนพร้อมกติกาเสมอด้วยจำนวนผู้เล่นที่รอด
 - [x] ระบบจับเวลา Time Limit / Speedrun และหน้าสรุปผลการแข่งขัน พร้อมตัดสินผู้ชนะจากคะแนนและจำนวนผู้เล่นที่รอด
 - [x] Browser Playtest ตั้งแต่เริ่มเกมจนจบเกม (Playwright ครอบคลุม Setup, Turn Action, Timer Expiry และ Results)
-- [ ] UI/UX สำหรับมือถือและเดสก์ท็อปให้สมบูรณ์
+- [x] UI/UX สำหรับมือถือและเดสก์ท็อป: Responsive layouts, touch targets, keyboard navigation, dialog accessibility, screen-reader status, compact landscape และ reduced-motion support
 - [ ] ห้อง Multiplayer และการเชื่อมต่อผู้เล่นจริง
 - [ ] Backend ที่ตรวจสอบกติกาฝั่ง Server
 - [ ] Deploy เว็บไซต์
