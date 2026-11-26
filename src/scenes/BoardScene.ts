@@ -102,7 +102,8 @@ export class BoardScene extends Phaser.Scene {
 
   private drawBoard(): void {
     this.boardLayer?.destroy(true);
-    this.boardLayer = this.add.container(0, 0).setDepth(1);
+    const boardLayer = this.add.container(0, 0).setDepth(1);
+    this.boardLayer = boardLayer;
     this.tileCenters = this.createPath();
     const tileStyle: Record<SpecialTileType, { color: number; label: string; text: string }> = {
       prison: { color: 0x8d4f59, label: "P", text: "#ffe0e2" },
@@ -118,7 +119,7 @@ export class BoardScene extends Phaser.Scene {
       const polygon = this.add.polygon(point.x, point.y, [0,-14,28,0,0,14,-28,0], color)
         .setStrokeStyle(special ? 3 : 2, special ? 0xf0d4a5 : 0x9ba9bd, 0.9)
         .setDepth(point.y);
-      this.boardLayer.add(polygon);
+      boardLayer.add(polygon);
       if (special || index % 4 === 0) {
         const label = special ? tileStyle[special].label : String(index + 1);
         const textColor = special ? tileStyle[special].text : "#dce5f2";
@@ -128,7 +129,7 @@ export class BoardScene extends Phaser.Scene {
           fontStyle: "bold",
           color: textColor
         }).setOrigin(0.5).setDepth(point.y + 1);
-        this.boardLayer.add(text);
+        boardLayer.add(text);
       }
     });
     if (!this.ruinsLayer) {
