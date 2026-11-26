@@ -33,7 +33,7 @@ describe("catalogue monster runtime", () => {
   });
 
   it("summons uniformly from the full 50-monster catalogue for a Monster tile", () => {
-    const first = summonRandomMonsterFromCatalogue(gameState(), "tile-monster-1", () => 0);
+    const first = summonRandomMonsterFromCatalogue(gameState(), "tile-monster-1", { drawPile: [], discardPile: [] }, () => 0);
     expect(first.monster).toMatchObject({
       id: "tile-monster-1",
       catalogueId: "C01",
@@ -47,9 +47,10 @@ describe("catalogue monster runtime", () => {
       reason: "first_summon"
     });
 
-    const last = summonRandomMonsterFromCatalogue(gameState(), "tile-monster-2", () => 0.999999);
+    const last = summonRandomMonsterFromCatalogue(gameState(), "tile-monster-2", { drawPile: [], discardPile: [] }, () => 0.999999);
     expect(last.monster.catalogueId).toBe("M10");
     expect(last.monster.rank).toBe("Myth");
+    expect((last.state as GameState & { mythRuntime?: { catalogueId: string } }).mythRuntime?.catalogueId).toBe("M10");
   });
 
   it("keeps monsters with no scheduled interval out of later scheduled attacks", () => {
