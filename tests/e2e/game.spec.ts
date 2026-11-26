@@ -53,7 +53,7 @@ test("shows each active player turn on its own compact line on mobile", async ({
   await expect(page.locator("#game-message")).toContainText("ทอยเต๋า 2 ลูกได้");
   await expect(page.locator("#turn-label")).toContainText("เทิร์น");
   const result = await page.locator("#game-message").evaluate(element => ({
-    lines: (element.textContent ?? "").split("\\n").filter(line => line.trim()),
+    lines: (element.textContent ?? "").split(/\r?\n/).filter(line => line.trim()),
     fontSize: Number.parseFloat(getComputedStyle(element).fontSize)
   }));
   expect(result.lines).toHaveLength(4);
