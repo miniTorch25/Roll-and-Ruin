@@ -4,6 +4,7 @@ import { drawCards, type CardDeckState } from "./deck";
 import { resolveMonsterDefeatRewards, type MonsterRewardEvent } from "../monsters/rewards";
 import { damageMonster, summonRandomMonster, type MonsterDamageEvent } from "../monsters/engine";
 import type { MonsterRank } from "../monsters/catalogue";
+import { summonMyth, instantKillMyth, type MythId } from "../monsters/myth";
 
 export interface CardRuntimePlayerState {
   shields: number;
@@ -774,9 +775,23 @@ export function resolveCardEffect(
         break;
       }
       const instanceId = `monster-${state.turnNumber}-${state.monsters.length + 1}-${card.id}`;
-      const summoned = summonRandomMonster(state, summonRank, instanceId, random);
-      state = summoned.state as CardEffectGameState;
-      monsterSummonEvents.push(summoned.attack);
+      if (summonRank === "Myth") {
+        if (!updatedDeck) throw new Error("Myth summoning requires the current card deck state.");
+        const mythIds: MythId[] = ["M01", "M02", "M03", "M04", "M05", "M06", "M07", "M08", "M09", "M10"];
+        const mythId = mythIds[Math.min(mythIds.length - 1, Math.max(0, Math.floor(random() * mythIds.length)))];
+        const summoned = summonMyth(state, mythId, instanceId, updatedDeck, random);
+        state = summoned.state as CardEffectGameState;
+        updatedDeck = summoned.deck;
+        monsterSummonEvents.push({
+          monsterId: instanceId,
+          targetPlayerIds: state.players.filter(player => player.status === "alive").map(player => player.id),
+          reason: "first_summon"
+        });
+      } else {
+        const summoned = summonRandomMonster(state, summonRank, instanceId, random);
+        state = summoned.state as CardEffectGameState;
+        monsterSummonEvents.push(summoned.attack);
+      }
       break;
     }
     case "damage_single":
@@ -1088,6 +1103,12 @@ export function resolveCardEffect(
       break;
     }
     case "instant_kill": {
+      if (options.targetMonsterId) {
+        const targetMonster = state.monsters.find(monster => monster.id === options.targetMonsterId && monster.active);
+        if (targetMonster?.rank !== "Myth") throw new Error("Instant Kill can target only an active Myth Monster through targetMonsterId.");
+        state = instantKillMyth(state, targetMonster.id).state as CardEffectGameState;
+        break;
+      }
       const target = requireOpponentTarget(state, active.id, options.targetPlayerId);
       const shields = state.cardRuntime.players[target.id].shields;
       const hit = applyDamage(state, target.id, target.hp + shields, random, {
