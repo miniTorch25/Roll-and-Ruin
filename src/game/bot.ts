@@ -94,7 +94,7 @@ export function chooseBotLegendOffering(state: GameState, monsterId: string, dra
     })[0];
   return selectedDeckCardId ? { cardIds, selectedDeckCardId } : undefined;
 }
-export function chooseBotMythOffering(state: GameState, monsterId: string): string[] {
+export function chooseBotMythOffering(state: GameState, monsterId: string, drawPile: readonly string[] = []): string[] {
   const monster = state.monsters.find(candidate => candidate.id === monsterId && candidate.active);
   const player = state.players[state.activePlayerIndex];
   if (!monster || !player || player.status !== "alive") return [];
@@ -106,9 +106,23 @@ export function chooseBotMythOffering(state: GameState, monsterId: string): stri
     return cards.length === 3 ? cards : [];
   }
   if (runtime.catalogueId === "M02") {
-    const yellowCount = player.hand.filter(id => CARD_CATALOGUE.find(card => card.id === id)?.color === "yellow").length;
-    return selectOfferingCards(player.hand,
-      id => CARD_CATALOGUE.find(card => card.id === id)?.color === "yellow", yellowCount);
+    const yellowCards = selectOfferingCards(player.hand,
+      id => CARD_CATALOGUE.find(card => card.id === id)?.color === "yellow",
+      player.hand.filter(id => CARD_CATALOGUE.find(card => card.id === id)?.color === "yellow").length);
+    if (yellowCards.length === 0) return [];
+    const remainingHand = [...player.hand];
+    for (const cardId of yellowCards) {
+      const index = remainingHand.indexOf(cardId);
+      if (index >= 0) remainingHand.splice(index, 1);
+    }
+    const alreadyHasInstantKill = remainingHand.includes("red_instant_kill");
+    const availableCurses = drawPile.filter(id =>
+      CARD_CATALOGUE.find(card => card.id === id)?.kind === "curse" &&
+      (id !== "red_instant_kill" || !alreadyHasInstantKill)
+    ).length;
+    // Granfel consumes every yellow card at once; avoid a trade that cannot
+    // return at least one Curse for each card the bot gives up.
+    return availableCurses >= yellowCards.length ? yellowCards : [];
   }
   if (runtime.catalogueId === "M06") {
     const offered = Object.values(runtime.offerings).reduce((sum, cards) => sum + cards.length, 0);
@@ -143,12 +157,15 @@ export function chooseBotKingoOffering(
   );
   if (!monster) return undefined;
   const bots = state.players.filter(player => player.status === "alive" && player.isBot);
-  const selected = new Set<string>();
+  // Track card occurrences per player, not card IDs globally: multiple bots
+  // (or one bot) may legitimately hold duplicate copies of the same card.
+  const remainingHands = new Map(bots.map(player => [player.id, [...player.hand]]));
   const contributions = new Map<string, string[]>();
-  while (selected.size < 5) {
+  let selectedCount = 0;
+  while (selectedCount < 5) {
     const candidates = bots.map(player => {
-      const available = player.hand
-        .filter(id => !selected.has(id) && CARD_CATALOGUE.some(card => card.id === id))
+      const available = (remainingHands.get(player.id) ?? [])
+        .filter(id => CARD_CATALOGUE.some(card => card.id === id))
         .sort((a, b) => offeringCardValue(a) - offeringCardValue(b));
       return { player, available, count: contributions.get(player.id)?.length ?? 0 };
     }).filter(entry => entry.available.length > 0)
@@ -157,8 +174,11 @@ export function chooseBotKingoOffering(
     const next = candidates[0];
     if (!next) return undefined;
     const cardId = next.available[0];
-    selected.add(cardId);
+    const hand = remainingHands.get(next.player.id) ?? [];
+    hand.splice(hand.indexOf(cardId), 1);
+    remainingHands.set(next.player.id, hand);
     contributions.set(next.player.id, [...(contributions.get(next.player.id) ?? []), cardId]);
+    selectedCount++;
   }
   return [...contributions].map(([playerId, cardIds]) => ({ playerId, cardIds }));
 }
@@ -273,6 +293,53 @@ export function chooseBotCardTargets(state: GameState, cardId: string): BotCardT
   return target ? { targetPlayerId: target.id } : {};
 }
 
+function canPayCurseAfterPlaying(state: GameState, player: GamePlayer, cardId: string): boolean {
+  const remainingHand = [...player.hand];
+  const selectedIndex = remainingHand.indexOf(cardId);
+  if (selectedIndex >= 0) remainingHand.splice(selectedIndex, 1);
+  const runtime = state.cardRuntime?.players[player.id] as unknown as {
+    curseCooldownUses?: number;
+    curseCooldownTurnsRemaining?: number;
+  } | undefined;
+  if (player.hp > 10 || remainingHand.length >= 2) return true;
+  if ((player.hp < 5 || remainingHand.length < 2) &&
+      (runtime?.curseCooldownUses ?? 0) < 3 &&
+      (runtime?.curseCooldownTurnsRemaining ?? 0) === 0) return true;
+  return player.hp >= 5;
+}
+
+function isBotCardPlayableForNyxia(
+  state: GameState,
+  player: GamePlayer,
+  cardId: string,
+  board?: BoardState
+): boolean {
+  const card = CARD_CATALOGUE.find(candidate => candidate.id === cardId);
+  if (!card || card.kind === "joker") return false;
+  if (card.kind === "attack" &&
+      state.cardRuntime?.players[player.id]?.blockedAttackCardsThisTurn) return false;
+  if (card.kind === "curse" && !canPayCurseAfterPlaying(state, player, cardId)) return false;
+
+  const targets = chooseBotCardTargets(state, cardId);
+  const requiresPlayerTarget = (typeof card.parameters?.target === "string" &&
+    ["one_player", "another_player"].includes(String(card.parameters.target))) ||
+    ["damage_with_random_splash", "damage_with_self_hp_cost", "conditional_damage"].includes(card.effectId);
+  if (requiresPlayerTarget && !targets.targetPlayerId) return false;
+  if (card.effectId === "damage_monster_only" && !targets.targetMonsterId) return false;
+  if (["force_discard_selected_card", "trade_for_random_card"].includes(card.effectId) &&
+      !chooseBotSelectedCardId(state, card.effectId, targets.targetPlayerId)) return false;
+  if (card.effectId === "move_to_next_special_tile" &&
+      (!board || !getNextSpecialTileMovement(board, player.position, state.movementDirection))) return false;
+  if (card.effectId === "summon_random_monster") {
+    const rank = String(card.parameters?.rank ?? "");
+    const limits: Record<string, number> = { Common: 5, Rare: 5, Epic: 4, Legend: 3, Myth: 1 };
+    const active = state.monsters.filter(monster => monster.active);
+    if (active.length >= 5 || (limits[rank] ?? 0) <= active.filter(monster => monster.rank === rank).length ||
+        (rank === "Myth" && active.some(monster => monster.rank === "Myth"))) return false;
+  }
+  return true;
+}
+
 /** Choose useful self-support or targeted attack/prank cards, never manual-choice curses. */
 export function chooseBotCards(state: GameState, random: () => number = Math.random, board?: BoardState): string[] {
   const player = state.players[state.activePlayerIndex];
@@ -284,9 +351,13 @@ export function chooseBotCards(state: GameState, random: () => number = Math.ran
   if (player.cardsPlayedThisTurn >= Math.min(3, maxCardsThisTurn)) return [];
   const mythRuntime = (state as GameState & { mythRuntime?: { catalogueId: string; hiddenHands: boolean } }).mythRuntime;
   if (mythRuntime?.catalogueId === "M05" && mythRuntime.hiddenHands && player.hand.length > 0) {
+    const playableCards = player.hand.filter(cardId =>
+      isBotCardPlayableForNyxia(state, player, cardId, board)
+    );
+    if (playableCards.length === 0) return [];
     const roll = random();
-    const index = Math.min(player.hand.length - 1, Math.max(0, Math.floor(roll * player.hand.length)));
-    return [player.hand[index]];
+    const index = Math.min(playableCards.length - 1, Math.max(0, Math.floor(roll * playableCards.length)));
+    return [playableCards[index]];
   }
 
   const runtime = state.cardRuntime?.players[player.id];

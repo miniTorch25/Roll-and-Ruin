@@ -641,7 +641,7 @@ export class BoardScene extends Phaser.Scene {
       if (!active) break;
       if (monster.catalogueId === "M01" || monster.catalogueId === "M02" ||
           monster.catalogueId === "M06" || monster.catalogueId === "M08") {
-        const cards = chooseBotMythOffering(this.state, monster.id);
+        const cards = chooseBotMythOffering(this.state, monster.id, this.deck.drawPile);
         if (cards.length) {
           const result = monster.catalogueId === "M01"
             ? offerHecateCards(this.state, playerId, cards, this.deck)
