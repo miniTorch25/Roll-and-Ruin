@@ -1,5 +1,5 @@
-export type CardColor = "blue" | "yellow" | "green" | "red";
-export type CardKind = "attack" | "defense" | "prank" | "support" | "summon" | "curse";
+export type CardColor = "blue" | "yellow" | "green" | "red" | "white";
+export type CardKind = "attack" | "defense" | "prank" | "support" | "summon" | "curse" | "joker";
 
 export type CardEffectId =
   | "damage_single"
@@ -56,7 +56,8 @@ export type CardEffectId =
   | "remove_buffs_and_shields"
   | "reduce_dice_values"
   | "reveal_player_hand"
-  | "swap_current_hp";
+  | "swap_current_hp"
+  | "joker_chaos";
 
 export type CurseCostOption = "pay_hp_5_to_10" | "discard_2_cards" | "curse_cooldown_3_turns";
 
@@ -149,6 +150,8 @@ export const CARD_CATALOGUE: readonly CardDefinition[] = [
   { id: "red_cursed_dice", sourceNumber: 22, name: "เต๋าต้องคำสาป", color: "red", kind: "curse", scoreValue: -4, description: "ค่าลูกเต๋าของเป้าหมายลด -2 (ขั้นต่ำ 1) เป็นเวลา 2 เทิร์น", effectId: "reduce_dice_values", parameters: { target: "one_player", reduction: 2, minimum: 1, duration: 2 }, curseCostOptions: CURSE_COST_OPTIONS, cooldownLimitPerGame: 3, cooldownEligibility: "hp_or_cards_insufficient" },
   { id: "red_public_hand", sourceNumber: 23, name: "เปิดไพ่ประจานตัว", color: "red", kind: "curse", scoreValue: -4, description: "เป้าหมายต้องเปิดไพ่บนมือให้ทุกคนเห็น 3 เทิร์น", effectId: "reveal_player_hand", parameters: { target: "one_player", duration: 3 }, curseCostOptions: CURSE_COST_OPTIONS, cooldownLimitPerGame: 3, cooldownEligibility: "hp_or_cards_insufficient" },
   { id: "red_fate_swap", sourceNumber: 24, name: "สลับชะตา", color: "red", kind: "curse", scoreValue: -4, description: "สลับค่า HP ปัจจุบันกับเป้าหมาย 1 คน", effectId: "swap_current_hp", parameters: { target: "one_player", value: "current_hp" }, curseCostOptions: CURSE_COST_OPTIONS, cooldownLimitPerGame: 3, cooldownEligibility: "hp_or_cards_insufficient" }
+  // WHITE — Special (1)
+  { id: "white_joker", sourceNumber: 1, name: "Joker", color: "white", kind: "joker", scoreValue: 0, description: "สุ่มมอบคำสาปให้ผู้เล่นที่ยังมีชีวิตอยู่ทุกคน คนละ 1 ใบ และเปิดใช้งานทันที", effectId: "joker_chaos" }
 ];
 
 export function getCardDefinition(cardId: string): CardDefinition | undefined {
