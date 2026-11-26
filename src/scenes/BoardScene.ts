@@ -613,6 +613,11 @@ export class BoardScene extends Phaser.Scene {
     const players = document.querySelector<HTMLElement>("#player-list");
     const monsterPanel = document.querySelector<HTMLElement>("#monster-panel");
     const phase = document.querySelector<HTMLElement>("#phase-label");
+    const tileCounts = document.querySelector<HTMLElement>("#tile-counts");
+    if (tileCounts && this.board) {
+      const counts = this.board.specialTileCounts;
+      tileCounts.textContent = "Prison 2 · Mystery " + counts.mystery + " · Monster " + counts.monster + " · Dice " + counts.dice;
+    }
 
     if (position) position.textContent = `ช่อง ${active.position + 1} / ${this.state.boardLength}`;
     if (score) score.textContent = String(active.score);
