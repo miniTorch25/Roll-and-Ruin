@@ -1,6 +1,6 @@
 # Turn Engine — Rule-Aligned Core
 
-The authoritative source is `Roll_and_Ruin_Rules.txt`. This document describes implemented engine behavior; board and monster effects are connected through their dedicated modules, while match timers and result presentation remain separate integration work.
+The authoritative source is `Roll_and_Ruin_Rules.txt`. This document describes implemented engine behavior; board and monster effects are connected through dedicated modules, while the optional local match timer and score-based result presentation are integrated by BoardScene.
 
 ## Match formats
 - **1v1:** 2 players, 2 teams, 1 player per team.

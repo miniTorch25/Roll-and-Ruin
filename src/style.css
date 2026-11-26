@@ -110,3 +110,6 @@ ul{margin:0;padding-left:18px;color:#b8c4d5;font-size:11px;line-height:1.9}foote
 
 /* Bot seat indicator */
 .player-row .bot-tag{display:inline-block;margin-left:5px;padding:2px 5px;border:1px solid #53647b;border-radius:4px;color:#aebbd0;font:600 8px monospace;letter-spacing:.08em}
+
+#match-timer{font-variant-numeric:tabular-nums}
+.match-summary .match-winner{margin:0 0 10px;color:#f0d18b;font-size:18px;font-weight:800}
