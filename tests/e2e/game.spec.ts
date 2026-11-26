@@ -166,3 +166,48 @@ test("keeps the playable layout usable on a narrow mobile viewport", async ({ pa
   expect(layout.canvasRight).toBeLessThanOrEqual(layout.viewportWidth);
   expect(layout.buttonHeights.every(height => height >= 44)).toBe(true);
 });
+
+
+test("keeps the game layout balanced on tablet and desktop viewports", async ({ page }) => {
+  await page.goto("/");
+  await chooseStartupOption(page, "1");
+  await chooseStartupOption(page, "0");
+  await chooseStartupOption(page, "0");
+  await chooseStartupOption(page, "0");
+  await chooseStartupOption(page, "0");
+
+  for (const viewport of [
+    { width: 768, height: 1024, layout: "stacked" },
+    { width: 1280, height: 900, layout: "columns" }
+  ] as const) {
+    await page.setViewportSize({ width: viewport.width, height: viewport.height });
+    await page.evaluate(() => new Promise<void>(resolve =>
+      requestAnimationFrame(() => requestAnimationFrame(() => resolve()))
+    ));
+
+    const geometry = await page.evaluate(() => {
+      const game = document.querySelector(".game-panel")!.getBoundingClientRect();
+      const sidebar = document.querySelector(".side-panel")!.getBoundingClientRect();
+      const canvas = document.querySelector("#game-container canvas")!.getBoundingClientRect();
+      return {
+        viewportWidth: document.documentElement.clientWidth,
+        documentWidth: document.documentElement.scrollWidth,
+        gameRight: game.right,
+        gameBottom: game.bottom,
+        sidebarLeft: sidebar.left,
+        sidebarTop: sidebar.top,
+        canvasRight: canvas.right,
+        gameLeft: game.left
+      };
+    });
+
+    expect(geometry.documentWidth).toBeLessThanOrEqual(geometry.viewportWidth);
+    expect(geometry.canvasRight).toBeLessThanOrEqual(geometry.gameRight);
+    if (viewport.layout === "stacked") {
+      expect(geometry.sidebarTop).toBeGreaterThanOrEqual(geometry.gameBottom - 1);
+    } else {
+      expect(geometry.sidebarLeft).toBeGreaterThanOrEqual(geometry.gameRight);
+    }
+    expect(geometry.gameLeft).toBeGreaterThanOrEqual(0);
+  }
+});
