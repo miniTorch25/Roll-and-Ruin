@@ -31,6 +31,18 @@ describe("card deck primitives", () => {
     expect(result.deck.drawPile).toEqual(["red_instant_kill", "red_despair"]);
   });
 
+  it("keeps the single Joker out of circulation after it is drawn and used", () => {
+    const initial = createCardDeck(["white_joker"], () => 0);
+    expect(initial.drawPile).toEqual(["white_joker"]);
+    const drawn = drawCards([], initial, 1);
+    expect(drawn.drawnCardIds).toEqual(["white_joker"]);
+    const used = discardCard(drawn.deck, "white_joker");
+    const secondDraw = drawCards([], used, 1);
+    expect(secondDraw.drawnCardIds).toEqual([]);
+    expect(secondDraw.deck.drawPile).toEqual([]);
+    expect(secondDraw.deck.discardPile).toEqual(["white_joker"]);
+  });
+
   it("creates a deck with an empty discard pile", () => {
     expect(createCardDeck(["x", "y"], () => 0).discardPile).toEqual([]);
   });
