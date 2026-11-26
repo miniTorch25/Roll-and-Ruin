@@ -17,3 +17,29 @@ ul{margin:0;padding-left:18px;color:#b8c4d5;font-size:11px;line-height:1.9}foote
 @media(max-width:540px){.side-panel{grid-template-columns:1fr}.note-card{grid-column:auto}.status{font-size:8px;padding:6px 8px}.panel-heading{align-items:start;flex-direction:column}.action-bar{align-items:flex-start;flex-direction:column}.actions{width:100%}.actions button{flex:1;padding:10px 8px;font-size:12px}}
 
 .monster-action{margin-top:8px;padding:7px 10px;background:#43546b;color:#edf3fb;font-size:10px}
+
+
+/* Player-facing card and monster interaction panels */
+.hand-panel{display:grid;gap:10px;margin-top:14px}
+.hand-panel[hidden]{display:none}
+.hand-panel>p:not(.eyebrow){margin:0;color:#c2ccda;font-size:12px;line-height:1.6}
+.hand-card-list{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;max-height:300px;overflow:auto;padding:2px}
+.hand-card{display:grid;gap:5px;min-width:0;text-align:left;padding:10px 11px;background:#2c394b;color:#edf3fb;border:1px solid #52627a;border-left-width:4px;border-radius:7px}
+.hand-card strong{font-size:12px;line-height:1.35}
+.hand-card small{font-size:10px;line-height:1.45;color:#c0ccdc;font-weight:400;overflow-wrap:anywhere}
+.hand-card.blue{border-left-color:#75b8d1}
+.hand-card.yellow{border-left-color:#e5c56c}
+.hand-card.green{border-left-color:#9bc47b}
+.hand-card.red{border-left-color:#d87979}
+.hand-card.neutral{border-left-color:#a6aab5}
+.hand-card:disabled{opacity:.4}
+.finish-cards-button{width:100%;margin-top:10px;background:#7db69b;color:#13221a}
+.finish-cards-button:disabled{opacity:.35}
+#monster-panel{display:grid;gap:2px}
+.monster-row{padding:10px 0;border-top:1px solid #303c4e}
+.monster-row:first-child{border-top:0}
+.monster-row strong{display:block;color:#f0c27b;font-size:12px;line-height:1.4}
+.monster-row small{display:block;color:#aebbd0;font-size:10px;line-height:1.55;margin-top:4px}
+.monster-row .monster-action{margin-top:8px;padding:7px 10px;background:#43546b;color:#edf3fb;font-size:10px}
+.empty-note{margin:0;color:#8594aa;font-size:11px}
+@media(max-width:540px){.hand-card-list{grid-template-columns:1fr}}
