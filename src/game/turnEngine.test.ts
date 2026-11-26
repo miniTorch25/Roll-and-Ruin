@@ -535,6 +535,34 @@ describe("dice manipulation turn flow", () => {
 
 
 describe("dice status precedence and controlled die faces", () => {
+  it("adds the Dice-tile bonus die to the next roll and consumes it at turn end", () => {
+    const ready = readyState();
+    const withBonus = {
+      ...ready,
+      players: ready.players.map(player => player.id === "p1"
+        ? { ...player, statusEffects: [{ type: "bonus_dice" as const, turnsRemaining: 1, amount: 1 }] }
+        : player)
+    };
+    const roll = selectPlayerAction(withBonus, "roll_two_dice", { random: () => 0 });
+    expect(roll.diceRolls).toEqual([1, 1, 1]);
+
+    const drawAndRoll = selectPlayerAction(withBonus, "draw_two_roll_one", {
+      drawnCardIds: [],
+      random: () => 0
+    });
+    expect(drawAndRoll.diceRolls).toEqual([1, 1]);
+
+    const cardActivity = selectPlayerAction(withBonus, "use_cards").state;
+    const cardRoll = finishCardActivity(cardActivity, () => 0);
+    expect(cardRoll.diceRolls).toEqual([1, 1]);
+
+    const ended = endPlayerTurn({
+      ...cardRoll.state,
+      phase: "turn_end"
+    });
+    expect(ended.players[0].statusEffects).toEqual([]);
+  });
+
   it("uses only one die when cursed even if a bonus die is stored", () => {
     const cardActivity = selectPlayerAction(readyState(), "use_cards").state;
     const state = {
