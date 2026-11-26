@@ -9,7 +9,7 @@ The Phaser BoardScene now uses the approved card catalogue, turn engine, monster
 - Card effects resolve through `playCatalogueCard` and `resolveCardEffect`.
 - Card draws, monster rewards, curse costs, and used-card discards update the shared deck.
 - Summon-capacity failures are shown in the game message.
-- Effects that require a target use a native browser prompt to select a player, monster, or card.
+- Effects that require a target use in-game modal dialogs for player, monster, card, and dice-value selection.
 
 ## Monster interactions
 - Scheduled monster attacks are resolved before the next player's turn.
@@ -25,7 +25,7 @@ The Phaser BoardScene now uses the approved card catalogue, turn engine, monster
 ## Engine versus UI status
 | Feature | Engine | Player-facing UI |
 |---|---|---|
-| Catalogue card effects | Implemented | Connected; target prompts used where needed |
+| Catalogue card effects | Implemented | Connected; target selection uses in-game dialogs |
 | Myth M01–M10 | Implemented | Basic status and offering controls connected |
 | Legend offerings | Implemented | Single-player offerings plus cooperative Kingo contribution dialog |
 | Monster scheduled attacks | Implemented | Resolved during turn preparation |
@@ -34,7 +34,7 @@ The Phaser BoardScene now uses the approved card catalogue, turn engine, monster
 
 ## Remaining prototype limitations
 - The four local players are placeholders in one browser session, not network-connected players.
-- Target selection uses browser prompts rather than custom in-game modal windows.
+- Player, monster, card, and dice-value selection now use in-game dialogs; the Kingo contribution flow is a separate shared-screen dialog.
 - The Kingo dialog is a local shared-screen contribution flow; it does not provide private simultaneous input or network multiplayer.
 - Myth and Legend interaction controls are functional but still need visual polish and richer feedback.
 - Special-tile UI and authoritative multiplayer sessions remain separate work.
