@@ -75,6 +75,17 @@ describe("Myth Monsters M01-M10", () => {
     expect(hit.state.monsters.find(monster => monster.id === "ragnar-immortal")?.active).toBe(true);
   });
 
+
+  it("rejects Ragnar offerings that exceed ten cards", () => {
+    let state = game();
+    state = { ...state, players: state.players.map(player => ({ ...player, hand: [...player.hand, ...Array(8).fill("blue_common_sword")] })) };
+    const summoned = summonMyth(state, "M06", "ragnar-overpay", deck(), () => 0);
+    expect(() => offerMythCards(summoned.state, [
+      { playerId: "p1", cardIds: Array(6).fill("blue_common_sword") },
+      { playerId: "bot-1", cardIds: Array(5).fill("blue_common_sword") }
+    ])).toThrow(/exactly ten/);
+  });
+
   it("Ouro requires exactly one card of each color", () => {
     const summoned = summonMyth(game(), "M08", "ouro", deck(), () => 0);
     const result = offerMythCards(summoned.state, [{ playerId: "p1", cardIds: [

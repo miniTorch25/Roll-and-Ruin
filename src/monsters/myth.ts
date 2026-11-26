@@ -316,7 +316,9 @@ export function offerMythCards(input: GameState, contributions: Array<{ playerId
   }
   let complete = false;
   if (runtime.catalogueId === "M06") {
-    complete = Object.values(runtime.offerings).reduce((sum, ids) => sum + ids.length, 0) + offered.length >= 10;
+    const totalOffered = Object.values(runtime.offerings).reduce((sum, ids) => sum + ids.length, 0) + offered.length;
+    if (totalOffered > 10) throw new Error("Ragnar requires exactly ten offered cards in total.");
+    complete = totalOffered === 10;
   } else {
     const offeredColors = offered.map(id => CARD_CATALOGUE.find(card => card.id === id)?.color);
     const previousColors = Object.values(runtime.offerings).flat().map(id => CARD_CATALOGUE.find(card => card.id === id)?.color);
