@@ -190,16 +190,28 @@ describe("Roll and Ruin turn engine", () => {
     expect(second.attacks[0].targetPlayerIds).toEqual(["p4"]);
   });
 
-  it("enforces the four-active-monster board limit", () => {
+  it("enforces the five-active-monster board limit", () => {
     let state = readyState();
-    for (let index = 1; index <= 4; index++) {
+    for (let index = 1; index <= 5; index++) {
       state = summonMonster(state, {
         id: `m${index}`, attackPattern: "random_living", attackInterval: 2
       }).state;
     }
     expect(() => summonMonster(state, {
-      id: "m5", attackPattern: "random_living", attackInterval: 2
-    })).toThrow(/maximum of four/);
+      id: "m6", attackPattern: "random_living", attackInterval: 2
+    })).toThrow(/maximum of 5/);
+  });
+
+  it("enforces the per-rank monster limit before the board-wide limit", () => {
+    let state = readyState();
+    for (let index = 1; index <= 4; index++) {
+      state = summonMonster(state, {
+        id: `epic-${index}`, rank: "Epic", attackPattern: "random_living", attackInterval: 2
+      }).state;
+    }
+    expect(() => summonMonster(state, {
+      id: "epic-5", rank: "Epic", attackPattern: "random_living", attackInterval: 2
+    })).toThrow(/Epic monster limit/);
   });
 
   it("uses each monster's own attack interval and target count", () => {
