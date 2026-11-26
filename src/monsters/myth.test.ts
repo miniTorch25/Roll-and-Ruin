@@ -98,6 +98,25 @@ describe("Myth Monsters M01-M10", () => {
     expect(result.state.players.filter(player => player.status === "alive").every(player => player.hp === 17)).toBe(true);
   });
 
+
+  it("does not recursively spread reflected damage through Hecate's HP link", () => {
+    const summoned = summonMyth(game(), "M01", "hecate-reflect", deck(), () => 0);
+    const withReflection = {
+      ...summoned.state,
+      cardRuntime: {
+        players: {
+          "bot-1": { shields: 0, invulnerableOwnerTurns: 0, reflectionCharges: 1 }
+        }
+      }
+    };
+    const result = resolveCardEffect(withReflection, "blue_common_sword", {
+      targetPlayerId: "bot-1",
+      random: () => 0
+    });
+    expect(result.state.players.find(player => player.id === "p1")?.hp).toBe(14);
+    expect(result.state.players.filter(player => player.id !== "p1").every(player => player.hp === 17)).toBe(true);
+  });
+
   it("Chronos makes a player discard one random card after using three cards", () => {
     const summoned = summonMyth(game(), "M03", "chronos-discard", deck(), () => 0);
     const state = { ...summoned.state, players: summoned.state.players.map(player => player.id === "p1" ? { ...player, cardsPlayedThisTurn: 3 } : player) };
