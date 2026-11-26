@@ -181,7 +181,7 @@ export function summonMyth(
     }
     messages.push("Anubix revives one eliminated player if possible and takes one heart from the lowest-HP living player.");
   } else if (catalogueId === "M07") {
-    for (const player of state.players.filter(item => item.status === "alive")) {
+    for (const player of state.players) {
       const result = drawCards(player.hand, nextDeck, 3);
       nextDeck = result.deck;
       state = { ...state, players: state.players.map(item => item.id === player.id ? { ...item, hand: result.hand } : item) };

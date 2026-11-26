@@ -55,6 +55,17 @@ describe("Myth Monsters M01-M10", () => {
     expect(result.deck?.drawPile).toHaveLength(0);
   });
 
+
+  it("Pandy distributes three cards to eliminated players as well", () => {
+    const initial = game();
+    const state = {
+      ...initial,
+      players: initial.players.map(player => player.id === "p1" ? { ...player, status: "eliminated" as const, hearts: 0 } : player)
+    };
+    const result = summonMyth(state, "M07", "pandy-dead", deck(Array(12).fill("blue_common_sword")), () => 0);
+    expect(result.state.players.find(player => player.id === "p1")?.hand).toHaveLength(7);
+  });
+
   it("Ragnar accepts ten contributed cards across multiple players", () => {
     let state = game();
     state = { ...state, players: state.players.map(player => ({ ...player, hand: [...player.hand, ...Array(8).fill("blue_common_sword")] })) };
