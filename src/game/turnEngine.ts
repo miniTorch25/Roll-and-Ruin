@@ -262,6 +262,10 @@ function livingPlayers(state: GameState): GamePlayer[] {
   return state.players.filter((player) => player.status === "alive");
 }
 
+function livingTeamCount(state: GameState): number {
+  return new Set(livingPlayers(state).map(player => player.teamId)).size;
+}
+
 function chooseRandomTargets<T>(items: T[], amount: number, random: () => number): T[] {
   const pool = [...items];
   const selected: T[] = [];
@@ -377,7 +381,7 @@ export function startPlayerTurn(state: GameState, random: () => number = Math.ra
   if (state.phase !== "turn_start") {
     throw new Error("A player turn can only start after the monster attack phase.");
   }
-  if (livingPlayers(state).length === 0) return { ...state, phase: "game_over" };
+  if (livingTeamCount(state) <= 1) return { ...state, phase: "game_over" };
   let activePlayerIndex = state.activePlayerIndex;
   if (state.players[activePlayerIndex]?.status !== "alive") {
     for (let offset = 1; offset <= state.players.length; offset++) {
@@ -405,7 +409,7 @@ export function startPlayerTurn(state: GameState, random: () => number = Math.ra
       preparedState = applyPlayerDeath(preparedState, selectedPlayer.id, random).state;
     }
   }
-  if (livingPlayers(preparedState).length === 0) {
+  if (livingTeamCount(preparedState) <= 1) {
     return { ...preparedState, phase: "game_over" };
   }
 
@@ -875,7 +879,9 @@ export function endPlayerTurn(state: GameState): GameState {
     turnNumber: state.turnNumber + 1
   };
   const alive = livingPlayers(nextState);
-  if (alive.length === 0) return { ...nextState, phase: "game_over" };
+  if (alive.length === 0 || new Set(alive.map(player => player.teamId)).size <= 1) {
+    return { ...nextState, phase: "game_over" };
+  }
 
   for (let offset = 1; offset <= state.players.length; offset++) {
     const index = (state.activePlayerIndex + offset) % state.players.length;
