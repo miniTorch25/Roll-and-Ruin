@@ -212,6 +212,7 @@ interface DamageOptions {
   ignoreShield?: boolean;
   ignoreInvulnerability?: boolean;
   allowReflection?: boolean;
+  skipHecateLink?: boolean;
 }
 
 function applyDamage(
@@ -267,6 +268,21 @@ function applyDamage(
       const death = applyPlayerDeath(state, targetPlayerId, random);
       state = death.state as CardEffectGameState;
       event.death = death.result;
+    }
+  }
+
+  if (
+    event.hpDamage > 0 &&
+    !options.skipHecateLink &&
+    state.monsters.some(monster => monster.active && monster.catalogueId === "M01")
+  ) {
+    const linkedTargets = state.players.filter(player => player.id !== targetPlayerId && player.status === "alive");
+    for (const linkedTarget of linkedTargets) {
+      const linkedHit = applyDamage(state, linkedTarget.id, event.hpDamage, random, {
+        ...options,
+        skipHecateLink: true
+      });
+      state = linkedHit.state;
     }
   }
 
@@ -334,7 +350,7 @@ export function resolveMonsterAttackEvents(
     if (monster.attackDamage === undefined) {
       throw new Error(`Monster ${monster.id} has no catalogue attack damage.`);
     }
-    const pierceShield = monster.rules?.some((rule) => rule.includes("ทะลุเกราะ")) ?? false;
+    const pierceShield = monster.catalogueId === "M06" || (monster.rules?.some((rule) => rule.includes("ทะลุเกราะ")) ?? false);
     const wolfPackBonus = monster.catalogueId === "C06" &&
       state.monsters.filter((item) => item.active && item.catalogueId === "C06").length > 1
       ? 1

@@ -781,7 +781,13 @@ export function applyPlayerDeath(
   );
 
   return {
-    state: { ...state, players },
+    state: {
+      ...state,
+      players,
+      monsters: state.monsters.map(monster => monster.active && monster.catalogueId === "M10"
+        ? { ...monster, active: false }
+        : monster)
+    },
     result: { lostHeart: true, discardedCards, eliminated, selfResurrected }
   };
 }
