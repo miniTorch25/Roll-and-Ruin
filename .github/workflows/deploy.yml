@@ -3,13 +3,6 @@ name: Deploy Website
 on:
   push:
     branches: [main]
-    paths:
-      - ".github/workflows/deploy.yml"
-      - "index.html"
-      - "package.json"
-      - "vite.config.ts"
-      - "src/**"
-      - "public/**"
   workflow_dispatch:
 
 permissions:
