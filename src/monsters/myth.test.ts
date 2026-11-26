@@ -47,6 +47,32 @@ describe("Myth Monsters M01-M10", () => {
     expect(started.players.find(player => player.id === "bot-3")?.hp).toBe(19);
   });
 
+  it("Anubix revives one eliminated player and removes one heart from the lowest-HP living player", () => {
+    const initial = game();
+    const state = {
+      ...initial,
+      players: initial.players.map((player, index) => index === 3
+        ? { ...player, status: "eliminated" as const, hearts: 0, hp: 0 }
+        : index === 0
+          ? { ...player, hp: 8 }
+          : player)
+    };
+    const result = summonMyth(state, "M04", "anubix-summon", deck(), () => 0);
+
+    expect(result.state.players.find(player => player.id === "bot-3")).toMatchObject({
+      status: "alive",
+      hearts: 1,
+      hp: 20,
+      position: 0
+    });
+    expect(result.state.players.find(player => player.id === "p1")).toMatchObject({
+      status: "alive",
+      hearts: 2,
+      hp: 8
+    });
+    expect(result.state.monsters.find(monster => monster.id === "anubix-summon")?.active).toBe(true);
+  });
+
   it("Chronos marks every living player to skip their next turn", () => {
     const result = summonMyth(game(), "M03", "chronos", deck(), () => 0);
     expect(result.state.players.every(player => player.statusEffects.some(effect => effect.type === "skip_turn"))).toBe(true);
