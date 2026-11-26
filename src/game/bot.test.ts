@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { chooseBotAction, chooseBotCards, chooseBotCardTargets, chooseBotCursePayment } from "./bot";
+import { chooseBotAction, chooseBotCards, chooseBotCardTargets, chooseBotCursePayment, chooseBotLegendOffering, chooseBotMythOffering } from "./bot";
 import { createGameState } from "./turnEngine";
 import { CARD_CATALOGUE } from "../cards/catalogue";
 
