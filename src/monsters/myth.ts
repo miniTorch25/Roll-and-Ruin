@@ -339,14 +339,15 @@ export function getMythInteractionState(input: GameState): {
   linkedHp: boolean; offerings: Record<string, string[]>; lucyAcceptedPlayerIds: string[];
 } | null {
   const state = input as MythGameState;
-  if (!state.mythRuntime) return null;
-  const runtime = activeRuntime(state);
+  const runtime = state.mythRuntime;
+  if (!runtime) return null;
+  const isActive = state.monsters.some(monster => monster.id === runtime.monsterId && monster.active);
   return {
     catalogueId: runtime.catalogueId,
     monsterId: runtime.monsterId,
     turnsRemaining: runtime.turnsRemaining,
-    hiddenHands: runtime.hiddenHands,
-    linkedHp: runtime.linkedHp,
+    hiddenHands: isActive && runtime.hiddenHands,
+    linkedHp: isActive && runtime.linkedHp,
     offerings: runtime.offerings,
     lucyAcceptedPlayerIds: runtime.lucyAcceptedPlayerIds
   };
