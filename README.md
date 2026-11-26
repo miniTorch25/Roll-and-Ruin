@@ -50,10 +50,10 @@ src/
 - [x] กระดาน 32 ช่อง, การเดิน, ช่องพิเศษ และการสุ่มตำแหน่งช่องใหม่
 - [x] Turn Engine สำหรับรูปแบบ 1v1, 1x4, 2v2 และ 2x4 พร้อม Bot เติมที่นั่ง
 - [x] Card Catalogue 60 ใบ, กองจั่ว/กองทิ้ง และระบบใช้ไพ่พื้นฐาน
-- [x] Card Effect Resolver สำหรับ 55 จาก 56 Effect IDs (Magic Shortcut ยังรอ Board-aware movement integration)
+- [x] Card Effect Resolver ครบ 56/56 Effect IDs พร้อม Board-aware Magic Shortcut ที่เดินไปช่องพิเศษโดยไม่ทอยเต๋า
 - [x] Monster Catalogue 50 ตัว, ขีดจำกัดการอัญเชิญ, การโจมตีพื้นฐาน, รางวัล และความสามารถเฉพาะหลายตัว
 - [ ] ตรวจสอบและเชื่อม Monster Rules ที่เหลือให้ครบทั้ง 50 ตัว
-- [ ] ทำ Card Effect ให้ครบ 56/56 และตรวจสอบการทำงานร่วมกับ Board/Monster
+- [ ] ทดสอบ Card Effect และ Monster interaction แบบ end-to-end ใน Browser
 - [ ] ตรวจสอบคะแนนและเงื่อนไขจบเกมทุกโหมด รวมถึง Time Limit และ Speedrun
 - [ ] Browser Playtest ตั้งแต่เริ่มเกมจนจบเกม
 - [ ] UI/UX สำหรับมือถือและเดสก์ท็อปให้สมบูรณ์

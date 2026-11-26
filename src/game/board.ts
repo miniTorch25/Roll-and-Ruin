@@ -30,6 +30,12 @@ export interface BoardMovement {
   completedLaps: number;
 }
 
+export interface NextSpecialTileMovement {
+  position: number;
+  steps: number;
+  tile: SpecialTileType;
+}
+
 function randomIndex(length: number, random: () => number): number {
   return Math.min(length - 1, Math.max(0, Math.floor(random() * length)));
 }
@@ -135,6 +141,21 @@ export function getMovementPath(from: number, steps: number, direction: 1 | -1 =
     if (direction === -1 && position === 0) completedLapPositions.push(position);
   }
   return { positions, completedLapPositions };
+}
+
+/** Finds the nearest special tile ahead in the supplied movement direction, excluding the current space. */
+export function getNextSpecialTileMovement(
+  board: BoardState,
+  from: number,
+  direction: 1 | -1 = 1
+): NextSpecialTileMovement | undefined {
+  validatePositions([from]);
+  for (let steps = 1; steps < BOARD_SIZE; steps++) {
+    const position = ((from + steps * direction) % BOARD_SIZE + BOARD_SIZE) % BOARD_SIZE;
+    const tile = board.tiles[position]?.special;
+    if (tile) return { position, steps, tile };
+  }
+  return undefined;
 }
 
 /** Only the final space is checked for ordinary special-tile landing effects. */

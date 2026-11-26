@@ -53,6 +53,8 @@ export interface ResolveCardEffectOptions {
   allowSelfTarget?: boolean;
   /** Selected values for Control Dice; one value for each die that will be rolled. */
   diceValues?: number[];
+  /** BoardScene supplies the nearest special-tile position for Magic Shortcut. */
+  specialTileTargetPosition?: number;
   /** Injectable random source, including random card-loss when a player dies. */
   random?: () => number;
 }
@@ -92,6 +94,7 @@ export interface ResolveCardEffectResult {
   deck?: CardDeckState;
   cursePayment?: CursePayment;
   boardRerollRequested: boolean;
+  movementTargetPosition?: number;
 }
 
 const EMPTY_PLAYER_RUNTIME = (): CardRuntimePlayerState => ({
@@ -595,7 +598,8 @@ const IMPLEMENTED_EFFECTS = new Set<CardEffectId>([
   "grant_invulnerability",
   "reflect_next_damage",
   "boost_attack_damage",
-  "boost_defense_shield"
+  "boost_defense_shield",
+  "move_to_next_special_tile"
 ]);
 
 export function isCardEffectImplemented(effectId: CardEffectId): boolean {
@@ -603,8 +607,8 @@ export function isCardEffectImplemented(effectId: CardEffectId): boolean {
 }
 
 /**
- * Resolves supported player-vs-player attacks and deterministic player-state effects.
- * Monster, deck-manipulation, movement/dice, and curse-cost effects remain explicit TODOs.
+ * Resolves catalogue card effects. Effects that need board context receive their
+ * validated target from the scene and return a structured movement request.
  */
 export function resolveCardEffect(
   inputState: GameState,
@@ -633,6 +637,7 @@ export function resolveCardEffect(
     : undefined;
   let endsCardPlay = false;
   let boardRerollRequested = false;
+  let movementTargetPosition: number | undefined;
   const amount = Number(card.parameters?.amount ?? 0);
 
 
@@ -795,6 +800,14 @@ export function resolveCardEffect(
         state = hazard.state;
         damageEvents.push(hazard.event);
       }
+      break;
+    }
+    case "move_to_next_special_tile": {
+      const target = options.specialTileTargetPosition;
+      if (!Number.isInteger(target) || target === active.position || target! < 0 || target! >= state.boardLength) {
+        throw new Error("Magic Shortcut requires a valid next special-tile position.");
+      }
+      movementTargetPosition = target;
       break;
     }
     case "damage_with_random_splash": {
@@ -1517,7 +1530,7 @@ export function resolveCardEffect(
     monsterRewardEvents = rewards.events;
   }
 
-  return { state, card, appliedToPlayerIds, endsCardPlay, damageEvents, monsterDamageEvents, monsterRewardEvents, monsterSummonEvents, summonWarnings, revealedHands, discardedCardIds, drawEvents, deck: updatedDeck, cursePayment: options.cursePayment, boardRerollRequested };
+  return { state, card, appliedToPlayerIds, endsCardPlay, damageEvents, monsterDamageEvents, monsterRewardEvents, monsterSummonEvents, summonWarnings, revealedHands, discardedCardIds, drawEvents, deck: updatedDeck, cursePayment: options.cursePayment, boardRerollRequested, movementTargetPosition };
 }
 
 
