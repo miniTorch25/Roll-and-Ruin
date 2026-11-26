@@ -399,14 +399,21 @@ export function startPlayerTurn(state: GameState, random: () => number = Math.ra
     .reduce((total, effect) => total + (effect.amount ?? 1), 0);
   let preparedState = state;
   if (poisonDamage > 0) {
-    preparedState = {
-      ...state,
-      players: state.players.map((player) => player.id === selectedPlayer.id
-        ? { ...player, hp: Math.max(0, player.hp - poisonDamage) }
-        : player)
-    };
-    if (selectedPlayer.hp <= poisonDamage) {
-      preparedState = applyPlayerDeath(preparedState, selectedPlayer.id, random).state;
+    const linkedDamage = Math.min(selectedPlayer.hp, poisonDamage);
+    const hecateActive = state.monsters.some(monster => monster.active && monster.catalogueId === "M01");
+    const damageTargets = hecateActive ? livingPlayers(state) : [selectedPlayer];
+    for (const target of damageTargets) {
+      const current = preparedState.players.find(player => player.id === target.id);
+      if (!current || current.status !== "alive") continue;
+      preparedState = {
+        ...preparedState,
+        players: preparedState.players.map(player => player.id === current.id
+          ? { ...player, hp: Math.max(0, player.hp - linkedDamage) }
+          : player)
+      };
+      if (current.hp <= linkedDamage) {
+        preparedState = applyPlayerDeath(preparedState, current.id, random).state;
+      }
     }
   }
   if (livingTeamCount(preparedState) <= 1) {

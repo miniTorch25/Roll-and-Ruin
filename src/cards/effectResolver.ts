@@ -492,6 +492,29 @@ function applyHpCost(
     state = death.state as CardEffectGameState;
     event.death = death.result;
   }
+
+  // Hecate links actual direct HP loss (for example, Shroomy's spores and Despair).
+  // HP payments remain personal costs; only damage is shared.
+  if (
+    kind === "direct_hp_loss" &&
+    hpLoss > 0 &&
+    state.monsters.some(monster => monster.active && monster.catalogueId === "M01")
+  ) {
+    const linkedTargets = state.players.filter(player => player.id !== playerId && player.status === "alive");
+    for (const linkedTarget of linkedTargets) {
+      const current = state.players.find(player => player.id === linkedTarget.id);
+      if (!current || current.status !== "alive") continue;
+      state = {
+        ...state,
+        players: state.players.map(player => player.id === current.id
+          ? { ...player, hp: Math.max(0, player.hp - hpLoss) }
+          : player)
+      };
+      if (current.hp <= hpLoss) {
+        state = applyPlayerDeath(state, current.id, random).state as CardEffectGameState;
+      }
+    }
+  }
   return { state, event };
 }
 

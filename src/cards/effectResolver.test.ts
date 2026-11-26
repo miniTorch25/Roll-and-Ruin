@@ -3,6 +3,7 @@ import { createGameState, resolveMonsterAttackPhase, selectPlayerAction, startPl
 import { advanceCurseCooldown, isCardEffectImplemented, resolveCardEffect, resolveMonsterAttackEvents, type CardEffectGameState } from "./effectResolver";
 import { CARD_CATALOGUE } from "./catalogue";
 import { summonRandomMonster } from "../monsters/engine";
+import { summonMyth } from "../monsters/myth";
 
 function cardPlayState(mode: "1x4" | "2v2" = "1x4"): CardEffectGameState {
   const teams = mode === "2v2" ? ["red", "red", "blue", "blue"] : ["red", "blue", "green", "yellow"];
@@ -514,6 +515,23 @@ describe("player-targeted Curse effects", () => {
     expect(result.damageEvents.at(-1)).toMatchObject({ shieldAbsorbed: 1, hpDamage: 3 });
     expect(result.state.players[0].hp).toBe(18);
     expect(result.state.players[1].hp).toBe(17);
+  });
+
+  it("shares direct HP loss from Despair with every living player while Hecate is active", () => {
+    const summoned = summonMyth(cardPlayState(), "M01", "hecate-direct-link",
+      { drawPile: [], discardPile: [] }, () => 0.99);
+    const withCard = withPlayer(summoned.state as CardEffectGameState, "p1", {
+      hand: [...summoned.state.players.find(player => player.id === "p1")!.hand, "red_despair"]
+    });
+    const result = resolveCardEffect(withCard, "red_despair", {
+      targetPlayerId: "p2",
+      cursePayment: { type: "discard", cardIds: ["green_herbal_potion", "green_life_core"] },
+      random: () => 0
+    });
+    expect(result.state.players.find(player => player.id === "p1")?.hp).toBe(10);
+    expect(result.state.players.find(player => player.id === "p2")?.hp).toBe(10);
+    expect(result.state.players.find(player => player.id === "p3")?.hp).toBe(10);
+    expect(result.state.players.find(player => player.id === "p4")?.hp).toBe(10);
   });
 
   it("halves current HP using floor without consuming shields", () => {

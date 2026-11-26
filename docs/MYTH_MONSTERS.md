@@ -5,7 +5,7 @@ This module implements the Myth-specific state and player interaction rules from
 ## Engine APIs
 
 - `summonMyth`: creates one Myth monster and applies its summon effects.
-- `applyHecateLinkedDamage`: direct API for Hecate's shared-HP rule; ordinary card and monster damage is also routed through the shared-damage hook.
+- `applyHecateLinkedDamage`: direct API for Hecate's shared-HP rule; ordinary attacks, direct HP-loss effects, and Poison ticks also propagate damage to every living player. HP costs remain individual costs.
 - `offerHecateCards`: consumes exactly three yellow cards and awards four random Curse cards.
 - `offerGranfelTrade`: exchanges all yellow cards in a player's hand for random Curse cards.
 - `offerMythCards`: records multi-player offerings for Ragnar and Ouro.
@@ -20,7 +20,7 @@ This module implements the Myth-specific state and player interaction rules from
 
 | ID | Engine coverage |
 |---|---|
-| M01 Hecate | Summon kill, shared HP damage, three-yellow/four-Curse offering, two-Curse defeat reward, six-turn expiry |
+| M01 Hecate | Summon kill, shared HP damage (including direct HP loss and Poison ticks), three-yellow/four-Curse offering, two-Curse defeat reward, six-turn expiry |
 | M02 Granfel | First-summon attack, yellow-to-Curse exchange, random 4–12 threshold, three idle turns, two Resurrection gifts |
 | M03 Chronos | Skip-next-turn statuses, discard one card after three card plays, five-turn expiry |
 | M04 Anubix | Random resurrection and one-heart penalty to the lowest-HP player; Instant Kill removal |
