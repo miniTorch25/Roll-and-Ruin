@@ -570,7 +570,10 @@ describe("dice status precedence and controlled die faces", () => {
       players: cardActivity.players.map((player) => player.id === "p1"
         ? {
             ...player,
-            statusEffects: [{ type: "dice_limit" as const, turnsRemaining: 1, amount: 1 }]
+            statusEffects: [
+              { type: "dice_limit" as const, turnsRemaining: 1, amount: 1 },
+              { type: "bonus_dice" as const, turnsRemaining: 1, amount: 1 }
+            ]
           }
         : player),
       cardRuntime: {
