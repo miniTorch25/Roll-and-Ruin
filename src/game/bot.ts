@@ -6,6 +6,25 @@ export interface BotCardTargets {
   targetMonsterId?: string;
 }
 
+export type BotCursePayment =
+  | { type: "hp"; amount: number }
+  | { type: "discard"; cardIds: [string, string] }
+  | { type: "cooldown" };
+
+/** Select a legal Curse cost after the Curse card has been removed from the bot's hand. */
+export function chooseBotCursePayment(state: GameState, playerId: string): BotCursePayment | undefined {
+  const player = state.players.find(candidate => candidate.id === playerId);
+  const runtime = state.cardRuntime?.players[playerId];
+  if (!player) return undefined;
+  if (player.hp > 10) return { type: "hp", amount: 5 };
+  if (player.hand.length >= 2) return { type: "discard", cardIds: [player.hand[0], player.hand[1]] };
+  if (player.hp >= 5) return { type: "hp", amount: 5 };
+  if ((runtime?.curseCooldownUses ?? 0) < 3 && (runtime?.curseCooldownTurnsRemaining ?? 0) === 0) {
+    return { type: "cooldown" };
+  }
+  return undefined;
+}
+
 export function chooseBotAction(player: Pick<GamePlayer, "hand">): Exclude<PlayerAction, "use_cards"> {
   if (player.hand.length < 3) return "draw_two_roll_one";
   return "roll_two_dice";
@@ -47,6 +66,11 @@ export function chooseBotCardTargets(state: GameState, cardId: string): BotCardT
   const card = CARD_CATALOGUE.find(candidate => candidate.id === cardId);
   const active = state.players[state.activePlayerIndex];
   if (!card || !active) return {};
+
+  if (card.effectId === "steal_eliminated_player_cards") {
+    const target = state.players.find(player => player.status === "eliminated" && player.hand.length > 0);
+    return target ? { targetPlayerId: target.id } : {};
+  }
 
   if (card.effectId === "steal_eliminated_player_cards") {
     const target = state.players.find(player => player.status === "eliminated" && player.hand.length > 0);
@@ -95,7 +119,7 @@ export function chooseBotCards(state: GameState): string[] {
 
   for (const id of player.hand) {
     const card = CARD_CATALOGUE.find(candidate => candidate.id === id);
-    if (!card || card.kind === "curse" || card.kind === "summon" || card.kind === "joker") continue;
+    if (!card || card.kind === "summon" || card.kind === "joker") continue;
     if (card.kind === "attack" && runtime?.blockedAttackCardsThisTurn) continue;
 
     let priority = 0;
@@ -157,6 +181,49 @@ export function chooseBotCards(state: GameState): string[] {
       case "damage_monster_only":
         if (chooseBotCardTargets(state, id).targetMonsterId) priority = 57;
         break;
+      case "instant_kill":
+      case "force_prison":
+      case "weaken_attack_damage":
+      case "drain_hp_and_heal":
+      case "discard_random_half_hand":
+      case "silence_card_use":
+      case "prevent_movement":
+      case "reverse_movement_direction":
+      case "halve_current_hp":
+      case "swap_current_hp":
+      case "reset_other_players_positions":
+      case "clear_monsters_and_reroll_tiles":
+      case "remove_other_players_shields":
+      case "remove_buffs_and_shields":
+      case "steal_eliminated_player_cards":
+      case "mark_monster_attack_target": {
+        if (!chooseBotCursePayment(state, player.id)) break;
+        if (card.effectId === "steal_eliminated_player_cards" &&
+            !state.players.some(candidate => candidate.status === "eliminated" && candidate.hand.length > 0)) break;
+        if (card.effectId === "mark_monster_attack_target" && !activeMonsters.length) break;
+        if (card.effectId === "clear_monsters_and_reroll_tiles" && !activeMonsters.length) break;
+        if (card.effectId === "remove_other_players_shields" &&
+            !state.players.some(candidate => candidate.id !== player.id && getPlayerShields(state, candidate.id) > 0)) break;
+        if (card.effectId === "instant_kill") {
+          const opponent = state.players.find(candidate => candidate.id === chooseBotCardTargets(state, id).targetPlayerId);
+          if (!opponent || (state.cardRuntime?.players[opponent.id]?.invulnerableOwnerTurns ?? 0) > 0) break;
+          priority = opponent.hearts <= 1 ? 94 : 76;
+        } else if (card.effectId === "clear_monsters_and_reroll_tiles") {
+          priority = 70;
+        } else if (card.effectId === "reset_other_players_positions") {
+          priority = 55;
+        } else {
+          const opponent = state.players.find(candidate => candidate.id === chooseBotCardTargets(state, id).targetPlayerId);
+          if (!opponent) break;
+          priority = card.effectId === "drain_hp_and_heal" ? 72
+            : card.effectId === "discard_random_half_hand" && opponent.hand.length >= 3 ? 68
+            : card.effectId === "force_prison" ? 64
+            : card.effectId === "silence_card_use" ? 63
+            : card.effectId === "halve_current_hp" ? 67
+            : 54;
+        }
+        break;
+      }
       default:
         break;
     }
@@ -166,11 +233,14 @@ export function chooseBotCards(state: GameState): string[] {
   candidates.sort((a, b) => b.priority - a.priority);
   const selected: string[] = [];
   const selectedEffects = new Set<CardEffectId>();
+  let selectedCurse = false;
   for (const candidate of candidates) {
     if (selected.length >= Math.min(2, remainingPlays)) break;
-    if (selectedEffects.has(candidate.effectId)) continue;
+    const definition = CARD_CATALOGUE.find(card => card.id === candidate.id);
+    if (selectedEffects.has(candidate.effectId) || (definition?.kind === "curse" && selectedCurse)) continue;
     selected.push(candidate.id);
     selectedEffects.add(candidate.effectId);
+    if (definition?.kind === "curse") selectedCurse = true;
     if (candidate.effectId === "heal_and_end_card_play") break;
   }
   return selected;
