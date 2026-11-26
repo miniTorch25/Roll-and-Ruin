@@ -696,7 +696,7 @@ export class BoardScene extends Phaser.Scene {
       const playerBeforeOffers = this.state.players[this.state.activePlayerIndex];
       const monsterSummary = this.runBotMonsterActions(playerBeforeOffers.id);
       const active = this.state.players[this.state.activePlayerIndex];
-      const plannedCards = chooseBotCards(this.state, Math.random);
+      const plannedCards = chooseBotCards(this.state, Math.random, this.board);
       const action: PlayerAction = plannedCards.length ? "use_cards" : chooseBotAction(active);
       let diceRolls: number[];
       let cardSummary = monsterSummary ? `${monsterSummary} · ` : "";
@@ -704,6 +704,7 @@ export class BoardScene extends Phaser.Scene {
       if (action === "use_cards") {
         this.state = selectPlayerAction(this.state, "use_cards").state;
         const usedCards: string[] = [];
+        let shortcutSteps: number | undefined;
         for (const cardId of plannedCards) {
           try {
             const played = playCatalogueCard(this.state, cardId);
@@ -718,12 +719,19 @@ export class BoardScene extends Phaser.Scene {
             const diceValues = played.card.effectId === "control_dice_values"
               ? chooseBotDiceValues(played.state, active.id)
               : undefined;
+            const shortcutMovement = played.card.effectId === "move_to_next_special_tile"
+              ? getNextSpecialTileMovement(this.board, active.position, this.state.movementDirection)
+              : undefined;
+            if (played.card.effectId === "move_to_next_special_tile" && !shortcutMovement) {
+              throw new Error("No special tile is available for Magic Shortcut.");
+            }
             const resolved = resolveCardEffect(played.state, played.card, {
               ...targets,
               selectedCardId,
               diceValues,
               deck: this.deck,
               cursePayment,
+              specialTileTargetPosition: shortcutMovement?.position,
               random: Math.random
             });
             this.state = resolved.state;
@@ -739,13 +747,16 @@ export class BoardScene extends Phaser.Scene {
               ...this.deck,
               discardPile: [...this.deck.discardPile, ...resolved.discardedCardIds, cardId]
             };
+            if (resolved.movementTargetPosition !== undefined && shortcutMovement) {
+              shortcutSteps = shortcutMovement.steps;
+            }
             usedCards.push(played.card.name + (targets.targetPlayerId ? `→${targets.targetPlayerId}` : targets.targetMonsterId ? `→${targets.targetMonsterId}` : ""));
             if (resolved.endsCardPlay) break;
           } catch {
             break;
           }
         }
-        const finished = finishCardActivity(this.state);
+        const finished = finishCardActivity(this.state, Math.random, shortcutSteps);
         this.state = finished.state;
         diceRolls = finished.diceRolls;
         cardSummary = usedCards.length ? `ใช้ไพ่ ${usedCards.join(", ")} · ` : "";
@@ -770,7 +781,10 @@ export class BoardScene extends Phaser.Scene {
         this.state = advanceMythTurn(this.state, endingPlayerId).state;
       }
       const actionLabel = action === "draw_two_roll_one" ? "จั่วไพ่" : action === "roll_two_dice" ? "ทอยเต๋า" : "ใช้ไพ่";
-      summaries.push(`${active.id} ${cardSummary}${actionLabel} (${diceRolls.join("+")})${tileMessage}`);
+      const movementSummary = action === "use_cards" && this.state.movementSteps > 0 && diceRolls.length === 0
+        ? `ทางลัด ${this.state.movementSteps} ช่อง`
+        : `(${diceRolls.join("+")})`;
+      summaries.push(`${active.id} ${cardSummary}${actionLabel} ${movementSummary}${tileMessage}`);
       this.state = this.prepareNextTurn(endPlayerTurn(this.state));
       processed++;
     }

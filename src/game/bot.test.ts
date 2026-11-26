@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { chooseBotAction, chooseBotCards, chooseBotCardTargets, chooseBotCursePayment, chooseBotDiceValues, chooseBotKingoOffering, chooseBotLegendOffering, chooseBotMythOffering, chooseBotSelectedCardId } from "./bot";
 import { createGameState } from "./turnEngine";
 import { CARD_CATALOGUE } from "../cards/catalogue";
+import { createBoardState, type BoardTile } from "./board";
 
 function stateWithHand(hand: string[], overrides: Partial<{ hp: number; maxHp: number; hearts: number; statuses: Array<{ type: "poison" | "bonus_dice"; turnsRemaining: number }> }> = {}) {
   const setup = Array.from({ length: 4 }, (_, index) => ({
@@ -174,6 +175,22 @@ describe("chooseBotCards", () => {
     const base = stateWithHand(["blue_thunderclap"]);
     const solo = { ...base, players: base.players.map((player, index) => index === 0 ? player : { ...player, status: "eliminated" as const }) };
     expect(chooseBotCards(solo)).toEqual([]);
+  });
+
+  it("uses Magic Shortcut only when the nearest special tile is useful and sufficiently far away", () => {
+    const state = stateWithHand(["yellow_magic_shortcut"]);
+    const generated = createBoardState({ mystery: 0, monster: 0, dice: 0 }, [], () => 0);
+    const usefulTiles: BoardTile[] = generated.tiles.map(tile => ({ position: tile.position }));
+    usefulTiles[5] = { position: 5, special: "mystery" };
+    expect(chooseBotCards(state, Math.random, { ...generated, tiles: usefulTiles })).toEqual(["yellow_magic_shortcut"]);
+
+    const prisonTiles: BoardTile[] = generated.tiles.map(tile => ({ position: tile.position }));
+    prisonTiles[5] = { position: 5, special: "prison" };
+    expect(chooseBotCards(state, Math.random, { ...generated, tiles: prisonTiles })).toEqual([]);
+
+    const nearTiles: BoardTile[] = generated.tiles.map(tile => ({ position: tile.position }));
+    nearTiles[2] = { position: 2, special: "dice" };
+    expect(chooseBotCards(state, Math.random, { ...generated, tiles: nearTiles })).toEqual([]);
   });
 
   it("selects the newly covered targeted Curse effects without exceeding one Curse per turn", () => {

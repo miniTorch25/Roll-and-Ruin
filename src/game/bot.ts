@@ -1,4 +1,5 @@
 import { CARD_CATALOGUE, type CardEffectId } from "../cards/catalogue";
+import { getNextSpecialTileMovement, type BoardState } from "./board";
 import type { GamePlayer, GameState, PlayerAction } from "./turnEngine";
 
 export interface BotCardTargets {
@@ -273,7 +274,7 @@ export function chooseBotCardTargets(state: GameState, cardId: string): BotCardT
 }
 
 /** Choose useful self-support or targeted attack/prank cards, never manual-choice curses. */
-export function chooseBotCards(state: GameState, random: () => number = Math.random): string[] {
+export function chooseBotCards(state: GameState, random: () => number = Math.random, board?: BoardState): string[] {
   const player = state.players[state.activePlayerIndex];
   if (!player || player.status !== "alive") return [];
   if (player.statusEffects.some(effect => effect.type === "cards_silenced" && effect.turnsRemaining > 0)) return [];
@@ -386,6 +387,13 @@ export function chooseBotCards(state: GameState, random: () => number = Math.ran
       case "damage_all_except_self":
         if (state.players.some(candidate => candidate.status === "alive" && candidate.id !== player.id)) priority = 53;
         break;
+      case "move_to_next_special_tile": {
+        const nextSpecial = board
+          ? getNextSpecialTileMovement(board, player.position, state.movementDirection)
+          : undefined;
+        if (nextSpecial && nextSpecial.tile !== "prison" && nextSpecial.steps >= 3) priority = 61;
+        break;
+      }
       case "control_dice_values":
         if (!(runtime?.diceControlUsedThisTurn ?? false) && chooseBotCursePayment(state, player.id, id)) priority = 50;
         break;
@@ -483,7 +491,7 @@ export function chooseBotCards(state: GameState, random: () => number = Math.ran
     selected.push(candidate.id);
     selectedEffects.add(candidate.effectId);
     if (definition?.kind === "curse") selectedCurse = true;
-    if (candidate.effectId === "heal_and_end_card_play") break;
+    if (candidate.effectId === "heal_and_end_card_play" || candidate.effectId === "move_to_next_special_tile") break;
   }
   return selected;
 }
