@@ -7,6 +7,8 @@ import {
   applyHecateLinkedDamage,
   getMythInteractionState,
   offerGranfelTrade,
+  offerHecateCards,
+  chooseNyxiaRandomCard,
   offerMythCards,
   notifyLuckCardUsed,
   summonMyth
@@ -118,6 +120,24 @@ describe("Myth Monsters M01-M10", () => {
     const summoned = summonMyth(game(), "M10", "void-death", deck(), () => 0);
     const death = applyPlayerDeath(summoned.state, "p1", () => 0);
     expect(death.state.monsters.find(monster => monster.id === "void-death")?.active).toBe(false);
+  });
+
+
+  it("Hecate accepts three yellow cards and awards four curses", () => {
+    let state = game();
+    state = { ...state, players: state.players.map(player => player.id === "p1"
+      ? { ...player, hand: ["yellow_peek", "yellow_peek", "yellow_peek"] }
+      : player) };
+    const summoned = summonMyth(state, "M01", "hecate-offering", deck(), () => 0);
+    const result = offerHecateCards(summoned.state, "p1", ["yellow_peek", "yellow_peek", "yellow_peek"],
+      deck(["red_forced_prison", "red_table_flip", "red_grave_robbery", "red_silence"]), () => 0);
+    expect(result.removed).toBe(true);
+    expect(result.state.players[0].hand.filter(id => id.startsWith("red_"))).toHaveLength(4);
+  });
+
+  it("Nyxia exposes only one randomly selected card ID to the action layer", () => {
+    const summoned = summonMyth(game(), "M05", "nyxia-random", deck(), () => 0);
+    expect(chooseNyxiaRandomCard(summoned.state, "p1", () => 0)).toBe("yellow_peek");
   });
 
   it("all timed Myth effects expire at their configured turn count", () => {

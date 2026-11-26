@@ -196,6 +196,52 @@ export function summonMyth(
   return { state, deck: nextDeck, messages, removed: !state.monsters.some(item => item.id === monsterId && item.active) };
 }
 
+/** Hecate accepts exactly three yellow cards and rewards four random Curse cards. */
+export function offerHecateCards(
+  input: GameState,
+  playerId: string,
+  cardIds: string[],
+  deck: CardDeckState,
+  random: () => number = Math.random
+): MythActionResult {
+  const state = input as MythGameState;
+  const runtime = activeRuntime(state);
+  if (runtime.catalogueId !== "M01") throw new Error("Only Hecate accepts this offering.");
+  if (cardIds.length !== 3 || cardIds.some(id => CARD_CATALOGUE.find(card => card.id === id)?.color !== "yellow")) {
+    throw new Error("Hecate requires exactly three yellow cards.");
+  }
+  const player = state.players.find(item => item.id === playerId && item.status === "alive");
+  if (!player) throw new Error("A living player must make the offering.");
+  const requested = new Map<string, number>();
+  for (const id of cardIds) requested.set(id, (requested.get(id) ?? 0) + 1);
+  for (const [id, count] of requested) {
+    if (player.hand.filter(cardId => cardId === id).length < count) throw new Error("Every offered card must be in the contributor's hand.");
+  }
+  const remainingHand = player.hand.filter((id, index) => {
+    const priorOccurrences = player.hand.slice(0, index).filter(cardId => cardId === id).length;
+    return priorOccurrences >= (requested.get(id) ?? 0);
+  });
+  const reward = drawMatching(deck, remainingHand, id => CARD_CATALOGUE.find(card => card.id === id)?.kind === "curse", 4, random);
+  let next: MythGameState = {
+    ...state,
+    players: state.players.map(item => item.id === playerId ? { ...item, hand: [...remainingHand, ...reward.cards] } : item),
+    monsters: state.monsters.map(monster => monster.id === runtime.monsterId ? { ...monster, active: false } : monster),
+    mythRuntime: { ...runtime, linkedHp: false, hiddenHands: false }
+  };
+  const nextDeck = { ...reward.deck, discardPile: [...reward.deck.discardPile, ...cardIds] };
+  return { state: next, deck: nextDeck, messages: [`Hecate accepts three yellow cards and grants ${reward.cards.length} Curse card(s).`], removed: true };
+}
+
+/** While Nyxia is active, this is the only card ID the UI should reveal as playable. */
+export function chooseNyxiaRandomCard(input: GameState, playerId: string, random: () => number = Math.random): string {
+  const state = input as MythGameState;
+  const runtime = activeRuntime(state);
+  if (runtime.catalogueId !== "M05" || !runtime.hiddenHands) throw new Error("Nyxia's hidden-hand effect is not active.");
+  const player = state.players.find(item => item.id === playerId && item.status === "alive");
+  if (!player || player.hand.length === 0) throw new Error("The selected player has no playable card.");
+  return player.hand[randomIndex(player.hand.length, random)];
+}
+
 /** Applies Hecate's shared damage rule to every living player. Call instead of ordinary single-target HP damage while linked. */
 export function applyHecateLinkedDamage(input: GameState, amount: number, random: () => number = Math.random): GameState {
   const state = input as MythGameState;
@@ -359,9 +405,10 @@ export function notifyLuckCardUsed(input: GameState): MythActionResult {
 /** Void disappears immediately after any player death. */
 export function notifyPlayerDeathToMyth(input: GameState): MythActionResult {
   const state = input as MythGameState;
-  const runtime = activeRuntime(state);
-  if (runtime.catalogueId !== "M10") return { state, messages: [], removed: false };
-  return { state: removeMyth(state), messages: ["Void disappears after a player dies."], removed: true };
+  const runtime = state.mythRuntime;
+  if (!runtime || runtime.catalogueId !== "M10") return { state, messages: [], removed: false };
+  const isActive = state.monsters.some(monster => monster.id === runtime.monsterId && monster.active);
+  return { state: isActive ? removeMyth(state) : state, messages: ["Void disappears after a player dies."], removed: true };
 }
 
 /** Engine/UI adapter: exposes the state needed to render Myth interactions without implying a UI exists. */
