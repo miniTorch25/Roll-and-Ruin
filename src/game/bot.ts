@@ -357,14 +357,17 @@ export function chooseBotCards(state: GameState, random: () => number = Math.ran
         const teammateId = chooseBotCardTargets(state, id).targetPlayerId;
         const teammate = state.players.find(candidate => candidate.id === teammateId);
         const hasLivingTeammate = state.players.some(candidate => candidate.id !== player.id && candidate.teamId === player.teamId && candidate.status === "alive");
-        if (getPlayerShields(state, player.id) < 3 || (teammate && getPlayerShields(state, teammate.id) < 3) || !hasLivingTeammate) priority = 54;
+        if (teammate
+          ? getPlayerShields(state, player.id) < 3 || getPlayerShields(state, teammate.id) < 3
+          : !hasLivingTeammate && getPlayerShields(state, player.id) < 3) priority = 54;
         break;
       }
       case "gain_shield_and_block_attack_cards":
         if (getPlayerShields(state, player.id) < 3 && !runtime?.blockedAttackCardsThisTurn) priority = 58;
         break;
       case "boost_attack_damage":
-        if (player.hand.some(cardId => CARD_CATALOGUE.find(candidate => candidate.id === cardId)?.kind === "attack") &&
+        if (!runtime?.blockedAttackCardsThisTurn &&
+            player.hand.some(cardId => CARD_CATALOGUE.find(candidate => candidate.id === cardId)?.kind === "attack") &&
             (runtime?.attackDamageBonus ?? 0) === 0) priority = 57;
         break;
       case "boost_defense_shield":
