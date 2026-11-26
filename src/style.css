@@ -67,3 +67,26 @@ ul{margin:0;padding-left:18px;color:#b8c4d5;font-size:11px;line-height:1.9}foote
 .kingo-dialog__error{min-height:16px;margin:0;color:#f09b9b;font-size:11px}
 .kingo-dialog__actions{display:flex;justify-content:flex-end;gap:8px}
 @media(max-width:520px){.kingo-dialog__content{padding:14px}.kingo-dialog__cards{grid-template-columns:1fr}.kingo-dialog__players{max-height:38vh}}
+
+
+/* Reusable in-game target and card selection dialogs */
+.game-choice-dialog{width:min(620px,calc(100vw - 28px));max-height:min(84vh,780px);padding:0;border:1px solid #53647b;border-radius:14px;background:#1b2330;color:#e9edf5;box-shadow:0 24px 80px #0009}
+.game-choice-dialog::backdrop{background:#080c13c9;backdrop-filter:blur(3px)}
+.game-choice-dialog__content{display:grid;gap:12px;padding:20px}
+.game-choice-dialog__content h2{margin:0;font-size:20px}
+.game-choice-dialog__description{margin:0;color:#bac6d7;font-size:12px;line-height:1.6}
+.game-choice-dialog__options,.game-choice-dialog__cards{display:grid;gap:8px;max-height:48vh;overflow:auto;padding:2px}
+.game-choice-dialog__option{display:grid;gap:4px;width:100%;text-align:left;background:#2b394c;color:#edf3fb;border:1px solid #465a73}
+.game-choice-dialog__option small{color:#b7c5d7;font-size:10px;font-weight:400}
+.game-choice-dialog__cards{grid-template-columns:repeat(2,minmax(0,1fr))}
+.game-choice-dialog__card{display:flex;align-items:center;gap:8px;min-width:0;padding:9px;border:1px solid #42536a;border-radius:7px;background:#2b394c;cursor:pointer}
+.game-choice-dialog__card:has(input:checked){border-color:#e3ad62;background:#3a3c3a}
+.game-choice-dialog__card input{accent-color:#dfa75b;flex:0 0 auto}
+.game-choice-dialog__card span{display:grid;min-width:0;gap:2px}
+.game-choice-dialog__card strong{font-size:11px;overflow-wrap:anywhere}
+.game-choice-dialog__card small{color:#aebbd0;font-size:9px;overflow-wrap:anywhere}
+.game-choice-dialog__card:has(input:disabled){opacity:.35;cursor:not-allowed}
+.game-choice-dialog__count{margin:0;padding:8px 11px;border:1px solid #52627a;border-radius:8px;background:#29384b;color:#f2c77f;font-size:12px;font-weight:700}
+.game-choice-dialog__input{width:100%;padding:11px;border:1px solid #52627a;border-radius:8px;background:#111a27;color:#f0f2f7;font:inherit}
+.game-choice-dialog__actions{display:flex;justify-content:flex-end;gap:8px}
+@media(max-width:520px){.game-choice-dialog__content{padding:14px}.game-choice-dialog__cards{grid-template-columns:1fr}.game-choice-dialog__options,.game-choice-dialog__cards{max-height:40vh}}
