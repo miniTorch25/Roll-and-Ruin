@@ -71,12 +71,20 @@ describe("catalogue monster runtime", () => {
     expect(hit.state.monsters[0].active).toBe(true);
   });
 
-  it("enforces the four-active-monster limit", () => {
+  it("enforces the five-active-monster limit", () => {
     let state = gameState();
-    for (let index = 0; index < 4; index++) {
+    for (let index = 0; index < 5; index++) {
       state = summonRandomMonster(state, "Common", `monster-${index}`, () => 0).state;
     }
-    expect(() => summonRandomMonster(state, "Rare", "monster-5", () => 0)).toThrow(/maximum of four/);
+    expect(() => summonRandomMonster(state, "Rare", "monster-6", () => 0)).toThrow(/maximum of 5/);
+  });
+
+  it("enforces the Epic rank limit independently of total board capacity", () => {
+    let state = gameState();
+    for (let index = 0; index < 4; index++) {
+      state = summonRandomMonster(state, "Epic", `epic-${index}`, () => 0).state;
+    }
+    expect(() => summonRandomMonster(state, "Epic", "epic-5", () => 0)).toThrow(/Epic monster limit/);
   });
 
   it("clears active monsters without deleting their historical records", () => {
