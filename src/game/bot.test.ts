@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { chooseBotAction, chooseBotCards, chooseBotCardTargets, chooseBotCursePayment } from "./bot";
 import { createGameState } from "./turnEngine";
+import { CARD_CATALOGUE } from "../cards/catalogue";
 
 function stateWithHand(hand: string[], overrides: Partial<{ hp: number; maxHp: number; hearts: number; statuses: Array<{ type: "poison" | "bonus_dice"; turnsRemaining: number }> }> = {}) {
   const setup = Array.from({ length: 4 }, (_, index) => ({
@@ -121,5 +122,28 @@ describe("chooseBotCards", () => {
     const state = stateWithHand(["blue_common_sword", "red_instant_kill", "red_summon_common", "yellow_sleep_spell"]);
     const solo = { ...state, players: state.players.map((player, index) => index === 0 ? player : { ...player, status: "eliminated" as const }) };
     expect(chooseBotCards(solo)).toEqual([]);
+  });
+});
+
+describe("bot monster offerings", () => {
+  it("selects the exact card types required by a Legend offering", () => {
+    const state = stateWithHand(["yellow_peek", "yellow_sleep_spell", "blue_common_sword", "green_herbal_potion"]);
+    const legend = { ...state, monsters: [{ id: "l02", catalogueId: "L02", name: "Sphinxy", rank: "Legend" as const, hp: null, maxHp: null, attackPattern: "random_living" as const, attackInterval: null, turnsSinceLastAttack: 0, active: true }] };
+    const offering = chooseBotLegendOffering(legend, "l02");
+    expect(offering?.cardIds).toHaveLength(2);
+    expect(offering?.cardIds.every(id => CARD_CATALOGUE.find(card => card.id === id)?.color === "yellow")).toBe(true);
+  });
+  it("contributes only the remaining number of cards to Ragnar", () => {
+    const state = stateWithHand(["yellow_peek", "blue_common_sword", "green_herbal_potion", "blue_wooden_shield"]);
+    const myth = { ...state, monsters: [{ id: "m06", catalogueId: "M06", name: "Ragnar", rank: "Myth" as const, hp: 99999, maxHp: 99999, attackPattern: "all_living" as const, attackInterval: 2, turnsSinceLastAttack: 0, active: true }],
+      mythRuntime: { monsterId: "m06", catalogueId: "M06", offerings: { p2: ["blue_common_sword", "green_herbal_potion", "yellow_peek", "blue_wooden_shield", "green_life_core", "blue_iron_shield", "yellow_card_rain", "green_extra_heart"] } } };
+    expect(chooseBotMythOffering(myth, "m06")).toHaveLength(2);
+  });
+  it("offers only colors Ouro still needs", () => {
+    const state = stateWithHand(["yellow_peek", "blue_common_sword", "green_herbal_potion", "red_instant_kill"]);
+    const myth = { ...state, monsters: [{ id: "m08", catalogueId: "M08", name: "Ouro", rank: "Myth" as const, hp: null, maxHp: null, attackPattern: "all_living" as const, attackInterval: 1, turnsSinceLastAttack: 0, active: true }],
+      mythRuntime: { monsterId: "m08", catalogueId: "M08", offerings: { p2: ["yellow_peek", "red_instant_kill"] } } };
+    const cards = chooseBotMythOffering(myth, "m08");
+    expect(cards.map(id => CARD_CATALOGUE.find(card => card.id === id)?.color).sort()).toEqual(["blue", "green"]);
   });
 });
