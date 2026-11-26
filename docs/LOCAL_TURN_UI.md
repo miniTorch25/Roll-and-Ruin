@@ -18,7 +18,8 @@ The Phaser BoardScene now uses the approved card catalogue, turn engine, monster
 - Myth actions include Hecate's three-card offering, Granfel's yellow-card exchange, Ragnar/Ouro offerings, and Lucy's bargain.
 - Legend monsters expose their offering action and validate offerings through the Legend engine.
 - Nyxia hides card identities and exposes only a random-card action.
-- Webby's reward suppression reaches the reward resolver because the UI passes the shared deck into card resolution.
+- Myth summon cards choose M01–M10 and run the Myth summon effect before resolving any first-summon attack.
+- Webby's Attack-card defeat flag is passed into `resolveMonsterDefeatRewards`; its normal reward is suppressed while the shared deck remains unchanged.
 
 ## Engine versus UI status
 | Feature | Engine | Player-facing UI |
@@ -28,7 +29,7 @@ The Phaser BoardScene now uses the approved card catalogue, turn engine, monster
 | Legend offerings | Implemented | Single-player offering flow connected |
 | Monster scheduled attacks | Implemented | Resolved during turn preparation |
 | Summon capacity warnings | Implemented | Displayed |
-| Webby reward suppression | Implemented | Passed through the shared reward consumer |
+| Webby reward suppression | Implemented and covered by effect-resolver test | Consumed by shared reward resolver |
 
 ## Remaining prototype limitations
 - The four local players are placeholders in one browser session, not network-connected players.

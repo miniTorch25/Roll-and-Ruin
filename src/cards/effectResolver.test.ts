@@ -928,6 +928,51 @@ describe("monster card effects", () => {
     expect(result.damageEvents).toEqual([]);
   });
 
+  it("routes Myth summon cards through the Myth engine and emits first-summon attacks", () => {
+    const result = resolveCardEffect(cardPlayState(), "red_summon_myth", {
+      deck: { drawPile: [], discardPile: [] },
+      random: () => 0.15
+    });
+    expect(result.state.monsters[0]).toMatchObject({
+      catalogueId: "M02",
+      rank: "Myth",
+      hp: null,
+      attackDamage: 1,
+      active: true
+    });
+    expect(result.monsterSummonEvents).toEqual([{
+      monsterId: result.state.monsters[0].id,
+      targetPlayerIds: ["p1", "p2", "p3", "p4"],
+      reason: "first_summon"
+    }]);
+    expect(result.state.mythRuntime).toMatchObject({ catalogueId: "M02" });
+  });
+
+  it("runs Pandy's summon draw effect through the shared deck consumer", () => {
+    const pile = Array.from({ length: 12 }, () => "blue_common_sword");
+    const result = resolveCardEffect(cardPlayState(), "red_summon_myth", {
+      deck: { drawPile: pile, discardPile: [] },
+      random: () => 0.65
+    });
+    expect(result.state.mythRuntime).toBeUndefined();
+    expect(result.state.players.every(player => player.hand.length === 7)).toBe(true);
+    expect(result.deck?.drawPile).toHaveLength(0);
+  });
+
+  it("suppresses Webby's normal monster reward when defeated by an Attack card", () => {
+    const summoned = summonRandomMonster(cardPlayState(), "Common", "webby", () => 0.4);
+    expect(summoned.monster.catalogueId).toBe("C05");
+    const deck = { drawPile: ["yellow_peek", "yellow_peek", "yellow_peek"], discardPile: [] };
+    const result = resolveCardEffect(summoned.state, "blue_monster_hunter", {
+      targetMonsterId: "webby",
+      deck,
+      random: () => 0
+    });
+    expect(result.monsterDamageEvents[0]).toMatchObject({ defeated: true, rewardSuppressed: true });
+    expect(result.monsterRewardEvents).toEqual([{ monsterId: "webby", playerId: "p1", cardIds: [] }]);
+    expect(result.deck?.drawPile).toEqual(deck.drawPile);
+  });
+
   it("requires a monster target for Monster Hunter", () => {
     expect(() => resolveCardEffect(cardPlayState(), "blue_monster_hunter")).toThrow(/targetMonsterId/);
   });
