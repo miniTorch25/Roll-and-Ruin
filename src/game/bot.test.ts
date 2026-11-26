@@ -149,6 +149,35 @@ describe("chooseBotCards", () => {
     expect(chooseBotDiceValues(withBonus, "p1")).toEqual([6, 6, 6]);
   });
 
+  it("uses support buffs when they can improve a card still in hand", () => {
+    expect(chooseBotCards(stateWithHand(["green_brave_spirit", "blue_common_sword"]))).toContain("green_brave_spirit");
+    expect(chooseBotCards(stateWithHand(["green_power_armor", "blue_wooden_shield"]))).toContain("green_power_armor");
+    expect(chooseBotCards(stateWithHand(["green_double_blessing"]))).toContain("green_double_blessing");
+  });
+
+  it("uses shields only when capacity remains and selects a living teammate", () => {
+    const state = stateWithHand(["blue_wooden_shield", "blue_double_wall"]);
+    const teamState = { ...state, players: state.players.map((player, index) => index < 2 ? { ...player, teamId: "shared-team" } : player) };
+    expect(chooseBotCards(teamState)).toEqual(expect.arrayContaining(["blue_wooden_shield", "blue_double_wall"]));
+    expect(chooseBotCardTargets(teamState, "blue_double_wall").targetPlayerId).toBe("p2");
+    const capped = { ...teamState, cardRuntime: { players: { p1: { shields: 3 }, p2: { shields: 3 } } } };
+    expect(chooseBotCards(capped)).toEqual([]);
+  });
+
+  it("uses area damage and distributed draws only when useful recipients exist", () => {
+    expect(chooseBotCards(stateWithHand(["blue_thunderclap"]))).toContain("blue_thunderclap");
+    expect(chooseBotCards(stateWithHand(["yellow_card_gift"]))).toContain("yellow_card_gift");
+    const base = stateWithHand(["blue_thunderclap"]);
+    const solo = { ...base, players: base.players.map((player, index) => index === 0 ? player : { ...player, status: "eliminated" as const }) };
+    expect(chooseBotCards(solo)).toEqual([]);
+  });
+
+  it("selects the newly covered targeted Curse effects", () => {
+    const state = stateWithHand(["red_cursed_dice", "red_public_hand"]);
+    expect(chooseBotCards(state)).toEqual(expect.arrayContaining(["red_cursed_dice", "red_public_hand"]));
+    expect(chooseBotCardTargets(state, "red_cursed_dice").targetPlayerId).toBe("p2");
+  });
+
   it("does not select targeted cards when no legal target exists", () => {
     const state = stateWithHand(["blue_common_sword", "red_instant_kill", "yellow_sleep_spell"]);
     const solo = { ...state, players: state.players.map((player, index) => index === 0 ? player : { ...player, status: "eliminated" as const }) };
