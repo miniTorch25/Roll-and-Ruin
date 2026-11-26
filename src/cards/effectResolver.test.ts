@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { createGameState, resolveMonsterAttackPhase, selectPlayerAction, startPlayerTurn } from "../game/turnEngine";
-import { advanceCurseCooldown, resolveCardEffect, resolveMonsterAttackEvents, type CardEffectGameState } from "./effectResolver";
+import { advanceCurseCooldown, isCardEffectImplemented, resolveCardEffect, resolveMonsterAttackEvents, type CardEffectGameState } from "./effectResolver";
+import { CARD_CATALOGUE } from "./catalogue";
 import { summonRandomMonster } from "../monsters/engine";
 
 function cardPlayState(mode: "1x4" | "2v2" = "1x4"): CardEffectGameState {
@@ -65,6 +66,12 @@ function withRuntime(
     }
   };
 }
+
+describe("catalogue effect coverage", () => {
+  it("implements every Effect ID used by the authoritative 60-card catalogue", () => {
+    expect(CARD_CATALOGUE.every(card => isCardEffectImplemented(card.effectId))).toBe(true);
+  });
+});
 
 describe("Joker chaos card", () => {
   it("automatically assigns one random Curse to every living player, including the Joker user, without payment", () => {
