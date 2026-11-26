@@ -292,7 +292,7 @@ describe("Roll and Ruin turn engine", () => {
       ...readyState(),
       players: readyState().players.map((player, index) => ({
         ...player,
-        score: index < 2 ? 10 : 4,
+        score: index === 0 ? 12 : index === 1 ? 10 : 4,
         status: index === 1 ? "eliminated" as const : "alive" as const
       }))
     };
